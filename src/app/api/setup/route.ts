@@ -49,11 +49,18 @@ export async function POST(request: NextRequest) {
 
     const { name, email, password } = body;
 
-    const adminEmail = (email && typeof email === "string") ? email.trim().toLowerCase() : "admin@dark-crm.com";
+    const adminEmail = (email && typeof email === "string" && email.includes("@")) ? email.trim().toLowerCase() : null;
     const adminName = (name && typeof name === "string") ? name.trim() : "المدير العام";
     const adminPassword = (password && typeof password === "string" && password.length >= 8)
       ? password
       : null;
+
+    if (!adminEmail) {
+      return NextResponse.json(
+        { error: "البريد الإلكتروني مطلوب وصحيح." },
+        { status: 400 }
+      );
+    }
 
     if (!adminPassword) {
       return NextResponse.json(

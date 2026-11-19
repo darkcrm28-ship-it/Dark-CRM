@@ -10,20 +10,18 @@ datasource db {
 }
 
 model User {
-  id            String    @id @default(uuid())
-  name          String
-  email         String    @unique
-  password      String
-  role          String    @default("SALES_EMPLOYEE")
-  phone         String?
-  nationalId    String?
-  address       String?
-  dateJoined    DateTime?
-  salaryBase    Float?    @default(0)
-  isActive      Boolean   @default(true)
-  expertAreas   String?   // Comma-separated areas of expertise
-  
-  // Employee Profile Fields
+  id                    String         @id @default(uuid())
+  name                  String
+  email                 String         @unique
+  password              String
+  role                  String         @default("SALES_EMPLOYEE")
+  phone                 String?
+  nationalId            String?
+  address               String?
+  dateJoined            DateTime?
+  salaryBase            Float?         @default(0)
+  isActive              Boolean        @default(true)
+  expertAreas           String?
   birthDate             DateTime?
   emergencyContactName  String?
   emergencyContactPhone String?
@@ -32,18 +30,16 @@ model User {
   experience            String?
   contractStartDate     DateTime?
   contractEndDate       DateTime?
-  profileCompleted      Boolean   @default(false)
-
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-
-  customers     Customer[] @relation("AssignedTo")
-  interactions  Interaction[]
-  commissions   Commission[]
-  auditLogs     AuditLog[]
-  reminders     Reminder[]
-  deals         Deal[]     @relation("SalesRep")
-  notifications Notification[]
+  profileCompleted      Boolean        @default(false)
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+  auditLogs             AuditLog[]
+  commissions           Commission[]
+  customers             Customer[]     @relation("AssignedTo")
+  deals                 Deal[]         @relation("SalesRep")
+  interactions          Interaction[]
+  notifications         Notification[]
+  reminders             Reminder[]
 }
 
 model Project {
@@ -64,12 +60,8 @@ model Customer {
   status                String        @default("POTENTIAL_SELLER")
   source                String?
   area                  String?
-  propertyType          String?       
-  
-  // Dynamic Custom Data
+  propertyType          String?
   customData            Json?         @default("{}")
-
-  // New unified fields for Sellers (Units) and Buyers (Preferences)
   governorate           String?
   city                  String?
   executingCompany      String?
@@ -80,15 +72,11 @@ model Customer {
   finishing             String?
   unitSize              Float?
   preferencesSummary    String?
-  
-  // New operational fields
-  unitStatus            String?       // VACANT, RENTED, OCCUPIED, etc.
+  unitStatus            String?
   isNegotiable          Boolean?      @default(false)
-  viewingTimes          String?       // Available viewing times
-  paperworkStatus       String?       // Details about paperwork status
-  
-  // Legacy fields to preserve data during migration
-  projectName           String?       
+  viewingTimes          String?
+  paperworkStatus       String?
+  projectName           String?
   unitNumber            String?
   zoneNumber            String?
   buildingNumber        String?
@@ -102,23 +90,19 @@ model Customer {
   preferredZone         String?
   preferredSize         Float?        @default(0)
   lastInteractionAt     DateTime?
-
-  // Installment Details
   installmentAmount     Float?        @default(0)
   installmentRemaining  Int?          @default(0)
   installmentDetails    String?
-  
   isArchived            Boolean       @default(false)
   createdAt             DateTime      @default(now())
   updatedAt             DateTime      @updatedAt
-
   projectId             String?
-  project               Project?      @relation(fields: [projectId], references: [id])
   assignedToId          String?
-  assignedTo            User?         @relation("AssignedTo", fields: [assignedToId], references: [id])
   leadScore             Int           @default(3)
-  interactions          Interaction[]
+  assignedTo            User?         @relation("AssignedTo", fields: [assignedToId], references: [id])
+  project               Project?      @relation(fields: [projectId], references: [id])
   deals                 Deal[]
+  interactions          Interaction[]
   reminders             Reminder[]
 
   @@index([assignedToId])
@@ -147,59 +131,56 @@ model Property {
   price                 Float?
   status                String   @default("AVAILABLE")
   description           String?
-  images                String?  
+  images                String?
   monthlyInstallment    Float?
   remainingMonths       Int?
   installmentType       String?  @default("FIXED")
   installmentPercentage Float?
-
-  // Dynamic Custom Data
   customData            Json?    @default("{}")
-
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
   deals                 Deal[]
 }
 
 model CustomFieldDefinition {
-  id          String   @id @default(uuid())
-  entityType  String   // CUSTOMER, PROPERTY
-  label       String   // Arabic Label
-  name        String   // Field key in Json
-  fieldType   String   // TEXT, NUMBER, DATE, SELECT
-  options     String?  // Comma-separated options for SELECT
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id         String   @id @default(uuid())
+  entityType String
+  label      String
+  name       String
+  fieldType  String
+  options    String?
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 }
 
 model Deal {
-  id            String   @id @default(uuid())
+  id            String    @id @default(uuid())
   customerId    String
-  customer      Customer @relation(fields: [customerId], references: [id])
   propertyId    String?
-  property      Property? @relation(fields: [propertyId], references: [id])
   salesRepId    String?
-  salesRep      User?    @relation("SalesRep", fields: [salesRepId], references: [id])
-  status        String   
+  status        String
   value         Float
   commission    Float?
   commissionAmt Float?
   finalPrice    Float?
   closedAt      DateTime?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  customer      Customer  @relation(fields: [customerId], references: [id])
+  property      Property? @relation(fields: [propertyId], references: [id])
+  salesRep      User?     @relation("SalesRep", fields: [salesRepId], references: [id])
 }
 
 model Interaction {
-  id            String   @id @default(uuid())
-  customerId    String
-  customer      Customer @relation(fields: [customerId], references: [id])
-  userId        String
-  user          User     @relation(fields: [userId], references: [id])
-  type          String   
-  notes         String
-  createdAt     DateTime @default(now())
+  id         String   @id @default(uuid())
+  customerId String
+  userId     String
+  type       String
+  notes      String
+  createdAt  DateTime @default(now())
+  customer   Customer @relation(fields: [customerId], references: [id])
+  user       User     @relation(fields: [userId], references: [id])
 
   @@index([customerId])
   @@index([userId])
@@ -207,15 +188,15 @@ model Interaction {
 }
 
 model Reminder {
-  id            String   @id @default(uuid())
-  userId        String?
-  user          User?    @relation(fields: [userId], references: [id])
-  customerId    String
-  customer      Customer @relation(fields: [customerId], references: [id])
-  title         String
-  dueDate       DateTime
-  status        String   @default("PENDING")
-  createdAt     DateTime @default(now())
+  id         String   @id @default(uuid())
+  userId     String?
+  customerId String
+  title      String
+  dueDate    DateTime
+  status     String   @default("PENDING")
+  createdAt  DateTime @default(now())
+  customer   Customer @relation(fields: [customerId], references: [id])
+  user       User?    @relation(fields: [userId], references: [id])
 
   @@index([userId])
   @@index([customerId])
@@ -226,13 +207,13 @@ model Reminder {
 model Notification {
   id        String   @id @default(uuid())
   userId    String
-  user      User     @relation(fields: [userId], references: [id])
   title     String
   body      String
-  type      String   @default("INFO") // INFO, SUCCESS, WARNING, ERROR
+  type      String   @default("INFO")
   read      Boolean  @default(false)
   link      String?
   createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
 
   @@index([userId])
   @@index([read])
@@ -240,35 +221,35 @@ model Notification {
 }
 
 model Commission {
-  id            String   @id @default(uuid())
-  userId        String
-  user          User     @relation(fields: [userId], references: [id])
-  amount        Float
-  status        String   @default("PENDING")
-  notes         String?
-  createdAt     DateTime @default(now())
+  id        String   @id @default(uuid())
+  userId    String
+  amount    Float
+  status    String   @default("PENDING")
+  notes     String?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
 }
 
 model AuditLog {
-  id            String   @id @default(uuid())
-  userId        String
-  user          User     @relation(fields: [userId], references: [id])
-  action        String
-  entity        String
-  entityId      String
-  details       String?
-  createdAt     DateTime @default(now())
+  id        String   @id @default(uuid())
+  userId    String
+  action    String
+  entity    String
+  entityId  String
+  details   String?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
 }
 
 model SystemSettings {
-  id                String  @id @default("GLOBAL")
-  kanbanEnabled     Boolean @default(true)
-  voiceSearchEnabled Boolean @default(true)
-  smartLoggingEnabled Boolean @default(true)
-  darkModeEnabled    Boolean @default(true)
-  bulkActionsEnabled Boolean @default(true)
-  internalMentionsEnabled Boolean @default(true)
-  updatedAt         DateTime @updatedAt
+  id                      String   @id @default("GLOBAL")
+  kanbanEnabled           Boolean  @default(true)
+  voiceSearchEnabled      Boolean  @default(true)
+  smartLoggingEnabled     Boolean  @default(true)
+  darkModeEnabled         Boolean  @default(true)
+  bulkActionsEnabled      Boolean  @default(true)
+  internalMentionsEnabled Boolean  @default(true)
+  updatedAt               DateTime @updatedAt
 }
 
 model PushSubscription {
@@ -282,16 +263,13 @@ model PushSubscription {
 
 model FinancialTransaction {
   id          String   @id @default(uuid())
-  type        String   // INCOME, EXPENSE
-  category    String   // SALARY, RENT, COMMISSION, REVENUE, OTHER_EXPENSE
+  type        String
+  category    String
   amount      Float
   description String?
-  status      String   @default("COMPLETED") // PENDING, COMPLETED
+  status      String   @default("COMPLETED")
   date        DateTime @default(now())
-  
-  // Link to other entities if applicable
-  relatedId   String?  // Optional ID for deals, commissions, etc.
-  
+  relatedId   String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }

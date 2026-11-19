@@ -20,9 +20,15 @@ const adapter = new PrismaNeon(pool);
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
-  const email = process.argv[2] || "admin@dark-crm.com";
-  const password = process.argv[3] || "DarkAdmin2026!Secure";
-  const name = process.argv[4] || "المدير العام";
+  const email = process.env.ADMIN_EMAIL || process.argv[2];
+  const password = process.env.ADMIN_PASSWORD || process.argv[3];
+  const name = process.env.ADMIN_NAME || process.argv[4] || "المدير العام";
+
+  if (!email || !password) {
+    console.error("Usage: node scripts/seed-admin.js <email> <password> [name]");
+    console.error("Or set ADMIN_EMAIL and ADMIN_PASSWORD in your environment.");
+    process.exit(1);
+  }
 
   console.log(`Setting up General Manager account: ${email}`);
 

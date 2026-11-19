@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Lock, Mail, Eye, EyeOff, Sparkles, ShieldCheck, ArrowLeft, Building2, CheckCircle2 } from "lucide-react";
+import { Lock, Mail, Eye, EyeOff, ShieldCheck, ArrowLeft, Building2, CheckCircle2 } from "lucide-react";
 import PWAButtons from "@/components/PWAButtons";
 
 export default function LoginPage() {
@@ -35,10 +35,7 @@ export default function LoginPage() {
     }
   };
 
-  const fillAdminCredentials = () => {
-    setEmail("admin@dark-crm.com");
-    setPassword("DarkAdmin2026!Secure");
-  };
+
 
   return (
     <div className="login-page-container">
@@ -141,7 +138,7 @@ export default function LoginPage() {
             </div>
           </div>
 
-          {/* Remember Me & Demo Helper */}
+          {/* Remember Me */}
           <div className="login-options-row">
             <label className="remember-checkbox-label">
               <input
@@ -152,16 +149,6 @@ export default function LoginPage() {
               />
               <span>تذكر بياناتي</span>
             </label>
-
-            <button
-              type="button"
-              onClick={fillAdminCredentials}
-              className="demo-fill-btn"
-              title="تعبئة بيانات حساب المدير المعتمد"
-            >
-              <Sparkles size={13} />
-              <span>حساب المدير</span>
-            </button>
           </div>
 
           {/* Submit Button */}
