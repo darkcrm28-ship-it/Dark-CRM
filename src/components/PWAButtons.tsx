@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { urlBase64ToUint8Array } from "@/lib/push-utils";
 
-const VAPID_PUBLIC_KEY = "BK5v8TNn6qNsH6q3GWTUEkGd4MKO__lmSHfkLf4WibqtkzJFobcjGpwUraQGtLwvqqrl3TYcwI3IIZJDgsQVH4U";
+const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || "";
 
 export default function PWAButtons() {
   const [installPrompt, setInstallPrompt] = useState<any>(null);

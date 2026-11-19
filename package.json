@@ -5,10 +5,16 @@
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && next build",
+    "build:cf": "prisma generate && opennextjs-cloudflare build --dangerouslyUseUnsupportedNextVersion",
+    "preview:cf": "opennextjs-cloudflare preview",
+    "deploy:cf": "opennextjs-cloudflare deploy",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "seed:admin": "node scripts/seed-admin.js"
   },
   "dependencies": {
+    "@neondatabase/serverless": "^0.10.4",
+    "@prisma/adapter-neon": "^5.22.0",
     "@prisma/client": "^5.22.0",
     "bcryptjs": "^3.0.3",
     "html2canvas": "^1.4.1",
@@ -22,16 +28,20 @@
     "react-dom": "^18",
     "recharts": "^3.8.1",
     "web-push": "^3.6.7",
+    "ws": "^8.23.0",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@opennextjs/cloudflare": "^1.20.17",
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
+    "@types/ws": "^8.18.2",
     "dotenv": "^17.4.2",
     "eslint": "^8",
     "eslint-config-next": "14.2.35",
-    "typescript": "^5"
+    "typescript": "^5",
+    "wrangler": "^4.165.0"
   }
 }

@@ -2,9 +2,14 @@ import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
-// Ensure there is a secret for signing JWTs
-const secretKey = process.env.JWT_SECRET || "default_super_secret_key_for_development";
-const key = new TextEncoder().encode(secretKey);
+const secretKey = process.env.JWT_SECRET;
+if (!secretKey && process.env.NODE_ENV === "production") {
+  throw new Error("CRITICAL SECURITY ERROR: JWT_SECRET environment variable is not set!");
+}
+
+const key = new TextEncoder().encode(
+  secretKey || "development_only_secret_key_change_in_production_32chars"
+);
 
 export async function encrypt(payload: any) {
   return await new SignJWT(payload)
@@ -32,7 +37,6 @@ export async function updateSession(request: any) {
   if (!session) return;
 
   const parsed = await decrypt(session);
-  // We keep the payload expiration but remove the cookie expiration to make it a session cookie
   const res = NextResponse.next();
   res.headers.append(
     "Set-Cookie",

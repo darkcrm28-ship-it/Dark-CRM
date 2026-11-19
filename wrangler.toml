@@ -1,0 +1,15 @@
+name = "dark-crm"
+main = ".open-next/worker.js"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+assets = { directory = ".open-next/assets", binding = "ASSETS" }
+
+# Environment variables (public or non-sensitive)
+[vars]
+NEXT_PUBLIC_VAPID_PUBLIC_KEY = "BHv0Zr3M-3G1oz3gLOhvrPbsWHGXrq6Q5LCbS0Y8RHDTJAxxDdayXBUrxX9Aj0kHwW0Y0wdTRa9EgiBSvPTTOYc"
+
+# Note: Sensitive variables MUST be set in Cloudflare Dashboard Secrets or via `wrangler secret put`:
+# - DATABASE_URL
+# - JWT_SECRET
+# - SETUP_SECRET
+# - VAPID_PRIVATE_KEY

@@ -1,17 +1,36 @@
 import webpush from "web-push";
 import { prisma } from "./db";
 
-const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || "BK5v8TNn6qNsH6q3GWTUEkGd4MKO__lmSHfkLf4WibqtkzJFobcjGpwUraQGtLwvqqrl3TYcwI3IIZJDgsQVH4U";
-const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || "6SeXFwoMq6iQHyS6nrSkch5FrMUzbphOjKq1mizbbNI";
+let vapidConfigured = false;
 
-webpush.setVapidDetails(
-  "mailto:support@darek-crm.com",
-  VAPID_PUBLIC_KEY,
-  VAPID_PRIVATE_KEY
-);
+function ensureVapidConfigured(): boolean {
+  if (vapidConfigured) return true;
+
+  const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+  const privateKey = process.env.VAPID_PRIVATE_KEY;
+  const subject = process.env.VAPID_SUBJECT || "mailto:support@dark-crm.com";
+
+  if (!publicKey || !privateKey) {
+    return false;
+  }
+
+  try {
+    webpush.setVapidDetails(subject, publicKey, privateKey);
+    vapidConfigured = true;
+    return true;
+  } catch (err) {
+    console.error("Failed to configure VAPID details:", err);
+    return false;
+  }
+}
 
 export async function sendPushNotification(userId: string, title: string, body: string, url?: string) {
   try {
+    if (!ensureVapidConfigured()) {
+      console.warn("Push notification skipped: VAPID keys not configured in environment.");
+      return { success: false, error: "VAPID keys not configured" };
+    }
+
     const subscriptions = await prisma.pushSubscription.findMany({
       where: { userId },
     });
