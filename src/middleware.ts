@@ -1,7 +1,13 @@
+
 import { NextRequest, NextResponse } from "next/server";
 import { decrypt } from "@/lib/auth";
 
-const publicExactRoutes = ["/", "/login", "/api/auth/login", "/api/setup"];
+const publicExactRoutes = [
+  "/",
+  "/login",
+  "/api/auth/login",
+  "/api/setup",
+];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -11,8 +17,7 @@ export async function middleware(request: NextRequest) {
     publicExactRoutes.includes(pathname) ||
     pathname.startsWith("/share/") ||
     pathname.startsWith("/properties") ||
-    pathname.startsWith("/api/public/") ||
-    pathname.startsWith("/api/upload")
+    pathname.startsWith("/api/public/")
   ) {
     return NextResponse.next();
   }
@@ -26,7 +31,10 @@ export async function middleware(request: NextRequest) {
 
   try {
     const payload = await decrypt(session);
-    if (!payload) throw new Error("Invalid session");
+
+    if (!payload) {
+      throw new Error("Invalid session");
+    }
 
     return NextResponse.next();
   } catch {

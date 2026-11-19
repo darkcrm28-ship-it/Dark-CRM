@@ -1,79 +1,101 @@
+
 import { NextRequest, NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
-const MAX_FILE_SIZE = 500 * 1024; // 500 KB limit
-const ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp", "image/jpg"];
+const MAX_FILE_SIZE = 500 * 1024;
+const ALLOWED_MIME_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+];
 
 export async function POST(request: NextRequest) {
   try {
-    const formData = await request.formData();
-    const file = formData.get("file") as File | null;
+    const privateKey = process.env.IMAGEKIT_PRIVATE_KEY;
 
-    if (!file) {
-      return NextResponse.json({ error: "لم يتم اختيار أي ملف" }, { status: 400 });
+    if (!privateKey) {
+      console.error("IMAGEKIT_PRIVATE_KEY is missing");
+      return NextResponse.json(
+        { error: "إعدادات تخزين الصور غير مكتملة." },
+        { status: 500 }
+      );
     }
 
-    // 1. Validate file size (Max 500 KB)
-    if (file.size > MAX_FILE_SIZE) {
+    const incoming = await request.formData();
+    const file = incoming.get("file");
+
+    if (!(file instanceof File)) {
       return NextResponse.json(
-        { error: `حجم الصورة (${(file.size / 1024).toFixed(0)} ك.ب) يتجاوز الحد الأقصى المسموح به وهو 500 كيلوبايت.` },
+        { error: "لم يتم اختيار صورة صحيحة." },
         { status: 400 }
       );
     }
 
-    // 2. Validate MIME type
+    if (file.size === 0 || file.size > MAX_FILE_SIZE) {
+      return NextResponse.json(
+        { error: "حجم الصورة يجب ألا يتجاوز 500 كيلوبايت." },
+        { status: 400 }
+      );
+    }
+
     if (!ALLOWED_MIME_TYPES.includes(file.type.toLowerCase())) {
       return NextResponse.json(
-        { error: "نوع الملف غير مدعوم. يرجى رفع صور بصيغة JPG أو PNG أو WebP فقط." },
+        { error: "الصيغ المدعومة هي JPG وPNG وWebP فقط." },
         { status: 400 }
       );
     }
 
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
-    const ext = file.type.split("/")[1] || "jpg";
-    const filename = `prop_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${ext}`;
+    const extension =
+      file.type === "image/jpeg"
+        ? "jpg"
+        : file.type.split("/")[1];
 
-    // 3. Cloudflare R2 Storage Integration
-    const r2PublicUrl = process.env.R2_PUBLIC_DOMAIN;
-    const r2AccountId = process.env.CLOUDFLARE_ACCOUNT_ID;
-    const r2AccessKey = process.env.R2_ACCESS_KEY_ID;
-    const r2SecretKey = process.env.R2_SECRET_ACCESS_KEY;
-    const r2BucketName = process.env.R2_BUCKET_NAME || "dark-crm-images";
+    const fileName = `property-${crypto.randomUUID()}.${extension}`;
 
-    if (r2AccessKey && r2SecretKey && r2AccountId && r2PublicUrl) {
-      const endpoint = `https://${r2AccountId}.r2.cloudflarestorage.com/${r2BucketName}/${filename}`;
-      
-      const r2Response = await fetch(endpoint, {
-        method: "PUT",
+    const uploadData = new FormData();
+    uploadData.append("file", file, fileName);
+    uploadData.append("fileName", fileName);
+    uploadData.append("folder", "/dark-crm/properties");
+    uploadData.append("useUniqueFileName", "true");
+
+    const authorization = btoa(`${privateKey}:`);
+
+    const response = await fetch(
+      "https://upload.imagekit.io/api/v1/files/upload",
+      {
+        method: "POST",
         headers: {
-          "Content-Type": file.type,
-          "Content-Length": buffer.length.toString(),
+          Authorization: `Basic ${authorization}`,
         },
-        body: buffer,
+        body: uploadData,
+      }
+    );
+
+    const result = await response.json();
+
+    if (!response.ok || !result.url) {
+      console.error("ImageKit upload failed:", {
+        status: response.status,
+        message: result.message,
       });
 
-      if (r2Response.ok) {
-        const publicFileUrl = `${r2PublicUrl.replace(/\/$/, "")}/${filename}`;
-        return NextResponse.json({ success: true, url: publicFileUrl });
-      }
+      return NextResponse.json(
+        { error: "فشل تخزين الصورة على ImageKit. حاول مرة أخرى." },
+        { status: 502 }
+      );
     }
-
-    // 4. Zero-Latency Cloudflare / Local Fallback:
-    const base64Data = buffer.toString("base64");
-    const dataUrl = `data:${file.type};base64,${base64Data}`;
 
     return NextResponse.json({
       success: true,
-      url: dataUrl,
-      filename,
-      size: file.size,
+      url: result.url,
+      fileId: result.fileId,
     });
-  } catch (error: any) {
-    console.error("Upload error:", error);
+  } catch (error) {
+    console.error("Image upload error:", error);
+
     return NextResponse.json(
-      { error: "حدث خطأ أثناء رفع الصورة، يرجى المحاولة لاحقاً." },
+      { error: "حدث خطأ أثناء رفع الصورة." },
       { status: 500 }
     );
   }
