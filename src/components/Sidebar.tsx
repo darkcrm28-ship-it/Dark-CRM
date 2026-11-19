@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import NavItem from "./NavItem";
 import LogoutButton from "./LogoutButton";
+import { Menu, X, Building2, SunMoon } from "lucide-react";
 
 export default function Sidebar({ session, navItems, sections, ROLE_LABELS }: any) {
   const [isOpen, setIsOpen] = useState(false);
@@ -20,58 +21,68 @@ export default function Sidebar({ session, navItems, sections, ROLE_LABELS }: an
       <button 
         className="sidebar-toggle" 
         onClick={() => setIsOpen(!isOpen)}
-        aria-label="Toggle Sidebar"
+        aria-label="تبديل القائمة الجانبية"
       >
-        {isOpen ? "✕" : "☰"}
+        {isOpen ? <X size={20} /> : <Menu size={20} />}
       </button>
 
       {/* Overlay for mobile */}
       {isOpen && <div className="sidebar-overlay" onClick={() => setIsOpen(false)} />}
 
       <aside className={`sidebar ${isOpen ? "open" : ""}`}>
-        {/* Logo */}
+        {/* Brand Logo Header */}
         <div className="sidebar-logo">
-          <div className="sidebar-logo-icon">D</div>
+          <div className="sidebar-logo-icon">
+            <Building2 size={24} className="text-gold" />
+          </div>
           <div className="sidebar-logo-text">
-            <div className="sidebar-logo-title">دارك</div>
-            <div className="sidebar-logo-subtitle">للاستثمار والتسويق العقاري</div>
+            <div className="sidebar-logo-title">
+              <span className="gold-gradient-text">دارك</span> للواقع العقاري
+            </div>
+            <div className="sidebar-logo-subtitle">Dark Enterprise CRM</div>
           </div>
         </div>
 
-        {/* Navigation */}
+        {/* Navigation Sections */}
         <nav className="sidebar-nav">
           {sections.map((sec: any) => {
             const items = navItems.filter((i: any) => i.show && i.section === sec.key);
             if (!items.length) return null;
             return (
-              <div key={sec.key}>
+              <div key={sec.key} className="nav-section-group">
                 <div className="nav-section-label">{sec.label}</div>
-                {items.map((item: any) => (
-                  <NavItem key={item.href} href={item.href} icon={item.icon} label={item.label} />
-                ))}
+                <div className="nav-items-list">
+                  {items.map((item: any) => (
+                    <NavItem key={item.href} href={item.href} icon={item.icon} label={item.label} />
+                  ))}
+                </div>
               </div>
             );
           })}
         </nav>
 
-        {/* Footer */}
+        {/* User Card & Logout Footer */}
         <div className="sidebar-footer">
-          <div className="user-card">
-            <div className="user-avatar">{session.name?.charAt(0) || "U"}</div>
-            <div className="user-info">
+          <div className="user-profile-badge">
+            <div className="user-avatar-circle">
+              {session.name?.charAt(0) || "U"}
+            </div>
+            <div className="user-details">
               <div className="user-name">{session.name}</div>
-              <div className="user-role">{ROLE_LABELS[session.role] || session.role}</div>
+              <div className="user-role-tag">
+                {ROLE_LABELS[session.role] || session.role}
+              </div>
             </div>
           </div>
-          <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
+
+          <div className="sidebar-footer-actions">
             <LogoutButton />
             <button 
               onClick={() => document.body.classList.toggle("light-mode")} 
-              className="btn btn-ghost btn-sm" 
-              style={{ flex: 1, fontSize: 16 }}
-              title="تغيير المظهر"
+              className="theme-toggle-btn" 
+              title="تبديل المظهر"
             >
-              🌓
+              <SunMoon size={16} />
             </button>
           </div>
         </div>

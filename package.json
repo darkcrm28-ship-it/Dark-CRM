@@ -21,7 +21,7 @@
     "jose": "^6.2.3",
     "jspdf": "^4.2.1",
     "lucide-react": "^1.14.0",
-    "next": "14.2.35",
+    "next": "^15.5.29",
     "pg": "^8.20.0",
     "prisma": "^5.22.0",
     "react": "^18",
@@ -40,8 +40,17 @@
     "@types/ws": "^8.18.2",
     "dotenv": "^17.4.2",
     "eslint": "^8",
-    "eslint-config-next": "14.2.35",
+    "eslint-config-next": "^15.5.29",
     "typescript": "^5",
     "wrangler": "^4.165.0"
+  },
+  "allowScripts": {
+    "@prisma/client@5.22.0": true,
+    "@prisma/engines@5.22.0": true,
+    "prisma@5.22.0": true,
+    "core-js@3.49.0": true,
+    "esbuild@0.28.2": true,
+    "unrs-resolver@1.11.1": true,
+    "workerd@1.20261118.1": true
   }
 }
