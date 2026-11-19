@@ -1,13 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { decrypt } from "@/lib/auth";
 
-const publicRoutes = ["/", "/login", "/api/auth/login", "/api/setup"];
+const publicExactRoutes = ["/", "/login", "/api/auth/login", "/api/setup"];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Allow public routes
-  if (publicRoutes.includes(pathname)) {
+  // Allow public pages and API endpoints
+  if (
+    publicExactRoutes.includes(pathname) ||
+    pathname.startsWith("/share/") ||
+    pathname.startsWith("/properties") ||
+    pathname.startsWith("/api/public/") ||
+    pathname.startsWith("/api/upload")
+  ) {
     return NextResponse.next();
   }
 
@@ -21,9 +27,7 @@ export async function middleware(request: NextRequest) {
   try {
     const payload = await decrypt(session);
     if (!payload) throw new Error("Invalid session");
-    
-    // Add role check if needed here based on payload.role
-    
+
     return NextResponse.next();
   } catch {
     return NextResponse.redirect(new URL("/login", request.url));
