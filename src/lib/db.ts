@@ -10,9 +10,22 @@ if (!globalThis.WebSocket) {
   neonConfig.webSocketConstructor = ws;
 }
 
-const connectionString =
-  process.env.DATABASE_URL ||
-  "postgresql://placeholder:placeholder@localhost:5432/placeholder_db";
+function sanitizeDatabaseUrl(rawUrl: string | undefined): string {
+  if (!rawUrl) {
+    return "postgresql://placeholder:placeholder@localhost:5432/placeholder_db";
+  }
+  let clean = rawUrl.trim();
+  // Automatically strip accidental surrounding quotes copied from .env or dashboards
+  if (
+    (clean.startsWith('"') && clean.endsWith('"')) ||
+    (clean.startsWith("'") && clean.endsWith("'"))
+  ) {
+    clean = clean.slice(1, -1).trim();
+  }
+  return clean;
+}
+
+const connectionString = sanitizeDatabaseUrl(process.env.DATABASE_URL);
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;

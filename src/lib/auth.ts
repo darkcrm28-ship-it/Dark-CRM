@@ -2,13 +2,17 @@ import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
-const secretKey = process.env.JWT_SECRET;
-if (!secretKey && process.env.NODE_ENV === "production") {
+let rawSecret = process.env.JWT_SECRET?.trim();
+if (rawSecret && ((rawSecret.startsWith('"') && rawSecret.endsWith('"')) || (rawSecret.startsWith("'") && rawSecret.endsWith("'")))) {
+  rawSecret = rawSecret.slice(1, -1).trim();
+}
+
+if (!rawSecret && process.env.NODE_ENV === "production") {
   throw new Error("CRITICAL SECURITY ERROR: JWT_SECRET environment variable is not set!");
 }
 
 const key = new TextEncoder().encode(
-  secretKey || "development_only_secret_key_change_in_production_32chars"
+  rawSecret || "development_only_secret_key_change_in_production_32chars"
 );
 
 export async function encrypt(payload: any) {
