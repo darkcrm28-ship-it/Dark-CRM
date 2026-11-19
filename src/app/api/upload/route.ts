@@ -1,9 +1,11 @@
 
 import { NextRequest, NextResponse } from "next/server";
+import { getSession } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 const MAX_FILE_SIZE = 500 * 1024;
+
 const ALLOWED_MIME_TYPES = [
   "image/jpeg",
   "image/png",
@@ -12,10 +14,21 @@ const ALLOWED_MIME_TYPES = [
 
 export async function POST(request: NextRequest) {
   try {
+    // Verify user session
+    const session = await getSession();
+
+    if (!session) {
+      return NextResponse.json(
+        { error: "يجب تسجيل الدخول لرفع الصور." },
+        { status: 401 }
+      );
+    }
+
     const privateKey = process.env.IMAGEKIT_PRIVATE_KEY;
 
     if (!privateKey) {
       console.error("IMAGEKIT_PRIVATE_KEY is missing");
+
       return NextResponse.json(
         { error: "إعدادات تخزين الصور غير مكتملة." },
         { status: 500 }
@@ -54,6 +67,7 @@ export async function POST(request: NextRequest) {
     const fileName = `property-${crypto.randomUUID()}.${extension}`;
 
     const uploadData = new FormData();
+
     uploadData.append("file", file, fileName);
     uploadData.append("fileName", fileName);
     uploadData.append("folder", "/dark-crm/properties");

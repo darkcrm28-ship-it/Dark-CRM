@@ -192,10 +192,11 @@ export default function CustomersClient({
   ) => {
     setIsFetching(true);
     try {
+      const safeLimit = Math.min(25, Math.max(1, targetLimit));
       const params = new URLSearchParams({
         view: view || "ALL",
         page: targetPage.toString(),
-        limit: targetLimit.toString(),
+        limit: safeLimit.toString(),
         subType: currentSubType,
       });
 
@@ -1055,7 +1056,7 @@ export default function CustomersClient({
           <select
             value={pageSize}
             onChange={(e) => {
-              const newSize = parseInt(e.target.value);
+              const newSize = Math.min(25, parseInt(e.target.value));
               setPageSize(newSize);
               fetchServerCustomers(1, appliedFilters, newSize);
             }}
@@ -1063,9 +1064,9 @@ export default function CustomersClient({
             style={{ width: 80, height: 34, padding: "4px 8px", fontSize: 12, borderRadius: 8 }}
           >
             <option value={10}>10</option>
-            <option value={25}>25</option>
-            <option value={50}>50</option>
-            <option value={100}>100</option>
+            <option value={15}>15</option>
+            <option value={20}>20</option>
+            <option value={25}>25 (الحد الأقصى)</option>
           </select>
         </div>
       </div>
