@@ -45,16 +45,21 @@ export async function decrypt(input: string): Promise<any> {
   return payload;
 }
 
+// الحصول على الجلسة الحالية
 export async function getSession() {
+  // يجب أن تكون cookies() خارج try/catch
+  // حتى يكتشف Next.js الصفحات الديناميكية بشكل صحيح
+  const cookieStore = await cookies();
+  const session = cookieStore.get("session")?.value;
+
+  if (!session) {
+    return null;
+  }
+
   try {
-    const cookieStore = await cookies();
-    const session = cookieStore.get("session")?.value;
-
-    if (!session) return null;
-
     return await decrypt(session);
   } catch (error) {
-    console.error("Get Session Error:", error);
+    console.error("Session Decryption Error:", error);
     return null;
   }
 }
