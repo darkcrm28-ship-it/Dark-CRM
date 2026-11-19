@@ -1,0 +1,39 @@
+{
+  "name": "دارك CRM - نظام إدارة العقارات",
+  "short_name": "دارك CRM",
+  "description": "نظام متكامل لإدارة العملاء والعقارات",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#080b12",
+  "theme_color": "#d4af37",
+  "orientation": "portrait-primary",
+  "dir": "rtl",
+  "lang": "ar",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "العملاء المحتملين",
+      "url": "/dashboard/leads",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "إضافة عميل",
+      "url": "/dashboard/leads?add=1",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    }
+  ],
+  "categories": ["business", "productivity"]
+}
