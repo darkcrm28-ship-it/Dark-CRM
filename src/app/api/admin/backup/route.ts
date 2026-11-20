@@ -33,8 +33,8 @@ function generateSqlInserts(tableName: string, rows: any[]): string {
 export async function GET(request: NextRequest) {
   try {
     const session = await getSession();
-    if (!session || (session.role !== "GENERAL_MANAGER" && session.role !== "SALES_MANAGER")) {
-      return NextResponse.json({ error: "Unauthorized. Managers only." }, { status: 403 });
+    if (!session || session.role !== "GENERAL_MANAGER") {
+      return NextResponse.json({ error: "Unauthorized. General Manager only." }, { status: 403 });
     }
 
     const format = request.nextUrl.searchParams.get("format") || "json";
@@ -90,6 +90,7 @@ export async function GET(request: NextRequest) {
 
       return new NextResponse(sqlContent, {
         headers: {
+          "Cache-Control": "no-store, private",
           "Content-Type": "application/sql; charset=utf-8",
           "Content-Disposition": `attachment; filename="dark_crm_backup_${dateStr}.sql"`,
         },
@@ -160,6 +161,7 @@ export async function GET(request: NextRequest) {
 
       return new NextResponse(buf, {
         headers: {
+          "Cache-Control": "no-store, private",
           "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
           "Content-Disposition": `attachment; filename="dark_crm_data_${dateStr}.xlsx"`,
         },
@@ -202,6 +204,7 @@ export async function GET(request: NextRequest) {
 
     return new NextResponse(JSON.stringify(backupPayload, null, 2), {
       headers: {
+        "Cache-Control": "no-store, private",
         "Content-Type": "application/json; charset=utf-8",
         "Content-Disposition": `attachment; filename="dark_crm_full_backup_${dateStr}.json"`,
       },

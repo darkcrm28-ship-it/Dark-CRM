@@ -153,42 +153,77 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Name and phone are required" }, { status: 400 });
     }
 
-    const count = await prisma.customer.count();
-    const code = "CUST-" + (count + 1).toString().padStart(4, "0");
+    // توليد كود العميل الآمن عبر أعلى رقم تسلسلي مسجل مع قفل موحد لمنع التزامن
+    const CUSTOMER_SEQUENCE_LOCK = 74839205;
+    let customer: any = null;
+    const maxRetries = 3;
 
-     const customer = await prisma.customer.create({
-      data: {
-        code,
-        name,
-        phone,
-        email,
-        type: type || (["INTERESTED", "BUYER", "RENTER"].includes(status) ? "BUYER" : "SELLER"),
-        status: status || "POTENTIAL_SELLER",
-        projectId,
-        area,
-        propertyType,
-        source,
-        installmentAmount: installmentAmount ? parseFloat(installmentAmount) : 0,
-        installmentRemaining: installmentRemaining ? parseInt(installmentRemaining) : 0,
-        installmentDetails,
-        governorate,
-        city,
-        executingCompany,
-        deliveryDate,
-        floor: floor ? String(floor) : null,
-        bedrooms: bedrooms ? parseInt(bedrooms) : null,
-        bathrooms: bathrooms ? parseInt(bathrooms) : null,
-        finishing,
-        preferencesSummary,
-        askingPrice: askingPrice ? parseFloat(askingPrice) : null,
-        buildingNumber: buildingNumber ? String(buildingNumber) : null,
-        unitNumber: unitNumber ? String(unitNumber) : null,
-        unitSize: unitSize ? parseFloat(unitSize) : null,
-        paperworkStatus,
-        customData: (customData || {}) as any,
-        assignedToId: session.role === "SALES_EMPLOYEE" ? session.id : null,
-      },
-    });
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        customer = await prisma.$transaction(
+          async (tx) => {
+            // حجز قفل المعاملة لتوليد الأكواد بالتسلسل منعاً للتزامن مع الاستيراد أو إضافة أخرى
+            await tx.$executeRaw`SELECT pg_advisory_xact_lock(${CUSTOMER_SEQUENCE_LOCK});`;
+
+            const maxCodeRes = await tx.$queryRaw<Array<{ max_seq: number | null }>>`
+              SELECT MAX(
+                NULLIF(REGEXP_REPLACE(code, '^CUST-0*', ''), '')::integer
+              ) AS max_seq
+              FROM "Customer"
+              WHERE code ~ '^CUST-[0-9]+$';
+            `;
+            const nextSeq = (maxCodeRes[0]?.max_seq || 0) + 1;
+            const code = "CUST-" + nextSeq.toString().padStart(4, "0");
+
+            return await tx.customer.create({
+              data: {
+                code,
+                name,
+                phone,
+                email,
+                type: type || (["INTERESTED", "BUYER", "RENTER"].includes(status) ? "BUYER" : "SELLER"),
+                status: status || "POTENTIAL_SELLER",
+                projectId,
+                area,
+                propertyType,
+                source,
+                installmentAmount: installmentAmount ? parseFloat(installmentAmount) : 0,
+                installmentRemaining: installmentRemaining ? parseInt(installmentRemaining) : 0,
+                installmentDetails,
+                governorate,
+                city,
+                executingCompany,
+                deliveryDate,
+                floor: floor ? String(floor) : null,
+                bedrooms: bedrooms ? parseInt(bedrooms) : null,
+                bathrooms: bathrooms ? parseInt(bathrooms) : null,
+                finishing,
+                preferencesSummary,
+                askingPrice: askingPrice ? parseFloat(askingPrice) : null,
+                buildingNumber: buildingNumber ? String(buildingNumber) : null,
+                unitNumber: unitNumber ? String(unitNumber) : null,
+                unitSize: unitSize ? parseFloat(unitSize) : null,
+                paperworkStatus,
+                customData: (customData || {}) as any,
+                assignedToId: session.role === "SALES_EMPLOYEE" ? session.id : null,
+              },
+            });
+          },
+          {
+            maxWait: 5000,
+            timeout: 10000,
+          }
+        );
+        break; // نجاح الإنشاء
+      } catch (err: any) {
+        if (err?.code === "P2002" && attempt < maxRetries - 1) {
+          console.warn(`Customer.code conflict on single add (P2002). Retrying in fresh transaction attempt ${attempt + 1}...`);
+          await new Promise((res) => setTimeout(res, 50 * (attempt + 1)));
+          continue;
+        }
+        throw err;
+      }
+    }
 
     // Create initial note if provided
     if (generalNotes?.trim()) {
@@ -296,6 +331,7 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    console.error("Delete Customers Error:", error);
     return NextResponse.json({ error: "Failed to delete customers" }, { status: 500 });
   }
 }

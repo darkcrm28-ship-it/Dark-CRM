@@ -1,8 +1,49 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+
+// ─── Shared Toast (same pattern as CustomersClient) ───────────────────────────
+type ToastType = "success" | "error" | "info" | "warning";
+interface Toast { id: number; type: ToastType; message: string; hiding?: boolean; }
+
+function ToastContainer({ toasts, onDismiss }: { toasts: Toast[]; onDismiss: (id: number) => void }) {
+  if (!toasts.length) return null;
+  return (
+    <div className="toast-container">
+      {toasts.map(t => (
+        <div
+          key={t.id}
+          className={`toast toast-${t.type}${t.hiding ? " hiding" : ""}`}
+          onClick={() => onDismiss(t.id)}
+        >
+          <span>{t.type === "success" ? "✅" : t.type === "error" ? "❌" : t.type === "warning" ? "⚠️" : "ℹ️"}</span>
+          <span>{t.message}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function useToast() {
+  const [toasts, setToasts] = useState<Toast[]>([]);
+  const idRef = useRef(0);
+  const show = useCallback((message: string, type: ToastType = "success", duration = 3500) => {
+    const id = ++idRef.current;
+    setToasts(prev => [...prev, { id, type, message }]);
+    setTimeout(() => {
+      setToasts(prev => prev.map(t => t.id === id ? { ...t, hiding: true } : t));
+      setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 250);
+    }, duration);
+  }, []);
+  const dismiss = useCallback((id: number) => {
+    setToasts(prev => prev.map(t => t.id === id ? { ...t, hiding: true } : t));
+    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 250);
+  }, []);
+  return { toasts, show, dismiss };
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 const STATUS_OPTIONS = [
   { value: "POTENTIAL_SELLER", label: "بائع محتمل",        badge: "badge-orange" },
@@ -20,8 +61,8 @@ const STATUS_OPTIONS = [
 const INTERACTION_ICONS: Record<string, string> = { CALL: "📞", VIEWING: "🏠", NOTE: "📝" };
 const INTERACTION_LABELS: Record<string, string> = { CALL: "مكالمة هاتفية", VIEWING: "موعد معاينة", NOTE: "ملاحظة عامة" };
 
-export default function CustomerDetailsClient({ initialCustomer, currentUser }: { initialCustomer: any; currentUser: any }) {
-  const [customer, setCustomer] = useState(initialCustomer);
+export default function CustomerDetailsClient({ initialCustomer }: { initialCustomer: any; currentUser?: any }) {
+  const [customer] = useState(initialCustomer);
   const [status, setStatus] = useState(initialCustomer.status);
   const [askingPrice, setAskingPrice] = useState(initialCustomer.askingPrice || "");
   const [remainingInstallments, setRemainingInstallments] = useState(initialCustomer.remainingInstallments || "");
@@ -47,14 +88,18 @@ export default function CustomerDetailsClient({ initialCustomer, currentUser }: 
   const [matchingUnits, setMatchingUnits] = useState<any[]>([]);
   const [showMatching, setShowMatching] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [msg, setMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const { toasts, show: showToast, dismiss: dismissToast } = useToast();
   const router = useRouter();
+
+  const waPhone = customer.phone.replace(/\D/g, "").startsWith("0")
+    ? "2" + customer.phone.replace(/\D/g, "")
+    : customer.phone.replace(/\D/g, "");
 
   const currentStatus = STATUS_OPTIONS.find((s) => s.value === status);
 
   const handleUpdateStatus = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true); setMsg(null);
+    setLoading(true);
     try {
       const res = await fetch(`/api/customers/${customer.id}`, {
         method: "PUT",
@@ -73,10 +118,10 @@ export default function CustomerDetailsClient({ initialCustomer, currentUser }: 
         }),
       });
       if (!res.ok) throw new Error("فشل التحديث");
-      setMsg({ type: "success", text: "تم حفظ التغييرات بنجاح" });
+      showToast("تم حفظ التغييرات بنجاح", "success");
       router.refresh();
     } catch (err: any) {
-      setMsg({ type: "error", text: err.message });
+      showToast(err.message || "حدث خطأ أثناء الحفظ", "error");
     } finally { setLoading(false); }
   };
 
@@ -93,10 +138,10 @@ export default function CustomerDetailsClient({ initialCustomer, currentUser }: 
       if (!res.ok) throw new Error("فشل إضافة المتابعة");
       setNotes("");
       setReminderDate("");
-      setMsg({ type: "success", text: "تمت إضافة المتابعة بنجاح" });
+      showToast("تمت إضافة المتابعة بنجاح", "success");
       router.refresh();
     } catch (err: any) {
-      setMsg({ type: "error", text: err.message });
+      showToast(err.message || "حدث خطأ أثناء الإضافة", "error");
     } finally { setLoading(false); }
   };
 
@@ -109,12 +154,13 @@ export default function CustomerDetailsClient({ initialCustomer, currentUser }: 
         setMatchingUnits(data);
         setShowMatching(true);
       }
-    } catch (err) {}
-    finally { setLoading(false); }
+    } catch {
+    } finally { setLoading(false); }
   };
 
   return (
     <div>
+      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
       {/* Back + Header */}
       <div className="animate-in" style={{ marginBottom: 20 }}>
         <Link href="/dashboard/customers" className="btn btn-ghost btn-sm" style={{ marginBottom: 12 }}>
@@ -132,23 +178,26 @@ export default function CustomerDetailsClient({ initialCustomer, currentUser }: 
             <div>
               <div className="page-title">{customer.name}</div>
               <div style={{ display: "flex", gap: 8, marginTop: 4, flexWrap: "wrap", alignItems: "center" }}>
-                <span className="badge badge-blue" style={{ direction: "ltr" }}>{customer.phone}</span>
-                <a 
-                  href={`https://wa.me/${customer.phone.replace(/\D/g, "").startsWith("0") ? "2" + customer.phone.replace(/\D/g, "") : customer.phone.replace(/\D/g, "")}`} 
-                  target="_blank" 
+                {/* Phone with copy + WhatsApp */}
+                <span className="badge badge-blue" style={{ direction: "ltr", cursor: "pointer" }}
+                  title="انقر لنسخ الرقم"
+                  onClick={() => { navigator.clipboard.writeText(customer.phone); showToast("تم نسخ الرقم", "info", 2000); }}
+                >{customer.phone}</span>
+                <a
+                  href={`https://wa.me/${waPhone}`}
+                  target="_blank"
                   rel="noreferrer"
-                  className="btn btn-ghost btn-sm"
-                  style={{ color: "#25D366", padding: "2px 8px", fontSize: 18 }}
+                  className="btn-wa"
                   title="تواصل عبر واتساب"
                 >
-                  🟢
+                  💬 واتساب
                 </a>
-                
+
                 {/* Lead Score Stars */}
                 <div style={{ display: "flex", gap: 4, marginLeft: 8 }}>
                   {[1, 2, 3, 4, 5].map((s) => (
-                    <button 
-                      key={s} 
+                    <button
+                      key={s}
                       onClick={async () => {
                         setLeadScore(s);
                         await fetch(`/api/customers/${customer.id}`, {
@@ -156,6 +205,7 @@ export default function CustomerDetailsClient({ initialCustomer, currentUser }: 
                           headers: { "Content-Type": "application/json" },
                           body: JSON.stringify({ leadScore: s }),
                         });
+                        showToast(`تم تعيين التقييم ${s} نجوم`, "success", 2000);
                         router.refresh();
                       }}
                       style={{ background: "none", border: "none", cursor: "pointer", padding: 0, fontSize: 18, color: s <= leadScore ? "var(--gold-primary)" : "var(--text-muted)" }}
@@ -168,7 +218,7 @@ export default function CustomerDetailsClient({ initialCustomer, currentUser }: 
                 <Link href={`/share/unit/${customer.id}`} target="_blank" className="btn btn-secondary btn-sm">
                   📤 بروفايل الوحدة
                 </Link>
-                
+
                 {customer.type === "BUYER" && (
                   <button onClick={handleFetchMatches} className="btn btn-primary btn-sm">
                     🔍 مطابقة الوحدات المتاحة
@@ -183,12 +233,6 @@ export default function CustomerDetailsClient({ initialCustomer, currentUser }: 
           </div>
         </div>
       </div>
-
-      {msg && (
-        <div className={`alert ${msg.type === "success" ? "alert-success" : "alert-error"} animate-in`} style={{ marginBottom: 16 }}>
-          {msg.text}
-        </div>
-      )}
 
       {showMatching && (
         <div className="card animate-in" style={{ marginBottom: 24, border: "1px solid var(--gold-primary)" }}>
@@ -488,7 +532,7 @@ export default function CustomerDetailsClient({ initialCustomer, currentUser }: 
             </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
-              {customer.interactions.map((interaction: any, idx: number) => (
+              {customer.interactions.map((interaction: any) => (
                 <div key={interaction.id} className="timeline-item">
                   <div className="timeline-dot" style={{ fontSize: 16 }}>{INTERACTION_ICONS[interaction.type] || "📌"}</div>
                   <div className="timeline-content">

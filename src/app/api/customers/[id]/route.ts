@@ -2,16 +2,24 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 
+const MANAGER_ROLES = ["GENERAL_MANAGER", "SALES_MANAGER"];
+
+function customerAccessWhere(customerId: string, session: { id: string; role: string }) {
+  if (MANAGER_ROLES.includes(session.role)) return { id: customerId };
+  if (session.role === "SALES_EMPLOYEE") return { id: customerId, assignedToId: session.id };
+  return { id: "__forbidden__" };
+}
+
 export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getSession();
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-    const customer = await prisma.customer.findUnique({
-      where: { id: params.id },
+    const { id } = await params;
+    const customer = await prisma.customer.findFirst({
+      where: customerAccessWhere(id, session),
       include: {
         assignedTo: { select: { id: true, name: true } },
         project: { select: { id: true, name: true } },
@@ -21,112 +29,99 @@ export async function GET(
         },
       },
     });
-
     if (!customer) return NextResponse.json({ error: "Customer not found" }, { status: 404 });
-
-    return NextResponse.json(customer);
+    return NextResponse.json(customer, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
+    console.error("Fetch Customer Error:", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getSession();
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
+    const { id } = await params;
     const data = await request.json();
-    const { 
-      status, type, projectId, 
-      installmentAmount, installmentRemaining, installmentDetails,
-      isArchived,
-      name, phone, email, area, propertyType, source,
-      governorate, city, executingCompany, deliveryDate,
-      floor, bedrooms, bathrooms, finishing, preferencesSummary,
-      askingPrice, installmentDuration,
-      unitStatus, isNegotiable, viewingTimes, paperworkStatus,
-      leadScore, customData, followUpDate
+    const {
+      status, type, projectId, installmentAmount, installmentRemaining, installmentDetails,
+      isArchived, name, phone, email, area, propertyType, source, governorate, city,
+      executingCompany, deliveryDate, floor, bedrooms, bathrooms, finishing,
+      preferencesSummary, askingPrice, installmentDuration, unitStatus, isNegotiable,
+      viewingTimes, paperworkStatus, leadScore, customData, followUpDate,
     } = data;
 
-    const oldCustomer = await prisma.customer.findUnique({ where: { id: params.id } });
-    if (!oldCustomer) return NextResponse.json({ error: "Not found" }, { status: 404 });
-
-    // Auto-complete any previous pending reminders for this user & customer
-    await prisma.reminder.updateMany({
-      where: { customerId: params.id, userId: session.id, status: "PENDING" },
-      data: { status: "COMPLETED" }
-    });
-
-    // Create reminder if CALL_LATER and date provided
-    if (status === "CALL_LATER" && followUpDate) {
-      await prisma.reminder.create({
-        data: {
-          customerId: params.id,
-          userId: session.id,
-          title: "اتصال متابعة",
-          dueDate: new Date(followUpDate),
-          status: "PENDING"
-        }
-      });
+    if (name !== undefined && (typeof name !== "string" || !name.trim())) {
+      return NextResponse.json({ error: "Invalid customer name" }, { status: 400 });
+    }
+    if (phone !== undefined && (typeof phone !== "string" || !phone.trim())) {
+      return NextResponse.json({ error: "Invalid customer phone" }, { status: 400 });
     }
 
-    // Auto-update type based on status if not explicitly provided
-    let finalType = type;
-    if (!type) {
-      if (["INTERESTED", "BUYER", "RENTER"].includes(status)) finalType = "BUYER";
-      if (["WANTS_TO_SELL", "SELLER", "POTENTIAL_SELLER", "LANDLORD"].includes(status)) finalType = "SELLER";
+    const updateData = {
+      status, type, projectId, name, phone, email, area, propertyType, source,
+      installmentAmount: installmentAmount !== undefined ? Number(installmentAmount) : undefined,
+      installmentRemaining: installmentRemaining !== undefined ? Number.parseInt(installmentRemaining, 10) : undefined,
+      installmentDetails,
+      installmentDuration: installmentDuration !== undefined ? Number.parseInt(installmentDuration, 10) : undefined,
+      askingPrice: askingPrice !== undefined ? Number(askingPrice) : undefined,
+      isArchived: isArchived !== undefined ? Boolean(isArchived) : undefined,
+      governorate, city, executingCompany, deliveryDate,
+      floor: floor !== undefined ? String(floor) : undefined,
+      bedrooms: bedrooms !== undefined ? Number.parseInt(bedrooms, 10) : undefined,
+      bathrooms: bathrooms !== undefined ? Number.parseInt(bathrooms, 10) : undefined,
+      finishing, preferencesSummary, unitStatus,
+      isNegotiable: isNegotiable !== undefined ? Boolean(isNegotiable) : undefined,
+      viewingTimes, paperworkStatus,
+      leadScore: leadScore !== undefined ? Number.parseInt(leadScore, 10) : undefined,
+      customData: customData !== undefined ? customData : undefined,
+    };
+
+    const followUp = followUpDate ? new Date(followUpDate) : null;
+    if (followUp && Number.isNaN(followUp.getTime())) {
+      return NextResponse.json({ error: "Invalid follow-up date" }, { status: 400 });
     }
 
-    const customer = await prisma.customer.update({
-      where: { id: params.id },
-      data: {
-        status, type: finalType, projectId, name, phone, email, area, propertyType, source,
-        installmentAmount: installmentAmount !== undefined ? parseFloat(installmentAmount) : undefined,
-        installmentRemaining: installmentRemaining !== undefined ? parseInt(installmentRemaining) : undefined,
-        installmentDetails,
-        installmentDuration: installmentDuration !== undefined ? parseInt(installmentDuration) : undefined,
-        askingPrice: askingPrice !== undefined ? parseFloat(askingPrice) : undefined,
-        isArchived: isArchived !== undefined ? Boolean(isArchived) : undefined,
-        governorate, city, executingCompany, deliveryDate,
-        floor: floor !== undefined ? String(floor) : undefined,
-        bedrooms: bedrooms !== undefined ? parseInt(bedrooms) : undefined,
-        bathrooms: bathrooms !== undefined ? parseInt(bathrooms) : undefined,
-        finishing, preferencesSummary, unitStatus,
-        isNegotiable: isNegotiable !== undefined ? Boolean(isNegotiable) : undefined,
-        viewingTimes, paperworkStatus,
-        leadScore: leadScore !== undefined ? parseInt(leadScore) : undefined,
-        customData: customData !== undefined ? (customData as any) : undefined,
-      },
-    });
+    const customer = await prisma.$transaction(async (tx) => {
+      // Re-check assignment inside the same transaction as the update to avoid
+      // changing a customer after their assignment has been revoked.
+      const oldCustomer = await tx.customer.findFirst({ where: customerAccessWhere(id, session) });
+      if (!oldCustomer) return null;
 
-    // Create Detailed Audit Log
-    const changes: string[] = [];
-    const fieldsToTrack = ["status", "askingPrice", "phone", "leadScore", "assignedToId"];
-    fieldsToTrack.forEach(field => {
-      const oldVal = (oldCustomer as any)[field];
-      const newVal = (data as any)[field];
-      if (newVal !== undefined && oldVal !== newVal) {
-        changes.push(`${field}: ${oldVal} -> ${newVal}`);
+      if (status !== undefined) {
+        await tx.reminder.updateMany({
+          where: { customerId: id, userId: session.id, status: "PENDING" },
+          data: { status: "COMPLETED" },
+        });
       }
+      if (status === "CALL_LATER" && followUp) {
+        await tx.reminder.create({
+          data: { customerId: id, userId: session.id, title: "اتصال متابعة", dueDate: followUp, status: "PENDING" },
+        });
+      }
+
+      const updated = await tx.customer.update({ where: { id }, data: updateData });
+      const changes: string[] = [];
+      for (const field of ["status", "askingPrice", "phone", "leadScore"] as const) {
+        const newValue = (data as Record<string, unknown>)[field];
+        const oldValue = (oldCustomer as unknown as Record<string, unknown>)[field];
+        if (newValue !== undefined && oldValue !== newValue) changes.push(`${field}: ${oldValue} -> ${newValue}`);
+      }
+      if (changes.length) {
+        await tx.auditLog.create({
+          data: { userId: session.id, action: "UPDATE", entity: "CUSTOMER", entityId: id, details: `Changed fields: ${changes.join(", ")}` },
+        });
+      }
+      return updated;
     });
 
-    if (changes.length > 0) {
-      await prisma.auditLog.create({
-        data: {
-          userId: session.id,
-          action: "UPDATE",
-          entity: "CUSTOMER",
-          entityId: params.id,
-          details: `Changed fields: ${changes.join(", ")}`
-        }
-      });
-    }
-
-    return NextResponse.json(customer);
+    if (!customer) return NextResponse.json({ error: "Customer not found" }, { status: 404 });
+    return NextResponse.json(customer, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
+    console.error("Update Customer Error:", error);
     return NextResponse.json({ error: "Failed to update customer" }, { status: 500 });
   }
 }

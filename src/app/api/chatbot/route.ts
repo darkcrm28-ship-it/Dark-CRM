@@ -1,10 +1,17 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import kb from "@/lib/chatbot-kb.json";
+import { getSession } from "@/lib/auth";
 
 export async function POST(req: Request) {
   try {
+    const session = await getSession();
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
     const { message } = await req.json();
+    if (typeof message !== "string" || !message.trim()) {
+      return NextResponse.json({ error: "Message is required" }, { status: 400 });
+    }
     const query = message.toLowerCase().trim();
 
     // Handling Numeric Choices
@@ -43,12 +50,22 @@ export async function POST(req: Request) {
     if (query.length >= 3 && !["1","2","3","4","5"].includes(query)) {
       const customers = await prisma.customer.findMany({
         where: {
-          OR: [
-            { name: { contains: query, mode: "insensitive" } },
-            { phone: { contains: query } }
+          AND: [
+            session.role === "GENERAL_MANAGER" || session.role === "SALES_MANAGER"
+              ? {}
+              : session.role === "SALES_EMPLOYEE"
+                ? { assignedToId: session.id }
+                : { id: "__forbidden__" },
+            {
+              OR: [
+                { name: { contains: query, mode: "insensitive" } },
+                { phone: { contains: query } }
+              ]
+            }
           ]
         },
-        take: 5
+        take: 5,
+        select: { id: true, name: true, phone: true }
       });
 
       if (customers.length > 0) {

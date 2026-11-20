@@ -1,22 +1,26 @@
 
 import { NextRequest, NextResponse } from "next/server";
-import { decrypt } from "@/lib/auth";
+import { decrypt } from "@/lib/session-token";
 
 const publicExactRoutes = [
   "/",
   "/login",
   "/api/auth/login",
+  "/api/auth/logout",
   "/api/setup",
 ];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Allow public pages and API endpoints
+  // Public pages and the explicitly public catalog/inquiry endpoints only.
+  // Do not use startsWith("/properties") because it also exempts similarly
+  // prefixed internal paths.
   if (
     publicExactRoutes.includes(pathname) ||
     pathname.startsWith("/share/") ||
-    pathname.startsWith("/properties") ||
+    pathname === "/properties" ||
+    pathname.startsWith("/properties/") ||
     pathname.startsWith("/api/public/")
   ) {
     return NextResponse.next();
@@ -26,6 +30,9 @@ export async function middleware(request: NextRequest) {
   const session = request.cookies.get("session")?.value;
 
   if (!session) {
+    if (pathname.startsWith("/api/")) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
@@ -38,6 +45,9 @@ export async function middleware(request: NextRequest) {
 
     return NextResponse.next();
   } catch {
+    if (pathname.startsWith("/api/")) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     return NextResponse.redirect(new URL("/login", request.url));
   }
 }

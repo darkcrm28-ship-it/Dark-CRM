@@ -1,11 +1,45 @@
 "use client";
 
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import * as XLSX from "xlsx";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import CustomerDrawer from "@/components/CustomerDrawer";
 import DynamicFields from "@/components/DynamicFields";
+import ImportWizardModal from "@/components/import/ImportWizardModal";
+
+// ─── Toast System ──────────────────────────────────────────────────────────────
+type ToastType = "success" | "error" | "info" | "warning";
+interface Toast { id: number; type: ToastType; message: string; hiding?: boolean; }
+
+function ToastContainer({ toasts, onDismiss }: { toasts: Toast[]; onDismiss: (id: number) => void }) {
+  if (!toasts.length) return null;
+  return (
+    <div className="toast-container">
+      {toasts.map(t => (
+        <div
+          key={t.id}
+          className={`toast toast-${t.type}${t.hiding ? " hiding" : ""}`}
+          onClick={() => onDismiss(t.id)}
+        >
+          <span>{t.type === "success" ? "✅" : t.type === "error" ? "❌" : t.type === "warning" ? "⚠️" : "ℹ️"}</span>
+          <span>{t.message}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Relative time helper ──────────────────────────────────────────────────────
+function relativeTime(dateStr?: string): { label: string; cls: string } {
+  if (!dateStr) return { label: "لم يُتواصل", cls: "last-contact-none" };
+  const days = (Date.now() - new Date(dateStr).getTime()) / (1000 * 60 * 60 * 24);
+  if (days < 1)  return { label: "اليوم",          cls: "last-contact-fresh" };
+  if (days < 3)  return { label: `منذ ${Math.floor(days)} أيام`, cls: "last-contact-fresh" };
+  if (days < 7)  return { label: `منذ ${Math.floor(days)} أيام`, cls: "last-contact-warn"  };
+  if (days < 30) return { label: `منذ ${Math.floor(days)} يوم`,  cls: "last-contact-stale" };
+  return { label: `منذ ${Math.floor(days / 30)} شهر`, cls: "last-contact-stale" };
+}
 
 const STATUS_MAP: Record<string, { label: string; badge: string }> = {
   POTENTIAL_SELLER: { label: "بائع محتمل",        badge: "badge-orange" },
@@ -23,16 +57,7 @@ const STATUS_MAP: Record<string, { label: string; badge: string }> = {
   LANDLORD:         { label: "مؤجر",              badge: "badge-purple" },
 };
 
-const TYPE_MAP: Record<string, string> = {
-  BUYER: "مشتري",
-  SELLER: "بائع",
-};
 
-const WHATSAPP_TEMPLATES = [
-  { id: 1, label: "تفاصيل وحدة", text: "أهلاً بك، بخصوص استفسارك عن الوحدة العقارية، إليك كامل التفاصيل..." },
-  { id: 2, label: "متابعة بعد معاينة", text: "سعدنا بلقائك اليوم في المعاينة. هل لديك أي استفسارات إضافية حول العقار؟" },
-  { id: 3, label: "عرض مشروع جديد", text: "لدينا عرض حصري في مشروع جديد بمنطقة مميزة. هل ترغب في معرفة التفاصيل؟" },
-];
 
 const PROPERTY_TYPES = ["شقة", "فيلا", "توين هاوس", "تاون هاوس", "دوبلكس", "بنتهاوس", "مكتب", "عيادة", "محل تجاري", "مصنع", "أرض مصنع", "أرض سكنية", "أرض صناعية", "مستودع"];
 const FACTORY_ACTIVITIES = ["غذائي", "صناعي", "طبي", "هندسي", "كيماوي", "ملابس/نسيج", "أخرى"];
@@ -61,7 +86,6 @@ export default function CustomersClient({
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [isFetching, setIsFetching] = useState(false);
-  const [hasSearched, setHasSearched] = useState(true);
   const [search, setSearch] = useState("");
   const [subTypeFilter, setSubTypeFilter] = useState<"ALL" | "LEAD" | "SELLER">("ALL");
   
@@ -95,7 +119,6 @@ export default function CustomersClient({
       const params = new URLSearchParams(window.location.search);
       if (params.get("filter") === "neglected") {
         setAppliedFilters(prev => ({ ...prev, neglected: true }));
-        setHasSearched(true);
       }
     }
   }, []);
@@ -108,15 +131,10 @@ export default function CustomersClient({
 
   // Import Modal State
   const [showImportModal, setShowImportModal] = useState(false);
-  const [importRows, setImportRows] = useState<any[]>([]);
-  const [importProject, setImportProject] = useState("");
-  const [importLoading, setImportLoading] = useState(false);
-  const [importStatus, setImportStatus] = useState<string | null>(null);
   
   // Drawer State
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null);
 
   // New Customer State
   const [newName, setNewName] = useState("");
@@ -134,7 +152,7 @@ export default function CustomersClient({
   const [newBathrooms, setNewBathrooms] = useState("");
   const [newUnitSize, setNewUnitSize] = useState("");
   const [newAskingPrice, setNewAskingPrice] = useState("");
-  const [newDeliveryDate, setNewDeliveryDate] = useState("");
+  const [newDeliveryDate] = useState("");
   const [newInstallmentAmt, setNewInstallmentAmt] = useState("");
   const [newInstallmentRem, setNewInstallmentRem] = useState("");
   const [newInstallmentDet, setNewInstallmentDet] = useState("");
@@ -147,6 +165,25 @@ export default function CustomersClient({
   const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
   const [customFieldDefs, setCustomFieldDefs] = useState<any[]>([]);
   const [newCustomData, setNewCustomData] = useState<any>({});
+
+  // ─── Toast System ────────────────────────────────────────────────────────────
+  const [toasts, setToasts] = useState<Toast[]>([]);
+  const toastIdRef = useRef(0);
+
+  const showToast = useCallback((message: string, type: ToastType = "success", duration = 3500) => {
+    const id = ++toastIdRef.current;
+    setToasts(prev => [...prev, { id, type, message }]);
+    setTimeout(() => {
+      setToasts(prev => prev.map(t => t.id === id ? { ...t, hiding: true } : t));
+      setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 250);
+    }, duration);
+  }, []);
+
+  const dismissToast = useCallback((id: number) => {
+    setToasts(prev => prev.map(t => t.id === id ? { ...t, hiding: true } : t));
+    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 250);
+  }, []);
+  // ─────────────────────────────────────────────────────────────────────────────
 
   const router = useRouter();
   const isSeeking = newStatus === "BUYER" || newStatus === "RENTER";
@@ -162,10 +199,7 @@ export default function CustomersClient({
     fetchDefs();
   }, []);
 
-  const getSuggestedEmployee = (customer: any) => {
-    if (!customer.area) return null;
-    return users.find(u => u.expertAreas?.toLowerCase().includes(customer.area.toLowerCase()));
-  };
+
 
   const handlePhoneChange = async (phone: string) => {
     setNewPhone(phone);
@@ -178,7 +212,8 @@ export default function CustomersClient({
         } else {
           setDuplicateWarning(null);
         }
-      } catch (err) {}
+      } catch {
+      } 
     } else {
       setDuplicateWarning(null);
     }
@@ -238,22 +273,26 @@ export default function CustomersClient({
 
   const filtered = customers;
 
-  const handleStartSearch = () => {
-    const newFilters = {
-      query: search,
-      building: filterBuilding,
-      unit: filterUnit,
-      project: filterProject,
-      area: filterArea,
-      type: filterType,
-      floor: filterFloor,
-      staff: filterStaff,
-      status: filterStatus,
-      neglected: false
-    };
-    setAppliedFilters(newFilters);
-    fetchServerCustomers(1, newFilters, pageSize, subTypeFilter);
-  };
+  useEffect(() => {
+    const t = setTimeout(() => {
+      const newFilters = {
+        query: search,
+        building: filterBuilding,
+        unit: filterUnit,
+        project: filterProject,
+        area: filterArea,
+        type: filterType,
+        floor: filterFloor,
+        staff: filterStaff,
+        status: filterStatus,
+        neglected: appliedFilters.neglected
+      };
+      setAppliedFilters(newFilters);
+      fetchServerCustomers(1, newFilters, pageSize, subTypeFilter);
+    }, 400);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search, filterBuilding, filterUnit, filterProject, filterArea, filterType, filterFloor, filterStaff, filterStatus]);
 
   const handleSubTypeChange = (newSubType: "ALL" | "LEAD" | "SELLER") => {
     setSubTypeFilter(newSubType);
@@ -280,8 +319,8 @@ export default function CustomersClient({
       fetchServerCustomers(currentPage);
       setSelectedIds([]);
       setSelectedEmployee("");
-    } catch (err) {}
-    finally { setLoading(false); }
+    } catch {
+    } finally { setLoading(false); }
   };
 
   const handleBulkAction = async (action: string, value?: any) => {
@@ -297,8 +336,8 @@ export default function CustomersClient({
       });
       fetchServerCustomers(currentPage);
       setSelectedIds([]);
-    } catch (err) {}
-    finally { setLoading(false); }
+    } catch {
+    } finally { setLoading(false); }
   };
 
   const handleManualAdd = async (e: React.FormEvent, stayInModal = false) => {
@@ -337,7 +376,7 @@ export default function CustomersClient({
       const responseData = await res.json();
       
       if (!res.ok) {
-        alert("❌ خطأ: " + (responseData.error || "فشل حفظ العميل"));
+        showToast(responseData.error || "فشل حفظ العميل", "error");
         return;
       }
       
@@ -354,7 +393,7 @@ export default function CustomersClient({
         setNewFinishing("");
         setNewCustomData({});
         // Keep newName, newPhone, newStatus, newProject, newArea, newPropType for convenience
-        alert("✅ تم حفظ الوحدة بنجاح. يمكنك إدخال وحدة أخرى لنفس العميل.");
+        showToast("تم حفظ الوحدة بنجاح — يمكنك إدخال وحدة أخرى لنفس العميل", "success");
       } else {
         setShowAddModal(false);
         // Clear all
@@ -376,12 +415,12 @@ export default function CustomersClient({
         setNewLeaseDuration("");
         setNewDesiredAreas("");
         setNewCustomData({});
-        alert("✅ تم حفظ العميل بنجاح!");
+        showToast(`تم حفظ العميل بنجاح ✓`, "success");
       }
       router.refresh();
     } catch (err) {
       console.error("Error adding customer:", err);
-      alert("❌ حدث خطأ أثناء حفظ العميل. تحقق من الاتصال بالإنترنت.");
+      showToast("حدث خطأ أثناء حفظ العميل. تحقق من الاتصال بالإنترنت.", "error");
     }
     finally { setLoading(false); }
   };
@@ -408,71 +447,6 @@ export default function CustomersClient({
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "نموذج بيانات العملاء");
     XLSX.writeFile(wb, "نموذج_استيراد_عملاء_بائع_محتمل.xlsx");
-  };
-
-  // ─── Parse uploaded Excel file ───────────────────────────────────────────
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setImportStatus(null);
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      try {
-        const data = new Uint8Array(ev.target?.result as ArrayBuffer);
-        const workbook = XLSX.read(data, { type: "array" });
-        const sheet = workbook.Sheets[workbook.SheetNames[0]];
-        const rows: any[] = XLSX.utils.sheet_to_json(sheet, { defval: "" });
-        // Normalize column names
-        const normalized = rows.map((row: any) => ({
-          name: row["الاسم"] || row["name"] || "",
-          phone: String(row["رقم الهاتف"] || row["phone"] || ""),
-          nationalId: String(row["الرقم القومي"] || row["nationalId"] || ""),
-          unitNumber: String(row["رقم الوحدة"] || row["unitNumber"] || ""),
-          buildingNumber: String(row["رقم العمارة"] || row["buildingNumber"] || ""),
-          projectName: String(row["المشروع"] || row["projectName"] || ""),
-          area: String(row["المنطقة"] || row["area"] || ""),
-          floor: String(row["الدور"] || row["floor"] || ""),
-          deliveryDate: String(row["تاريخ استلام الوحدة"] || row["deliveryDate"] || ""),
-        })).filter((r: any) => r.name && r.phone);
-        if (normalized.length === 0) {
-          setImportStatus("⚠️ لم يتم العثور على بيانات صالحة. تأكد من تنسيق الملف.");
-        } else {
-          setImportRows(normalized);
-          setImportStatus(`✅ تم قراءة ${normalized.length} سجل. راجع البيانات ثم اضغط استيراد.`);
-        }
-      } catch (err) {
-        setImportStatus("❌ خطأ في قراءة الملف. تأكد أن الملف بصيغة .xlsx أو .xls");
-      }
-    };
-    reader.readAsArrayBuffer(file);
-    // Reset input so same file can be re-uploaded
-    e.target.value = "";
-  };
-
-  // ─── Send import rows to API ─────────────────────────────────────────────
-  const handleImport = async () => {
-    if (importRows.length === 0) return;
-    setImportLoading(true);
-    setImportStatus(null);
-    try {
-      const res = await fetch("/api/customers/import", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ customers: importRows, projectId: importProject || null }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setImportStatus(`🎉 تم الاستيراد بنجاح! تم إضافة ${data.count} عميل كبائع محتمل.`);
-        setImportRows([]);
-        router.refresh();
-      } else {
-        setImportStatus("❌ " + (data.error || "فشل الاستيراد"));
-      }
-    } catch (err) {
-      setImportStatus("❌ حدث خطأ في الاتصال بالخادم");
-    } finally {
-      setImportLoading(false);
-    }
   };
 
   const exportToExcel = () => {
@@ -685,14 +659,11 @@ export default function CustomersClient({
 
   const getCleanPhone = (p: string) => p.replace(/\D/g, "").startsWith("0") ? "2" + p.replace(/\D/g, "") : p.replace(/\D/g, "");
 
-  const getWhatsAppLink = (c: any) => {
-    const template = WHATSAPP_TEMPLATES.find(t => t.id === selectedTemplateId);
-    const text = template ? encodeURIComponent(template.text) : "";
-    return `https://wa.me/${getCleanPhone(c.phone)}?text=${text}`;
-  };
+
 
   return (
     <div>
+      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
       <div className="page-header animate-in">
         <div>
           <div className="page-title">
@@ -706,8 +677,8 @@ export default function CustomersClient({
         </div>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
           {view === "LEADS" && settings?.kanbanEnabled !== false && (
-            <button onClick={() => setIsKanban(!isKanban)} className="btn btn-secondary">
-              {isKanban ? "📋 عرض الجدول" : "📊 عرض لوحة الكانبان"}
+            <button onClick={() => setIsKanban(!isKanban)} className="btn btn-ghost btn-sm">
+              {isKanban ? "📋 عرض الجدول" : "📊 Kanban"}
             </button>
           )}
           {session?.role === "GENERAL_MANAGER" && (
@@ -730,7 +701,7 @@ export default function CustomersClient({
                 📄 تحميل النموذج
               </button>
               <button
-                onClick={() => { setShowImportModal(true); setImportRows([]); setImportStatus(null); }}
+                onClick={() => setShowImportModal(true)}
                 className="btn btn-secondary"
                 style={{ border: "1px solid var(--gold-primary)", color: "var(--gold-primary)" }}
               >
@@ -781,8 +752,8 @@ export default function CustomersClient({
             {showAdvanced ? "إخفاء الفلاتر ▲" : "فلاتر متقدمة ⚙️"}
           </button>
 
-          <button onClick={handleStartSearch} className="btn btn-primary" style={{ padding: "10px 30px" }}>
-            🔍 بدء البحث
+          <button onClick={() => { setSearch(""); setFilterBuilding(""); setFilterUnit(""); setFilterProject(""); setFilterArea(""); setFilterType(""); setFilterFloor(""); setFilterStaff(""); setFilterStatus(""); }} className="btn btn-secondary" style={{ padding: "10px 16px" }}>
+            ✕ مسح الفلاتر
           </button>
 
           {isManager && selectedIds.length > 0 && (
@@ -917,6 +888,7 @@ export default function CustomersClient({
             <thead>
               <tr>
                 <th style={{ width: 40 }}><input type="checkbox" onChange={toggleAll} checked={selectedIds.length === filtered.length && filtered.length > 0} /></th>
+                <th style={{ width: 90, fontSize: 11, color: "var(--text-muted)" }}>الكود</th>
                 <th>المنطقة</th>
                 <th>المشروع</th>
                 <th>رقم الشقة</th>
@@ -925,27 +897,61 @@ export default function CustomersClient({
                 <th>اسم العميل</th>
                 <th>رقم التليفون</th>
                 <th>الحالة</th>
+                <th>آخر تواصل</th>
                 <th>الموظف</th>
                 <th>إجراءات</th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map(c => {
+              {filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={13}>
+                    <div className="empty-state">
+                      <div className="empty-state-icon">🔍</div>
+                      <div className="empty-state-text">لا توجد نتائج مطابقة لبحثك أو الفلاتر المحددة</div>
+                    </div>
+                  </td>
+                </tr>
+              ) : filtered.map(c => {
                 const lastAt = c.interactions?.[0]?.createdAt || c.lastInteractionAt;
                 const days = lastAt ? (Date.now() - new Date(lastAt).getTime()) / (1000 * 60 * 60 * 24) : 999;
                 const rowClass = days < 3 ? "row-fresh" : days < 7 ? "row-warning" : "row-danger";
+                const { label: contactLabel, cls: contactCls } = relativeTime(lastAt);
+                const waPhone = getCleanPhone(c.phone);
 
                 return (
                   <tr key={c.id} className={rowClass}>
                     <td><input type="checkbox" checked={selectedIds.includes(c.id)} onChange={() => toggleOne(c.id)} /></td>
+                    <td>
+                      {c.code ? (
+                        <span style={{ fontSize: 11, fontFamily: "monospace", color: "var(--text-muted)", background: "rgba(255,255,255,0.04)", padding: "2px 6px", borderRadius: 5 }}>
+                          {c.code}
+                        </span>
+                      ) : "—"}
+                    </td>
                     <td style={{ fontSize: 13 }}>{c.area || "—"}</td>
                     <td style={{ fontSize: 13 }}>{projects.find(p => p.id === c.projectId)?.name || c.projectName || "—"}</td>
                     <td style={{ fontWeight: 700 }}>{c.unitNumber || "—"}</td>
                     <td>{c.buildingNumber || "—"}</td>
                     <td style={{ fontWeight: 800, color: "var(--accent-green)" }}>{c.askingPrice ? c.askingPrice.toLocaleString() : "—"}</td>
-                    <td><Link href={`/dashboard/customers/${c.id}`} style={{ fontWeight: 800, color: "var(--gold-primary)" }}>{c.name}</Link></td>
-                    <td style={{ direction: "ltr", fontSize: 13 }}>{c.phone}</td>
+                    <td>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                        <Link href={`/dashboard/customers/${c.id}`} style={{ fontWeight: 800, color: "var(--gold-primary)" }}>{c.name}</Link>
+                        <span style={{ fontSize: 10, color: "var(--text-muted)" }}>{"★".repeat(c.leadScore || 3)}</span>
+                      </div>
+                    </td>
+                    <td style={{ direction: "ltr", fontSize: 13 }}>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                        <span>{c.phone}</span>
+                        <a href={`https://wa.me/${waPhone}`} target="_blank" rel="noreferrer" className="btn-wa" onClick={() => logContact(c)}>
+                          💬 واتساب
+                        </a>
+                      </div>
+                    </td>
                     <td><span className={`badge ${STATUS_MAP[c.status]?.badge || "badge-gray"}`}>{STATUS_MAP[c.status]?.label || c.status}</span></td>
+                    <td>
+                      <span className={`last-contact-badge ${contactCls}`}>{contactLabel}</span>
+                    </td>
                     <td style={{ fontSize: 12 }}>{c.assignedTo?.name || "—"}</td>
                     <td>
                       <div style={{ display: "flex", gap: 6 }}>
@@ -961,33 +967,45 @@ export default function CustomersClient({
 
           {/* Mobile Cards */}
           <div className="mobile-cards">
-            {filtered.map(c => (
-              <div key={c.id} className="customer-card">
-                <div className="customer-card-header">
-                  <Link href={`/dashboard/customers/${c.id}`} style={{ fontWeight: 800 }}>{c.name}</Link>
-                  <span className={`badge ${STATUS_MAP[c.status]?.badge}`}>{STATUS_MAP[c.status]?.label}</span>
-                </div>
-                <div className="customer-card-body">
-                  <div>📞 {c.phone}</div>
-                  <div>🏢 {c.projectName || "—"}</div>
-                  <div>🏠 عمارة {c.buildingNumber || "—"}</div>
-                  <div>🔑 وحدة {c.unitNumber || "—"}</div>
-                  {c.askingPrice && <div style={{ color: "var(--accent-green)", fontWeight: 700 }}>💰 {c.askingPrice.toLocaleString()} جنيه</div>}
-                </div>
-                <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                  <button onClick={() => { setSelectedCustomer(c); setIsDrawerOpen(true); }} className="btn btn-secondary btn-sm" style={{ flex: 1 }}>تعديل</button>
-                  <button 
-                    onClick={() => {
-                      const url = `${window.location.origin}/share/unit/${c.id}`;
-                      navigator.clipboard.writeText(url);
-                      alert("تم نسخ الرابط!");
-                    }} 
-                    className="btn btn-ghost btn-sm"
-                  >🔗 عرض</button>
-                  <a href={`https://wa.me/${getCleanPhone(c.phone)}`} target="_blank" rel="noreferrer" className="btn btn-ghost btn-sm">واتساب</a>
-                </div>
+            {filtered.length === 0 ? (
+              <div className="empty-state">
+                <div className="empty-state-icon">🔍</div>
+                <div className="empty-state-text">لا توجد نتائج مطابقة</div>
               </div>
-            ))}
+            ) : filtered.map(c => {
+              const { label: contactLabel, cls: contactCls } = relativeTime(c.interactions?.[0]?.createdAt || c.lastInteractionAt);
+              return (
+                <div key={c.id} className="customer-card">
+                  <div className="customer-card-header">
+                    <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                      <Link href={`/dashboard/customers/${c.id}`} style={{ fontWeight: 800 }}>{c.name}</Link>
+                      {c.code && <span style={{ fontSize: 10, fontFamily: "monospace", color: "var(--text-muted)" }}>{c.code}</span>}
+                    </div>
+                    <span className={`badge ${STATUS_MAP[c.status]?.badge}`}>{STATUS_MAP[c.status]?.label}</span>
+                  </div>
+                  <div className="customer-card-body">
+                    <div>📞 {c.phone}</div>
+                    <div>🏢 {c.projectName || "—"}</div>
+                    <div>🏠 عمارة {c.buildingNumber || "—"}</div>
+                    <div>🔑 وحدة {c.unitNumber || "—"}</div>
+                    {c.askingPrice && <div style={{ color: "var(--accent-green)", fontWeight: 700 }}>💰 {c.askingPrice.toLocaleString()} جنيه</div>}
+                    <div style={{ marginTop: 4 }}><span className={`last-contact-badge ${contactCls}`}>{contactLabel}</span></div>
+                  </div>
+                  <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                    <button onClick={() => { setSelectedCustomer(c); setIsDrawerOpen(true); }} className="btn btn-secondary btn-sm" style={{ flex: 1 }}>تعديل</button>
+                    <button 
+                      onClick={() => {
+                        const url = `${window.location.origin}/share/unit/${c.id}`;
+                        navigator.clipboard.writeText(url);
+                        showToast("تم نسخ رابط الوحدة!", "info", 2500);
+                      }} 
+                      className="btn btn-ghost btn-sm"
+                    >🔗 نسخ</button>
+                    <a href={`https://wa.me/${getCleanPhone(c.phone)}`} target="_blank" rel="noreferrer" className="btn-wa" style={{ flex: "none", padding: "6px 12px" }}>💬</a>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
@@ -1418,160 +1436,13 @@ export default function CustomersClient({
         </div>
       )}
 
-      {/* ═══════ Import Excel Modal ════════════════════════════════════════ */}
-      {showImportModal && (
-        <div className="modal-overlay">
-          <div className="modal-content animate-in" style={{ maxWidth: 980, width: "96%" }}>
-            <div className="modal-header">
-              <div style={{ fontWeight: 900, fontSize: 18 }}>📤 استيراد بيانات عملاء من Excel</div>
-              <button onClick={() => setShowImportModal(false)} className="btn-close">✕</button>
-            </div>
-
-            <div style={{ padding: 28 }}>
-
-              {/* Step 1: Download template */}
-              <div style={{
-                display: "flex", alignItems: "center", gap: 16,
-                padding: 16, marginBottom: 24,
-                background: "rgba(0,123,255,0.06)",
-                borderRadius: 12, border: "1px dashed var(--accent-blue)"
-              }}>
-                <div style={{ fontSize: 32 }}>📄</div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 4 }}>الخطوة الأولى: حمّل النموذج الفارغ</div>
-                  <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
-                    النموذج يحتوي على الأعمدة: الاسم، رقم الهاتف، الرقم القومي، رقم الوحدة، رقم العمارة، المشروع، المنطقة، الدور، تاريخ استلام الوحدة
-                  </div>
-                </div>
-                <button
-                  onClick={downloadTemplate}
-                  className="btn btn-secondary"
-                  style={{ whiteSpace: "nowrap", border: "1px solid var(--accent-blue)", color: "var(--accent-blue)" }}
-                >
-                  ⬇️ تحميل النموذج
-                </button>
-              </div>
-
-              {/* Step 2: Upload filled file */}
-              <div style={{ marginBottom: 24 }}>
-                <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 12 }}>الخطوة الثانية: ارفع الملف بعد ملئه</div>
-                <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "end" }}>
-                  <div className="form-group" style={{ flex: 1, minWidth: 220 }}>
-                    <label className="form-label">اختر مشروعاً (اختياري — يطغى على عمود المشروع في الملف)</label>
-                    <select
-                      value={importProject}
-                      onChange={e => setImportProject(e.target.value)}
-                      className="input"
-                    >
-                      <option value="">بدون مشروع محدد</option>
-                      {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                    </select>
-                  </div>
-                  <div className="form-group" style={{ flex: 1, minWidth: 220 }}>
-                    <label className="form-label">ارفع ملف Excel (.xlsx / .xls)</label>
-                    <label
-                      htmlFor="excel-upload-input"
-                      style={{
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        gap: 10, height: 44, borderRadius: 10,
-                        border: "2px dashed var(--gold-primary)",
-                        color: "var(--gold-primary)", fontWeight: 700, fontSize: 14,
-                        cursor: "pointer", background: "rgba(212,175,55,0.06)",
-                        transition: "all 0.2s"
-                      }}
-                    >
-                      📂 اختر الملف
-                    </label>
-                    <input
-                      id="excel-upload-input"
-                      type="file"
-                      accept=".xlsx,.xls"
-                      onChange={handleFileUpload}
-                      style={{ display: "none" }}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Status message */}
-              {importStatus && (
-                <div style={{
-                  padding: "10px 16px", borderRadius: 8, marginBottom: 16,
-                  background: importStatus.startsWith("❌") || importStatus.startsWith("⚠️")
-                    ? "rgba(239,68,68,0.1)" : "rgba(34,197,94,0.1)",
-                  border: importStatus.startsWith("❌") || importStatus.startsWith("⚠️")
-                    ? "1px solid rgba(239,68,68,0.3)" : "1px solid rgba(34,197,94,0.3)",
-                  fontWeight: 700, fontSize: 13
-                }}>
-                  {importStatus}
-                </div>
-              )}
-
-              {/* Preview table */}
-              {importRows.length > 0 && (
-                <div style={{ marginBottom: 24 }}>
-                  <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 10 }}>
-                    👁️ معاينة البيانات ({importRows.length} سجل)
-                  </div>
-                  <div style={{ overflowX: "auto", maxHeight: 340, overflowY: "auto", borderRadius: 10, border: "1px solid var(--border)" }}>
-                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-                      <thead>
-                        <tr style={{ background: "rgba(255,255,255,0.05)", position: "sticky", top: 0 }}>
-                          {["#","الاسم","الهاتف","الرقم القومي","رقم الوحدة","رقم العمارة","المشروع","المنطقة","الدور","تاريخ الاستلام"].map(h => (
-                            <th key={h} style={{ padding: "10px 10px", textAlign: "right", fontWeight: 800, borderBottom: "2px solid var(--border)", whiteSpace: "nowrap" }}>{h}</th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {importRows.slice(0, 100).map((row, i) => (
-                          <tr key={i} style={{ borderBottom: "1px solid var(--border-subtle)", background: i % 2 === 0 ? "transparent" : "rgba(255,255,255,0.02)" }}>
-                            <td style={{ padding: "8px 10px", color: "var(--text-muted)", fontWeight: 700 }}>{i + 1}</td>
-                            <td style={{ padding: "8px 10px", fontWeight: 800, color: "var(--gold-primary)" }}>{row.name || "—"}</td>
-                            <td style={{ padding: "8px 10px", direction: "ltr" }}>{row.phone || "—"}</td>
-                            <td style={{ padding: "8px 10px" }}>{row.nationalId || "—"}</td>
-                            <td style={{ padding: "8px 10px" }}>{row.unitNumber || "—"}</td>
-                            <td style={{ padding: "8px 10px" }}>{row.buildingNumber || "—"}</td>
-                            <td style={{ padding: "8px 10px" }}>{row.projectName || "—"}</td>
-                            <td style={{ padding: "8px 10px" }}>{row.area || "—"}</td>
-                            <td style={{ padding: "8px 10px" }}>{row.floor || "—"}</td>
-                            <td style={{ padding: "8px 10px" }}>{row.deliveryDate || "—"}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                    {importRows.length > 100 && (
-                      <div style={{ padding: 10, textAlign: "center", color: "var(--text-muted)", fontSize: 12 }}>
-                        يتم عرض أول 100 سجل فقط. الإجمالي: {importRows.length}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Action buttons */}
-              <div style={{ display: "flex", gap: 12, justifyContent: "flex-end", flexWrap: "wrap" }}>
-                <button
-                  onClick={() => setShowImportModal(false)}
-                  className="btn btn-ghost"
-                  style={{ minWidth: 100 }}
-                >
-                  إلغاء
-                </button>
-                <button
-                  onClick={handleImport}
-                  disabled={importRows.length === 0 || importLoading}
-                  className="btn btn-primary"
-                  style={{ minWidth: 180, fontSize: 15 }}
-                >
-                  {importLoading
-                    ? "جاري الاستيراد..."
-                    : `📥 استيراد ${importRows.length > 0 ? importRows.length + " سجل" : ""} كبائع محتمل`}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* ═══════ Smart Excel Import Wizard Modal ══════════════════════════ */}
+      <ImportWizardModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        projects={projects}
+        customFieldDefs={customFieldDefs}
+      />
 
     </div>
   );

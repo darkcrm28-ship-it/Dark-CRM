@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
       where: { email },
     });
 
-    if (!user) {
+    if (!user || !user.isActive) {
       return NextResponse.json(
         { error: "بيانات الدخول غير صحيحة" },
         { status: 401 }
@@ -53,6 +53,8 @@ export async function POST(request: NextRequest) {
       httpOnly: true,
       path: "/",
       secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 60 * 60 * 24,
     });
 
     return response;
