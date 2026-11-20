@@ -3,7 +3,8 @@ import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import CustomerDetailsClient from "./CustomerDetailsClient";
 
-export default async function CustomerPage({ params }: { params: { id: string } }) {
+export default async function CustomerPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const session = await getSession();
   
   if (!session) {
@@ -11,7 +12,7 @@ export default async function CustomerPage({ params }: { params: { id: string } 
   }
 
   const customer = await prisma.customer.findUnique({
-    where: { id: params.id },
+    where: { id },
     include: {
       interactions: {
         orderBy: { createdAt: 'desc' },

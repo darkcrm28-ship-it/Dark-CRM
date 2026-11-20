@@ -5,7 +5,7 @@ import { hashPassword } from "@/lib/auth-server";
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getSession();
@@ -13,7 +13,7 @@ export async function PUT(
       return NextResponse.json({ error: "Unauthorized. Only General Manager can update users." }, { status: 403 });
     }
 
-    const { id } = params;
+    const { id } = await params;
     const data = await request.json();
     
     const { name, email, password: newPassword, role, phone, nationalId, address, dateJoined, salaryBase, isActive, expertAreas } = data;
@@ -41,7 +41,7 @@ export async function PUT(
     });
 
     // Don't return password
-    const { password, ...userWithoutPassword } = user;
+    const { password: _password, ...userWithoutPassword } = user;
 
     return NextResponse.json({ success: true, user: userWithoutPassword });
   } catch (error) {

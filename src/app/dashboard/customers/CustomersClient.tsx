@@ -135,6 +135,7 @@ export default function CustomersClient({
   // Drawer State
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [modalStep, setModalStep] = useState<1 | 2 | 3>(1);
 
   // New Customer State
   const [newName, setNewName] = useState("");
@@ -342,6 +343,11 @@ export default function CustomersClient({
 
   const handleManualAdd = async (e: React.FormEvent, stayInModal = false) => {
     if (e) e.preventDefault();
+    if (!newName.trim() || !newPhone.trim()) {
+      showToast("يرجى إدخال الاسم بالكامل ورقم الهاتف أولاً", "error");
+      setModalStep(1);
+      return;
+    }
     setLoading(true);
     
     const isSeeking = newStatus === "BUYER" || newStatus === "RENTER";
@@ -392,10 +398,12 @@ export default function CustomersClient({
         setNewInstallmentDet("");
         setNewFinishing("");
         setNewCustomData({});
+        setModalStep(2);
         // Keep newName, newPhone, newStatus, newProject, newArea, newPropType for convenience
         showToast("تم حفظ الوحدة بنجاح — يمكنك إدخال وحدة أخرى لنفس العميل", "success");
       } else {
         setShowAddModal(false);
+        setModalStep(1);
         // Clear all
         setNewName(""); setNewPhone(""); setNewProject(""); setNewUnitNumber(""); 
         setNewBuildingNumber(""); setNewArea(""); setNewFloor(""); setNewPropType(""); 
@@ -492,11 +500,12 @@ export default function CustomersClient({
 
   const exportToPDF = async () => {
     setLoading(true);
+    let printContainer: HTMLDivElement | null = null;
     try {
       const { default: jsPDF } = await import("jspdf");
       const { default: html2canvas } = await import("html2canvas");
 
-      const printContainer = document.createElement("div");
+      printContainer = document.createElement("div");
       printContainer.style.position = "fixed";
       printContainer.style.left = "-9999px";
       printContainer.style.top = "0";
@@ -567,7 +576,7 @@ export default function CustomersClient({
                 // Remaining Duration
                 const instRem = c.installmentRemaining ? `${c.installmentRemaining} شهر` : "—";
 
-                const extraFieldsList = [];
+                const extraFieldsList: string[] = [];
                 if (c.customData) {
                   Object.entries(c.customData).forEach(([key, val]) => {
                     if (val && key !== "paymentMethod" && key !== "leaseDuration") {
@@ -647,14 +656,18 @@ export default function CustomersClient({
       console.error(error);
       alert("حدث خطأ أثناء التصدير.");
     } finally {
-      document.body.removeChild(printContainer);
+      if (printContainer && printContainer.parentNode) {
+        printContainer.parentNode.removeChild(printContainer);
+      }
       setLoading(false);
     }
   };
 
   const logContact = (c: any) => {
     localStorage.setItem("last_contact_action", Date.now().toString());
-    localStorage.setItem("last_contact_customer", JSON.stringify(c));
+    if (c?.id) {
+      localStorage.setItem("last_contact_customer_id", c.id);
+    }
   };
 
   const getCleanPhone = (p: string) => p.replace(/\D/g, "").startsWith("0") ? "2" + p.replace(/\D/g, "") : p.replace(/\D/g, "");
@@ -835,6 +848,65 @@ export default function CustomersClient({
             </div>
           </div>
         )}
+
+        {/* ─── Active Filter Chips ─── */}
+        {(() => {
+          const activeChips: { key: string; label: string; onRemove: () => void }[] = [];
+          if (search) activeChips.push({ key: "search", label: `بحث: "${search}"`, onRemove: () => setSearch("") });
+          if (filterBuilding) activeChips.push({ key: "building", label: `عمارة: ${filterBuilding}`, onRemove: () => setFilterBuilding("") });
+          if (filterUnit) activeChips.push({ key: "unit", label: `وحدة: ${filterUnit}`, onRemove: () => setFilterUnit("") });
+          if (filterProject) {
+            const pName = projects.find(p => p.id === filterProject)?.name || filterProject;
+            activeChips.push({ key: "project", label: `مشروع: ${pName}`, onRemove: () => setFilterProject("") });
+          }
+          if (filterArea) activeChips.push({ key: "area", label: `منطقة: ${filterArea}`, onRemove: () => setFilterArea("") });
+          if (filterType) activeChips.push({ key: "type", label: `نوع: ${filterType}`, onRemove: () => setFilterType("") });
+          if (filterFloor) activeChips.push({ key: "floor", label: `دور: ${filterFloor}`, onRemove: () => setFilterFloor("") });
+          if (filterStaff) {
+            const uName = users.find(u => u.id === filterStaff)?.name || filterStaff;
+            activeChips.push({ key: "staff", label: `موظف: ${uName}`, onRemove: () => setFilterStaff("") });
+          }
+          if (filterStatus) {
+            activeChips.push({ key: "status", label: `حالة: ${STATUS_MAP[filterStatus]?.label || filterStatus}`, onRemove: () => setFilterStatus("") });
+          }
+          if (appliedFilters.neglected) {
+            activeChips.push({ key: "neglected", label: `⏰ عملاء لم يُتواصل معهم منذ 3+ أيام`, onRemove: () => setAppliedFilters(prev => ({ ...prev, neglected: false })) });
+          }
+
+          if (activeChips.length === 0) return null;
+
+          return (
+            <div className="filter-chips-container">
+              <span style={{ fontSize: 12, color: "var(--text-muted)", marginLeft: 4 }}>الفلاتر النشطة ({activeChips.length}):</span>
+              {activeChips.map((chip) => (
+                <span key={chip.key} className="filter-chip">
+                  <span>{chip.label}</span>
+                  <button type="button" onClick={chip.onRemove} className="filter-chip-remove" title="إزالة الفلتر">
+                    ✕
+                  </button>
+                </span>
+              ))}
+              <button
+                type="button"
+                onClick={() => {
+                  setSearch("");
+                  setFilterBuilding("");
+                  setFilterUnit("");
+                  setFilterProject("");
+                  setFilterArea("");
+                  setFilterType("");
+                  setFilterFloor("");
+                  setFilterStaff("");
+                  setFilterStatus("");
+                  setAppliedFilters(prev => ({ ...prev, neglected: false }));
+                }}
+                className="filter-clear-all-chip"
+              >
+                مسح الكل ✕
+              </button>
+            </div>
+          );
+        })()}
       </div>
 
       {/* Loading Overlay */}
@@ -1097,340 +1169,440 @@ export default function CustomersClient({
         <div className="modal-overlay">
           <div className="modal-content animate-in" style={{ maxWidth: 900, width: "95%" }}>
             <div className="modal-header">
-              <div style={{ fontWeight: 800, fontSize: 18 }}>🆕 إضافة عميل ووحدات جديدة</div>
-              <button onClick={() => setShowAddModal(false)} className="btn-close">✕</button>
+              <div style={{ fontWeight: 800, fontSize: 18 }}>🆕 إضافة عميل جديد (معالج من 3 خطوات)</div>
+              <button onClick={() => { setShowAddModal(false); setModalStep(1); }} className="btn-close">✕</button>
             </div>
-            <form onSubmit={handleManualAdd} style={{ padding: 24, maxHeight: "80vh", overflowY: "auto" }}>
-              
-              {/* Section 1: Customer Personal Info */}
-              <div style={{ marginBottom: 30 }}>
-                <h3 style={{ fontSize: 16, fontWeight: 900, marginBottom: 16, color: "var(--gold-primary)", borderBottom: "2px solid rgba(212,175,55,0.1)", paddingBottom: 8 }}>
-                  👤 البيانات الأساسية للعميل
-                </h3>
-                <div className="grid-3">
-                  <div className="form-group">
-                    <label className="form-label">الاسم بالكامل *</label>
-                    <input type="text" value={newName} onChange={e => setNewName(e.target.value)} className="input" required placeholder="اسم العميل..." />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">رقم الهاتف *</label>
-                    <input 
-                      type="text" value={newPhone} 
-                      onChange={e => handlePhoneChange(e.target.value)} 
-                      className="input" required placeholder="01xxxxxxxxx" 
-                    />
-                    {duplicateWarning && (
-                      <div style={{ fontSize: 11, color: "var(--accent-red)", marginTop: 4, fontWeight: 700 }}>
-                        {duplicateWarning}
-                      </div>
-                    )}
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">تصنيف العميل</label>
-                    <select value={newStatus} onChange={e => setNewStatus(e.target.value)} className="input">
-                      <option value="BUYER">مشتري</option>
-                      <option value="POTENTIAL_SELLER">بائع محتمل</option>
-                      <option value="SELLER">بائع</option>
-                      <option value="RENTER">مستأجر</option>
-                      <option value="LANDLORD">مؤجر</option>
-                    </select>
-                  </div>
-                </div>
-
-                {newStatus === "CALL_LATER" && (
-                  <div className="form-group animate-in" style={{ marginTop: 12, padding: 12, background: "rgba(212, 175, 55, 0.1)", borderRadius: 8 }}>
-                    <label className="form-label" style={{ color: "var(--gold-primary)" }}>⏰ موعد الاتصال القادم</label>
-                    <input 
-                      type="datetime-local" 
-                      value={newFollowUpDate} 
-                      onChange={e => setNewFollowUpDate(e.target.value)} 
-                      className="input"
-                    />
-                  </div>
-                )}
-
-                <div className="form-group" style={{ marginTop: 16 }}>
-                  <label className="form-label">📝 ملاحظات عامة (أول تواصل)</label>
-                  <textarea 
-                    value={newGeneralNotes} 
-                    onChange={e => setNewGeneralNotes(e.target.value)} 
-                    className="input" 
-                    rows={3} 
-                    placeholder="اكتب تفاصيل التواصل الأول مع العميل هنا..."
-                  />
-                </div>
-
-                {/* Preferred Activity for Buyers/Renters (Industrial) */}
-                {(newStatus === "BUYER" || newStatus === "RENTER") && (newPropType.includes("مصنع") || newPropType.includes("صناعي")) && (
-                  <div style={{ marginTop: 12, padding: 12, background: "rgba(37, 211, 102, 0.05)", borderRadius: 8, border: "1px solid rgba(37, 211, 102, 0.1)" }}>
-                    <label className="form-label" style={{ color: "#25D366" }}>🎯 النشاط الصناعي الذي يبحث عنه المشتري</label>
-                    <select className="input" value={newCustomData.preferred_factory_activity || ""} onChange={e => setNewCustomData({...newCustomData, preferred_factory_activity: e.target.value})}>
-                      <option value="">كل الأنشطة...</option>
-                      {FACTORY_ACTIVITIES.map(a => <option key={a} value={a}>{a}</option>)}
-                    </select>
-                  </div>
-                )}
+            
+            {/* Stepper Header */}
+            <div style={{ padding: "16px 24px 0 24px" }}>
+              <div className="wizard-stepper">
+                <button
+                  type="button"
+                  className={`wizard-step-btn ${modalStep === 1 ? "active" : modalStep > 1 ? "completed" : ""}`}
+                  onClick={() => setModalStep(1)}
+                >
+                  <span className="wizard-step-number">{modalStep > 1 ? "✓" : "1"}</span>
+                  <span>البيانات الأساسية</span>
+                </button>
+                <button
+                  type="button"
+                  className={`wizard-step-btn ${modalStep === 2 ? "active" : modalStep > 2 ? "completed" : ""}`}
+                  onClick={() => {
+                    if (!newName.trim() || !newPhone.trim()) {
+                      showToast("يرجى إدخال الاسم ورقم الهاتف أولاً", "warning");
+                      return;
+                    }
+                    setModalStep(2);
+                  }}
+                >
+                  <span className="wizard-step-number">{modalStep > 2 ? "✓" : "2"}</span>
+                  <span>مواصفات العقار / الطلب</span>
+                </button>
+                <button
+                  type="button"
+                  className={`wizard-step-btn ${modalStep === 3 ? "active" : ""}`}
+                  onClick={() => {
+                    if (!newName.trim() || !newPhone.trim()) {
+                      showToast("يرجى إدخال الاسم ورقم الهاتف أولاً", "warning");
+                      return;
+                    }
+                    setModalStep(3);
+                  }}
+                >
+                  <span className="wizard-step-number">3</span>
+                  <span>الماليات والمتابعة</span>
+                </button>
               </div>
+            </div>
 
-              {/* Section 2: Property Preferences / Details */}
-              <div style={{ marginBottom: 30, padding: 20, background: "rgba(255,255,255,0.02)", borderRadius: 12, border: "1px solid var(--border)" }}>
-                <h3 style={{ fontSize: 16, fontWeight: 900, marginBottom: 16, color: "var(--accent-blue)" }}>
-                  {isSeeking ? "🏠 المواصفات المطلوبة" : "🏠 بيانات الوحدة / العقار"}
-                </h3>
-                
-                {/* Generic Property Fields */}
-                <div className="grid-3" style={{ marginBottom: 20 }}>
-                  {isOffering && (
+            <form onSubmit={handleManualAdd} style={{ padding: "16px 24px 24px 24px", maxHeight: "75vh", overflowY: "auto" }}>
+              
+              {/* Step 1: Customer Personal Info */}
+              {modalStep === 1 && (
+                <div className="animate-in" style={{ marginBottom: 20 }}>
+                  <h3 style={{ fontSize: 16, fontWeight: 900, marginBottom: 16, color: "var(--gold-primary)", borderBottom: "2px solid rgba(212,175,55,0.1)", paddingBottom: 8 }}>
+                    👤 الخطوة 1: البيانات الشخصية وتصنيف العميل
+                  </h3>
+                  <div className="grid-3">
                     <div className="form-group">
-                      <label className="form-label">المشروع</label>
-                      <select value={newProject} onChange={e => setNewProject(e.target.value)} className="input">
-                        <option value="">اختر المشروع...</option>
-                        {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                      </select>
-                    </div>
-                  )}
-                  
-                  <div className="form-group">
-                    <label className="form-label">{isSeeking ? "المناطق المرغوبة" : "المنطقة / الحي"}</label>
-                    {isSeeking ? (
-                      <input type="text" value={newDesiredAreas} onChange={e => setNewDesiredAreas(e.target.value)} className="input" placeholder="مثال: التجمع، المعادي، زايد..." />
-                    ) : (
-                      <input type="text" value={newArea} onChange={e => setNewArea(e.target.value)} className="input" placeholder="مثال: التجمع الخامس" />
-                    )}
-                  </div>
-                  
-                  <div className="form-group">
-                    <label className="form-label">نوع العقار</label>
-                    <select value={newPropType} onChange={e => setNewPropType(e.target.value)} className="input">
-                      <option value="">اختر النوع...</option>
-                      {PROPERTY_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-                    </select>
-                  </div>
-                </div>
-
-                {/* Offering Details (Exact Location & Size) */}
-                {isOffering && (
-                  <div className="grid-4" style={{ marginBottom: 20 }}>
-                    <div className="form-group">
-                      <label className="form-label">رقم العمارة</label>
-                      <input type="text" value={newBuildingNumber} onChange={e => setNewBuildingNumber(e.target.value)} className="input" placeholder="عمارة..." />
+                      <label className="form-label">الاسم بالكامل * (إلزامي)</label>
+                      <input 
+                        type="text" 
+                        value={newName} 
+                        onChange={e => setNewName(e.target.value)} 
+                        className="input" 
+                        required 
+                        placeholder="اسم العميل الرباعي..." 
+                      />
                     </div>
                     <div className="form-group">
-                      <label className="form-label">رقم الوحدة</label>
-                      <input type="text" value={newUnitNumber} onChange={e => setNewUnitNumber(e.target.value)} className="input" placeholder="وحدة..." />
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">الدور</label>
-                      <input type="text" value={newFloor} onChange={e => setNewFloor(e.target.value)} className="input" placeholder="الدور..." />
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">المساحة (م²)</label>
-                      <input type="number" value={newUnitSize} onChange={e => setNewUnitSize(e.target.value)} className="input" placeholder="0" />
-                    </div>
-                  </div>
-                )}
-                
-                {/* Seeking Details (Desired Size & Floor) */}
-                {isSeeking && (
-                  <div className="grid-2" style={{ marginBottom: 20 }}>
-                    <div className="form-group">
-                      <label className="form-label">المساحة المطلوبة (م²)</label>
-                      <input type="number" value={newUnitSize} onChange={e => setNewUnitSize(e.target.value)} className="input" placeholder="مثال: 150" />
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">الدور المفضل (اختياري)</label>
-                      <input type="text" value={newFloor} onChange={e => setNewFloor(e.target.value)} className="input" placeholder="مثال: أرضي، أخير..." />
-                    </div>
-                  </div>
-                )}
-
-                {/* Dynamic Fields: FACTORIES */}
-                {(newPropType === "مصنع" || newPropType === "أرض مصنع") && (
-                  <div style={{ marginTop: 20, padding: 16, background: "rgba(212, 175, 55, 0.05)", borderRadius: 12, border: "1px dashed var(--gold-primary)" }}>
-                    <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 12, color: "var(--gold-primary)" }}>
-                      🏭 تفاصيل {isSeeking ? "المصنع المطلوب" : "المصنع المتاح"}
-                    </div>
-                    <div className="grid-3">
-                      <div className="form-group">
-                        <label className="form-label">{isSeeking ? "مساحة المباني المطلوبة (م²)" : "مساحة المباني الفعلية (م²)"}</label>
-                        <input type="number" className="input" value={newCustomData.factory_build_area || ""} onChange={e => setNewCustomData({...newCustomData, factory_build_area: e.target.value})} />
-                      </div>
-                      {isOffering && (
-                        <div className="form-group">
-                          <label className="form-label">عدد الأدوار</label>
-                          <input type="number" className="input" value={newCustomData.factory_floors || ""} onChange={e => setNewCustomData({...newCustomData, factory_floors: e.target.value})} />
+                      <label className="form-label">رقم الهاتف * (إلزامي)</label>
+                      <input 
+                        type="text" value={newPhone} 
+                        onChange={e => handlePhoneChange(e.target.value)} 
+                        className="input" required placeholder="01xxxxxxxxx" 
+                      />
+                      {duplicateWarning && (
+                        <div style={{ fontSize: 11, color: "var(--accent-red)", marginTop: 4, fontWeight: 700 }}>
+                          {duplicateWarning}
                         </div>
                       )}
-                      <div className="form-group">
-                        <label className="form-label">{isSeeking ? "النشاط الصناعي المرغوب" : "رخصة النشاط الحالي"}</label>
-                        <select className="input" value={newCustomData.factory_activity || ""} onChange={e => setNewCustomData({...newCustomData, factory_activity: e.target.value})}>
-                          <option value="">اختر النشاط...</option>
-                          {FACTORY_ACTIVITIES.map(a => <option key={a} value={a}>{a}</option>)}
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Dynamic Fields: LANDS */}
-                {(newPropType.includes("أرض")) && (
-                  <div style={{ marginTop: 20, padding: 16, background: "rgba(0, 123, 255, 0.05)", borderRadius: 12, border: "1px dashed var(--accent-blue)" }}>
-                    <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 12, color: "var(--accent-blue)" }}>
-                      🌱 تفاصيل الأرض
-                    </div>
-                    <div className="grid-3">
-                      <div className="form-group">
-                        <label className="form-label">{isSeeking ? "مساحة البناء المسموحة المطلوبة" : "مساحة البناء المسموحة (م²)"}</label>
-                        <input type="number" className="input" value={newCustomData.land_build_area || ""} onChange={e => setNewCustomData({...newCustomData, land_build_area: e.target.value})} />
-                      </div>
-                      <div className="form-group">
-                        <label className="form-label">{isSeeking ? "عدد الأدوار المطلوبة" : "عدد الأدوار في الرخصة"}</label>
-                        <input type="number" className="input" value={newCustomData.land_license_floors || ""} onChange={e => setNewCustomData({...newCustomData, land_license_floors: e.target.value})} />
-                      </div>
-                      <div className="form-group">
-                        <label className="form-label">{isSeeking ? "هل يشترط وجود مرافق؟" : "حالة المرافق"}</label>
-                        <select className="input" value={newCustomData.land_is_serviced || ""} onChange={e => setNewCustomData({...newCustomData, land_is_serviced: e.target.value})}>
-                          <option value="">اختر...</option>
-                          <option value="مرفقة بالكامل">مرفقة بالكامل</option>
-                          <option value="غير مرفقة">غير مرفقة</option>
-                          <option value="جزئي">مرفقة جزئياً</option>
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Dynamic Fields: APARTMENTS & VILLAS */}
-                {(!newPropType.includes("مصنع") && !newPropType.includes("أرض")) && (
-                  <div className="grid-3" style={{ marginTop: 20 }}>
-                    <div className="form-group">
-                      <label className="form-label">{isSeeking ? "عدد الغرف المطلوبة" : "عدد الغرف"}</label>
-                      <input type="number" value={newBedrooms} onChange={e => setNewBedrooms(e.target.value)} className="input" />
                     </div>
                     <div className="form-group">
-                      <label className="form-label">{isSeeking ? "عدد الحمامات المطلوبة" : "عدد الحمامات"}</label>
-                      <input type="number" value={newBathrooms} onChange={e => setNewBathrooms(e.target.value)} className="input" />
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">{isSeeking ? "مستوى التشطيب المطلوب" : "حالة التشطيب"}</label>
-                      <select value={newFinishing} onChange={e => setNewFinishing(e.target.value)} className="input">
-                        <option value="">اختر التشطيب...</option>
-                        <option value="خام">خام</option>
-                        <option value="نصف تشطيب">نصف تشطيب</option>
-                        <option value="تشطيب كامل">تشطيب كامل</option>
-                        <option value="سوبر لوكس">سوبر لوكس</option>
+                      <label className="form-label">تصنيف العميل</label>
+                      <select value={newStatus} onChange={e => setNewStatus(e.target.value)} className="input">
+                        <option value="BUYER">مشتري</option>
+                        <option value="POTENTIAL_SELLER">بائع محتمل</option>
+                        <option value="SELLER">بائع</option>
+                        <option value="RENTER">مستأجر</option>
+                        <option value="LANDLORD">مؤجر</option>
                       </select>
                     </div>
                   </div>
-                )}
-              </div>
 
-              {/* Section 3: Financials & Operations */}
-              <div style={{ marginBottom: 30 }}>
-                <h3 style={{ fontSize: 16, fontWeight: 900, marginBottom: 16, color: "var(--accent-green)" }}>
-                  {isSeeking ? "💰 البيانات المالية والمتطلبات" : "💰 البيانات المالية والأوراق"}
-                </h3>
-                
-                <div className="grid-3">
-                  <div className="form-group">
-                    <label className="form-label">{isSeeking ? "الميزانية المتاحة" : "السعر المطلوب (كاش/إجمالي)"}</label>
-                    <input type="number" value={newAskingPrice} onChange={e => setNewAskingPrice(e.target.value)} className="input" placeholder="0.00" />
+                  {newStatus === "CALL_LATER" && (
+                    <div className="form-group animate-in" style={{ marginTop: 12, padding: 12, background: "rgba(212, 175, 55, 0.1)", borderRadius: 8 }}>
+                      <label className="form-label" style={{ color: "var(--gold-primary)" }}>⏰ موعد الاتصال القادم</label>
+                      <input 
+                        type="datetime-local" 
+                        value={newFollowUpDate} 
+                        onChange={e => setNewFollowUpDate(e.target.value)} 
+                        className="input"
+                      />
+                    </div>
+                  )}
+
+                  <div className="form-group" style={{ marginTop: 16 }}>
+                    <label className="form-label">📝 ملاحظات عامة (أول تواصل)</label>
+                    <textarea 
+                      value={newGeneralNotes} 
+                      onChange={e => setNewGeneralNotes(e.target.value)} 
+                      className="input" 
+                      rows={3} 
+                      placeholder="اكتب تفاصيل التواصل الأول مع العميل هنا..."
+                    />
+                  </div>
+
+                  {/* Preferred Activity for Buyers/Renters (Industrial) */}
+                  {(newStatus === "BUYER" || newStatus === "RENTER") && (newPropType.includes("مصنع") || newPropType.includes("صناعي")) && (
+                    <div style={{ marginTop: 12, padding: 12, background: "rgba(37, 211, 102, 0.05)", borderRadius: 8, border: "1px solid rgba(37, 211, 102, 0.1)" }}>
+                      <label className="form-label" style={{ color: "#25D366" }}>🎯 النشاط الصناعي الذي يبحث عنه المشتري</label>
+                      <select className="input" value={newCustomData.preferred_factory_activity || ""} onChange={e => setNewCustomData({...newCustomData, preferred_factory_activity: e.target.value})}>
+                        <option value="">كل الأنشطة...</option>
+                        {FACTORY_ACTIVITIES.map(a => <option key={a} value={a}>{a}</option>)}
+                      </select>
+                    </div>
+                  )}
+
+                  <div style={{ display: "flex", justifyContent: "flex-end", gap: 12, marginTop: 24 }}>
+                    <button 
+                      type="button"
+                      className="btn btn-primary"
+                      onClick={() => {
+                        if (!newName.trim() || !newPhone.trim()) {
+                          showToast("يرجى ملء الاسم بالكامل ورقم الهاتف أولاً", "warning");
+                          return;
+                        }
+                        setModalStep(2);
+                      }}
+                      style={{ padding: "10px 24px" }}
+                    >
+                      التالي: مواصفات العقار ←
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Step 2: Property Preferences / Details */}
+              {modalStep === 2 && (
+                <div className="animate-in" style={{ marginBottom: 20 }}>
+                  <h3 style={{ fontSize: 16, fontWeight: 900, marginBottom: 16, color: "var(--accent-blue)", borderBottom: "2px solid rgba(59,130,246,0.1)", paddingBottom: 8 }}>
+                    {isSeeking ? "🏠 الخطوة 2: المواصفات العقارية المطلوبة" : "🏠 الخطوة 2: بيانات ومواصفات الوحدة المعروضة"}
+                  </h3>
+                  
+                  {/* Generic Property Fields */}
+                  <div className="grid-3" style={{ marginBottom: 20 }}>
+                    {isOffering && (
+                      <div className="form-group">
+                        <label className="form-label">المشروع</label>
+                        <select value={newProject} onChange={e => setNewProject(e.target.value)} className="input">
+                          <option value="">اختر المشروع...</option>
+                          {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                        </select>
+                      </div>
+                    )}
+                    
+                    <div className="form-group">
+                      <label className="form-label">{isSeeking ? "المناطق المرغوبة" : "المنطقة / الحي"}</label>
+                      {isSeeking ? (
+                        <input type="text" value={newDesiredAreas} onChange={e => setNewDesiredAreas(e.target.value)} className="input" placeholder="مثال: التجمع، المعادي، زايد..." />
+                      ) : (
+                        <input type="text" value={newArea} onChange={e => setNewArea(e.target.value)} className="input" placeholder="مثال: التجمع الخامس" />
+                      )}
+                    </div>
+                    
+                    <div className="form-group">
+                      <label className="form-label">نوع العقار</label>
+                      <select value={newPropType} onChange={e => setNewPropType(e.target.value)} className="input">
+                        <option value="">اختر النوع...</option>
+                        {PROPERTY_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Offering Details (Exact Location & Size) */}
+                  {isOffering && (
+                    <div className="grid-4" style={{ marginBottom: 20 }}>
+                      <div className="form-group">
+                        <label className="form-label">رقم العمارة</label>
+                        <input type="text" value={newBuildingNumber} onChange={e => setNewBuildingNumber(e.target.value)} className="input" placeholder="عمارة..." />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">رقم الوحدة</label>
+                        <input type="text" value={newUnitNumber} onChange={e => setNewUnitNumber(e.target.value)} className="input" placeholder="وحدة..." />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">الدور</label>
+                        <input type="text" value={newFloor} onChange={e => setNewFloor(e.target.value)} className="input" placeholder="الدور..." />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">المساحة (م²)</label>
+                        <input type="number" value={newUnitSize} onChange={e => setNewUnitSize(e.target.value)} className="input" placeholder="0" />
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Seeking Details (Desired Size & Floor) */}
+                  {isSeeking && (
+                    <div className="grid-2" style={{ marginBottom: 20 }}>
+                      <div className="form-group">
+                        <label className="form-label">المساحة المطلوبة (م²)</label>
+                        <input type="number" value={newUnitSize} onChange={e => setNewUnitSize(e.target.value)} className="input" placeholder="مثال: 150" />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">الدور المفضل (اختياري)</label>
+                        <input type="text" value={newFloor} onChange={e => setNewFloor(e.target.value)} className="input" placeholder="مثال: أرضي، أخير..." />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Dynamic Fields: FACTORIES */}
+                  {(newPropType === "مصنع" || newPropType === "أرض مصنع") && (
+                    <div style={{ marginTop: 20, padding: 16, background: "rgba(212, 175, 55, 0.05)", borderRadius: 12, border: "1px dashed var(--gold-primary)" }}>
+                      <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 12, color: "var(--gold-primary)" }}>
+                        🏭 تفاصيل {isSeeking ? "المصنع المطلوب" : "المصنع المتاح"}
+                      </div>
+                      <div className="grid-3">
+                        <div className="form-group">
+                          <label className="form-label">{isSeeking ? "مساحة المباني المطلوبة (م²)" : "مساحة المباني الفعلية (م²)"}</label>
+                          <input type="number" className="input" value={newCustomData.factory_build_area || ""} onChange={e => setNewCustomData({...newCustomData, factory_build_area: e.target.value})} />
+                        </div>
+                        {isOffering && (
+                          <div className="form-group">
+                            <label className="form-label">عدد الأدوار</label>
+                            <input type="number" className="input" value={newCustomData.factory_floors || ""} onChange={e => setNewCustomData({...newCustomData, factory_floors: e.target.value})} />
+                          </div>
+                        )}
+                        <div className="form-group">
+                          <label className="form-label">{isSeeking ? "النشاط الصناعي المرغوب" : "رخصة النشاط الحالي"}</label>
+                          <select className="input" value={newCustomData.factory_activity || ""} onChange={e => setNewCustomData({...newCustomData, factory_activity: e.target.value})}>
+                            <option value="">اختر النشاط...</option>
+                            {FACTORY_ACTIVITIES.map(a => <option key={a} value={a}>{a}</option>)}
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Dynamic Fields: LANDS */}
+                  {(newPropType.includes("أرض")) && (
+                    <div style={{ marginTop: 20, padding: 16, background: "rgba(0, 123, 255, 0.05)", borderRadius: 12, border: "1px dashed var(--accent-blue)" }}>
+                      <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 12, color: "var(--accent-blue)" }}>
+                        🌱 تفاصيل الأرض
+                      </div>
+                      <div className="grid-3">
+                        <div className="form-group">
+                          <label className="form-label">{isSeeking ? "مساحة البناء المسموحة المطلوبة" : "مساحة البناء المسموحة (م²)"}</label>
+                          <input type="number" className="input" value={newCustomData.land_build_area || ""} onChange={e => setNewCustomData({...newCustomData, land_build_area: e.target.value})} />
+                        </div>
+                        <div className="form-group">
+                          <label className="form-label">{isSeeking ? "عدد الأدوار المطلوبة" : "عدد الأدوار في الرخصة"}</label>
+                          <input type="number" className="input" value={newCustomData.land_license_floors || ""} onChange={e => setNewCustomData({...newCustomData, land_license_floors: e.target.value})} />
+                        </div>
+                        <div className="form-group">
+                          <label className="form-label">{isSeeking ? "هل يشترط وجود مرافق؟" : "حالة المرافق"}</label>
+                          <select className="input" value={newCustomData.land_is_serviced || ""} onChange={e => setNewCustomData({...newCustomData, land_is_serviced: e.target.value})}>
+                            <option value="">اختر...</option>
+                            <option value="مرفقة بالكامل">مرفقة بالكامل</option>
+                            <option value="غير مرفقة">غير مرفقة</option>
+                            <option value="جزئي">مرفقة جزئياً</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Dynamic Fields: APARTMENTS & VILLAS */}
+                  {(!newPropType.includes("مصنع") && !newPropType.includes("أرض")) && (
+                    <div className="grid-3" style={{ marginTop: 20 }}>
+                      <div className="form-group">
+                        <label className="form-label">{isSeeking ? "عدد الغرف المطلوبة" : "عدد الغرف"}</label>
+                        <input type="number" value={newBedrooms} onChange={e => setNewBedrooms(e.target.value)} className="input" />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">{isSeeking ? "عدد الحمامات المطلوبة" : "عدد الحمامات"}</label>
+                        <input type="number" value={newBathrooms} onChange={e => setNewBathrooms(e.target.value)} className="input" />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">{isSeeking ? "مستوى التشطيب المطلوب" : "حالة التشطيب"}</label>
+                        <select value={newFinishing} onChange={e => setNewFinishing(e.target.value)} className="input">
+                          <option value="">اختر التشطيب...</option>
+                          <option value="خام">خام</option>
+                          <option value="نصف تشطيب">نصف تشطيب</option>
+                          <option value="تشطيب كامل">تشطيب كامل</option>
+                          <option value="سوبر لوكس">سوبر لوكس</option>
+                        </select>
+                      </div>
+                    </div>
+                  )}
+
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginTop: 24 }}>
+                    <button 
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={() => setModalStep(1)}
+                    >
+                      → السابق: البيانات الأساسية
+                    </button>
+                    <button 
+                      type="button"
+                      className="btn btn-primary"
+                      onClick={() => setModalStep(3)}
+                    >
+                      التالي: الماليات والمتابعة ←
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Step 3: Financials & Operations */}
+              {modalStep === 3 && (
+                <div className="animate-in" style={{ marginBottom: 20 }}>
+                  <h3 style={{ fontSize: 16, fontWeight: 900, marginBottom: 16, color: "var(--accent-green)", borderBottom: "2px solid rgba(16,185,129,0.1)", paddingBottom: 8 }}>
+                    {isSeeking ? "💰 الخطوة 3: الميزانية والمتطلبات المالية" : "💰 الخطوة 3: السعر المطلوب ونظام السداد والأوراق"}
+                  </h3>
+                  
+                  <div className="grid-3">
+                    <div className="form-group">
+                      <label className="form-label">{isSeeking ? "الميزانية المتاحة (ج.م)" : "السعر المطلوب (كاش/إجمالي)"}</label>
+                      <input type="number" value={newAskingPrice} onChange={e => setNewAskingPrice(e.target.value)} className="input" placeholder="0.00" />
+                    </div>
+                    
+                    {isSeeking && (
+                      <div className="form-group">
+                        <label className="form-label">نظام الدفع المفضل</label>
+                        <select value={newPaymentMethod} onChange={e => setNewPaymentMethod(e.target.value)} className="input">
+                          <option value="">اختر النظام...</option>
+                          <option value="CASH">كاش فقط</option>
+                          <option value="INSTALLMENTS">تقسيط</option>
+                          <option value="ANY">لا يهم (حسب العرض)</option>
+                        </select>
+                      </div>
+                    )}
+
+                    {(newStatus === "RENTER" || newStatus === "LANDLORD") && (
+                      <div className="form-group">
+                        <label className="form-label">{isSeeking ? "مدة الإيجار المطلوبة" : "مدة الإيجار المتاحة"}</label>
+                        <input type="text" value={newLeaseDuration} onChange={e => setNewLeaseDuration(e.target.value)} className="input" placeholder="مثال: سنتين، 6 أشهر..." />
+                      </div>
+                    )}
+
+                    {isOffering && newStatus !== "LANDLORD" && (
+                      <>
+                        <div className="form-group">
+                          <label className="form-label">مبلغ القسط</label>
+                          <input type="number" value={newInstallmentAmt} onChange={e => setNewInstallmentAmt(e.target.value)} className="input" placeholder="0.00" />
+                        </div>
+                        <div className="form-group">
+                          <label className="form-label">عدد الأقساط المتبقية</label>
+                          <input type="number" value={newInstallmentRem} onChange={e => setNewInstallmentRem(e.target.value)} className="input" placeholder="0" />
+                        </div>
+                        <div className="form-group">
+                          <label className="form-label">حالة الأوراق (القانونية)</label>
+                          <select value={newPaperworkStatus} onChange={e => setNewPaperworkStatus(e.target.value)} className="input">
+                            <option value="">اختر الحالة...</option>
+                            <option value="جاهزة للتنازل">جاهزة للتنازل</option>
+                            <option value="عليها أقساط">عليها أقساط</option>
+                            <option value="مسجلة شهر عقاري">مسجلة شهر عقاري</option>
+                            <option value="صحة توقيع">صحة توقيع</option>
+                            <option value="توكيل بالبيع">توكيل بالبيع</option>
+                          </select>
+                        </div>
+                      </>
+                    )}
                   </div>
                   
-                  {isSeeking && (
-                    <div className="form-group">
-                      <label className="form-label">نظام الدفع المفضل</label>
-                      <select value={newPaymentMethod} onChange={e => setNewPaymentMethod(e.target.value)} className="input">
-                        <option value="">اختر النظام...</option>
-                        <option value="CASH">كاش فقط</option>
-                        <option value="INSTALLMENTS">تقسيط</option>
-                        <option value="ANY">لا يهم (حسب العرض)</option>
-                      </select>
-                    </div>
-                  )}
-
-                  {(newStatus === "RENTER" || newStatus === "LANDLORD") && (
-                    <div className="form-group">
-                      <label className="form-label">{isSeeking ? "مدة الإيجار المطلوبة" : "مدة الإيجار المتاحة"}</label>
-                      <input type="text" value={newLeaseDuration} onChange={e => setNewLeaseDuration(e.target.value)} className="input" placeholder="مثال: سنتين، 6 أشهر..." />
-                    </div>
-                  )}
-
+                  {/* Textareas for specifics */}
                   {isOffering && newStatus !== "LANDLORD" && (
-                    <>
-                      <div className="form-group">
-                        <label className="form-label">مبلغ القسط</label>
-                        <input type="number" value={newInstallmentAmt} onChange={e => setNewInstallmentAmt(e.target.value)} className="input" placeholder="0.00" />
-                      </div>
-                      <div className="form-group">
-                        <label className="form-label">عدد الأقساط المتبقية</label>
-                        <input type="number" value={newInstallmentRem} onChange={e => setNewInstallmentRem(e.target.value)} className="input" placeholder="0" />
-                      </div>
-                      <div className="form-group">
-                        <label className="form-label">حالة الأوراق (القانونية)</label>
-                        <select value={newPaperworkStatus} onChange={e => setNewPaperworkStatus(e.target.value)} className="input">
-                          <option value="">اختر الحالة...</option>
-                          <option value="جاهزة للتنازل">جاهزة للتنازل</option>
-                          <option value="عليها أقساط">عليها أقساط</option>
-                          <option value="مسجلة شهر عقاري">مسجلة شهر عقاري</option>
-                          <option value="صحة توقيع">صحة توقيع</option>
-                          <option value="توكيل بالبيع">توكيل بالبيع</option>
-                        </select>
-                      </div>
-                    </>
+                    <div className="form-group" style={{ marginTop: 12 }}>
+                      <label className="form-label">تفاصيل الأقساط (نظام الدفع المتاح)</label>
+                      <textarea value={newInstallmentDet} onChange={e => setNewInstallmentDet(e.target.value)} className="input" rows={2} placeholder="مثال: ربع سنوي، كل 3 شهور..." />
+                    </div>
                   )}
+                  {isSeeking && (
+                    <div className="form-group" style={{ marginTop: 12 }}>
+                      <label className="form-label">متطلبات أخرى (نظام الدفع، تفاصيل الوحدة)</label>
+                      <textarea value={newPreferencesSummary} onChange={e => setNewPreferencesSummary(e.target.value)} className="input" rows={2} placeholder="اكتب أي متطلبات إضافية يطلبها العميل هنا..." />
+                    </div>
+                  )}
+
+                  {/* Section 4: Custom Fields */}
+                  <div style={{ marginTop: 20 }}>
+                    <DynamicFields 
+                      entityType="CUSTOMER" 
+                      definitions={customFieldDefs} 
+                      values={newCustomData} 
+                      onChange={(name, val) => setNewCustomData({...newCustomData, [name]: val})} 
+                    />
+                  </div>
+
+                  <div style={{ display: "flex", gap: 12, marginTop: 30, flexWrap: "wrap" }}>
+                    <button 
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={() => setModalStep(2)}
+                      style={{ height: 48 }}
+                    >
+                      → السابق: مواصفات العقار
+                    </button>
+                    <button 
+                      type="button" 
+                      onClick={(e) => handleManualAdd(e as any, true)} 
+                      disabled={loading} 
+                      className="btn btn-secondary" 
+                      style={{ flex: 1, height: 48, fontSize: 14 }}
+                    >
+                      ➕ حفظ وإضافة وحدة أخرى
+                    </button>
+                    <button 
+                      type="submit" 
+                      disabled={loading} 
+                      className="btn btn-primary" 
+                      style={{ flex: 2, height: 48, fontSize: 16 }}
+                    >
+                      {loading ? "جاري الحفظ..." : "💾 حفظ وإنهاء"}
+                    </button>
+                    <button 
+                      type="button" 
+                      onClick={() => { setShowAddModal(false); setModalStep(1); }} 
+                      className="btn btn-ghost" 
+                      style={{ height: 48 }}
+                    >
+                      إلغاء
+                    </button>
+                  </div>
                 </div>
-                
-                {/* Textareas for specifics */}
-                {isOffering && newStatus !== "LANDLORD" && (
-                  <div className="form-group" style={{ marginTop: 12 }}>
-                    <label className="form-label">تفاصيل الأقساط (نظام الدفع المتاح)</label>
-                    <textarea value={newInstallmentDet} onChange={e => setNewInstallmentDet(e.target.value)} className="input" rows={2} placeholder="مثال: ربع سنوي، كل 3 شهور..." />
-                  </div>
-                )}
-                {isSeeking && (
-                  <div className="form-group" style={{ marginTop: 12 }}>
-                    <label className="form-label">متطلبات أخرى (نظام الدفع، تفاصيل الوحدة)</label>
-                    <textarea value={newPreferencesSummary} onChange={e => setNewPreferencesSummary(e.target.value)} className="input" rows={2} placeholder="اكتب أي متطلبات إضافية يطلبها العميل هنا..." />
-                  </div>
-                )}
-              </div>
-
-              {/* Section 4: Custom Fields */}
-              <DynamicFields 
-                entityType="CUSTOMER" 
-                definitions={customFieldDefs} 
-                values={newCustomData} 
-                onChange={(name, val) => setNewCustomData({...newCustomData, [name]: val})} 
-              />
-
-              <div style={{ display: "flex", gap: 12, marginTop: 30, flexWrap: "wrap" }}>
-                <button 
-                  type="button" 
-                  onClick={(e) => handleManualAdd(e as any, true)} 
-                  disabled={loading} 
-                  className="btn btn-secondary" 
-                  style={{ flex: 1, height: 48, fontSize: 14 }}
-                >
-                  ➕ حفظ وإضافة وحدة أخرى
-                </button>
-                <button 
-                  type="submit" 
-                  disabled={loading} 
-                  className="btn btn-primary" 
-                  style={{ flex: 2, height: 48, fontSize: 16 }}
-                >
-                  {loading ? "جاري الحفظ..." : "💾 حفظ وإنهاء"}
-                </button>
-                <button 
-                  type="button" 
-                  onClick={() => setShowAddModal(false)} 
-                  className="btn btn-ghost" 
-                  style={{ flex: 1, height: 48 }}
-                >
-                  إلغاء
-                </button>
-              </div>
+              )}
             </form>
           </div>
         </div>

@@ -10,25 +10,48 @@ export async function GET() {
     }
 
     const [customers, properties, deals, interactions, logs] = await Promise.all([
-      prisma.customer.findMany({ include: { assignedTo: { select: { name: true } } } }),
-      prisma.property.findMany(),
-      prisma.deal.findMany({ include: { customer: true } }),
+      prisma.customer.findMany({ 
+        take: 50000,
+        orderBy: { createdAt: "desc" },
+        include: { assignedTo: { select: { id: true, name: true } } } 
+      }),
+      prisma.property.findMany({ take: 10000, orderBy: { createdAt: "desc" } }),
+      prisma.deal.findMany({ 
+        take: 10000,
+        orderBy: { createdAt: "desc" },
+        include: { customer: { select: { id: true, name: true, phone: true } } } 
+      }),
       prisma.interaction.findMany({
+        take: 25000,
+        orderBy: { createdAt: "desc" },
         include: {
-          customer: true,
+          customer: { select: { id: true, name: true } },
           user: { select: { id: true, name: true, email: true, role: true } },
         },
       }),
       prisma.auditLog.findMany({
+        take: 10000,
+        orderBy: { createdAt: "desc" },
         include: { user: { select: { id: true, name: true, email: true, role: true } } },
       }),
     ]);
+
+    await prisma.auditLog.create({
+      data: {
+        userId: session.id,
+        action: "DATA_EXPORT",
+        entity: "DATABASE",
+        entityId: "JSON_EXPORT",
+        details: "تصدير بيانات مجمعة للمدير العام",
+      },
+    }).catch(() => {});
 
     return NextResponse.json(
       { customers, properties, deals, interactions, logs },
       { headers: { "Cache-Control": "no-store, private" } }
     );
   } catch (error) {
+    console.error("Export Error:", error);
     return NextResponse.json({ error: "Export failed" }, { status: 500 });
   }
 }

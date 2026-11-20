@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import Link from "next/link";
 
 export default function UserProfileClient({ user, customers, deals, reminders, interactions, kpis }: any) {
   const [activeTab, setActiveTab] = useState("overview");
@@ -46,7 +47,7 @@ export default function UserProfileClient({ user, customers, deals, reminders, i
         </div>
         <div style={{ display: "flex", gap: 10 }}>
           <button onClick={handlePrint} className="btn btn-secondary">🖨️ طباعة التقرير</button>
-          <a href="/dashboard/users" className="btn btn-ghost">← عودة للموظفين</a>
+          <Link href="/dashboard/users" className="btn btn-ghost">← عودة للموظفين</Link>
         </div>
       </div>
 
@@ -192,7 +193,7 @@ export default function UserProfileClient({ user, customers, deals, reminders, i
             )}
             {customers.length > 5 && (
               <div style={{ textAlign: "center", marginTop: 12 }}>
-                <a href="/dashboard/customers" className="btn btn-ghost btn-sm no-print">عرض كل العملاء ←</a>
+                <Link href="/dashboard/customers" className="btn btn-ghost btn-sm no-print">عرض كل العملاء ←</Link>
               </div>
             )}
           </div>

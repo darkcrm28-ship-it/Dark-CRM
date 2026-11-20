@@ -1,14 +1,23 @@
 import { prisma } from "@/lib/db";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
+import { getSession } from "@/lib/auth";
 import PropertyShowcaseClient from "./PropertyShowcaseClient";
 
 export default async function PublicPropertyShowcasePage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
+  const { id } = await params;
+  // Privacy guard: property pages expose internal records. Until an approved
+  // publish/share mechanism exists, require an authenticated session.
+  const session = await getSession();
+  if (!session) {
+    redirect("/login");
+  }
+
   const property = await prisma.property.findUnique({
-    where: { id: params.id },
+    where: { id },
   });
 
   if (!property) notFound();

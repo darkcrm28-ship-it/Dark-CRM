@@ -1,4 +1,5 @@
 import Sidebar from "@/components/Sidebar";
+import Link from "next/link";
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import GlobalSearch from "@/components/GlobalSearch";
@@ -219,22 +220,22 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
       {/* Mobile Bottom Navigation */}
       <nav className="mobile-bottom-nav">
-        <a href="/dashboard">
+        <Link href="/dashboard">
           <LayoutDashboard size={18} />
           <span>الرئيسية</span>
-        </a>
-        <a href="/dashboard/customers">
+        </Link>
+        <Link href="/dashboard/customers">
           <Database size={18} />
           <span>العملاء</span>
-        </a>
-        <a href="/dashboard/buyers">
+        </Link>
+        <Link href="/dashboard/buyers">
           <ShoppingBag size={18} />
           <span>المشترين</span>
-        </a>
-        <a href="/dashboard/available-for-sale">
+        </Link>
+        <Link href="/dashboard/available-for-sale">
           <Building size={18} />
           <span>المعروض</span>
-        </a>
+        </Link>
       </nav>
     </div>
   );

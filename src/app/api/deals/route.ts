@@ -19,56 +19,164 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const session = await getSession();
-  if (!session || (session.role !== "GENERAL_MANAGER" && session.role !== "SALES_MANAGER")) {
-    return NextResponse.json({ error: "غير مصرح" }, { status: 403 });
-  }
-  const body = await request.json();
-  const commissionAmt = body.commissionAmt !== undefined ? body.commissionAmt : (body.finalPrice * (body.commission || 0)) / 100;
+  try {
+    const session = await getSession();
+    if (!session || (session.role !== "GENERAL_MANAGER" && session.role !== "SALES_MANAGER")) {
+      return NextResponse.json({ error: "غير مصرح لك بإنشاء الصفقات" }, { status: 403 });
+    }
 
-  const deal = await prisma.deal.create({
-    data: { 
-      customerId: body.customerId,
-      // Temporarily use a dummy property if propertyId is null, or make schema nullable (but since we can't change schema now easily, we require propertyId)
-      propertyId: body.propertyId,
-      salesRepId: session.id,
-      status: "COMPLETED",
-      value: body.finalPrice,
-      finalPrice: body.finalPrice,
-      commission: body.commission,
-      commissionAmt: commissionAmt,
-    },
-    include: {
-      customer: { select: { name: true } },
-      salesRep: { select: { name: true } },
-    },
-  });
+    const body = await request.json();
+    const { customerId, propertyId, salesRepId: requestedSalesRepId } = body;
 
-  // Mark customer as completed
-  await prisma.customer.update({ where: { id: body.customerId }, data: { status: "COMPLETED" } });
+    if (!customerId || typeof customerId !== "string") {
+      return NextResponse.json({ error: "العميل مطلوب لإتمام الصفقة" }, { status: 400 });
+    }
 
-  // Add Commission record to the sales employee
-  if (commissionAmt > 0) {
-    await prisma.commission.create({
+    const finalPrice = typeof body.finalPrice === "number" ? body.finalPrice : parseFloat(body.finalPrice);
+    if (!finalPrice || isNaN(finalPrice) || finalPrice <= 0) {
+      return NextResponse.json({ error: "قيمة الصفقة يجب أن تكون رقماً موجباً" }, { status: 400 });
+    }
+
+    const commissionPercent = body.commission !== undefined ? Math.max(0, parseFloat(body.commission) || 0) : 0;
+    const commissionAmt = body.commissionAmt !== undefined 
+      ? Math.max(0, parseFloat(body.commissionAmt) || 0) 
+      : (finalPrice * commissionPercent) / 100;
+
+    // Verify Customer exists
+    const customer = await prisma.customer.findUnique({
+      where: { id: customerId },
+      select: { id: true, name: true, assignedToId: true, status: true },
+    });
+
+    if (!customer) {
+      return NextResponse.json({ error: "العميل غير موجود" }, { status: 404 });
+    }
+
+    // Verify Property exists if provided
+    if (propertyId) {
+      const property = await prisma.property.findUnique({
+        where: { id: propertyId },
+        select: { id: true, title: true },
+      });
+      if (!property) {
+        return NextResponse.json({ error: "العقار المحدد غير موجود" }, { status: 404 });
+      }
+    }
+
+    // Determine the true Sales Representative:
+    // 1. Explicit valid salesRepId from body
+    // 2. Customer's assigned sales agent
+    // 3. Fallback to creator's session id
+    let targetSalesRepId = session.id;
+    if (requestedSalesRepId) {
+      const repExists = await prisma.user.findUnique({
+        where: { id: requestedSalesRepId },
+        select: { id: true, isActive: true },
+      });
+      if (repExists && repExists.isActive) {
+        targetSalesRepId = repExists.id;
+      }
+    } else if (customer.assignedToId) {
+      targetSalesRepId = customer.assignedToId;
+    }
+
+    // Atomic Transaction: Duplicate check + Deal creation + Customer update + Commission + AuditLog
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. Check for duplicate deal submission within the last 30 seconds for the same customer
+      const recentDuplicate = await tx.deal.findFirst({
+        where: {
+          customerId,
+          propertyId: propertyId || null,
+          value: finalPrice,
+          createdAt: { gte: new Date(Date.now() - 30 * 1000) },
+        },
+      });
+
+      if (recentDuplicate) {
+        throw new Error("DUPLICATE_DEAL_DETECTED");
+      }
+
+      // 2. Create the Deal
+      const deal = await tx.deal.create({
+        data: {
+          customerId,
+          propertyId: propertyId || null,
+          salesRepId: targetSalesRepId,
+          status: "COMPLETED",
+          value: finalPrice,
+          finalPrice,
+          commission: commissionPercent,
+          commissionAmt,
+        },
+        include: {
+          customer: { select: { id: true, name: true } },
+          salesRep: { select: { id: true, name: true } },
+          property: { select: { id: true, title: true } },
+        },
+      });
+
+      // 3. Update Customer Status to COMPLETED
+      await tx.customer.update({
+        where: { id: customerId },
+        data: { status: "COMPLETED" },
+      });
+
+      // 4. Create Commission for the designated Sales Representative (NOT necessarily the manager who clicked)
+      if (commissionAmt > 0) {
+        await tx.commission.create({
+          data: {
+            userId: targetSalesRepId,
+            amount: commissionAmt,
+            notes: `عمولة صفقة العميل ${customer.name} (قيمة الصفقة: ${finalPrice.toLocaleString()} ج.م)`,
+            status: "PENDING",
+          },
+        });
+      }
+
+      // 5. Create AuditLog
+      await tx.auditLog.create({
+        data: {
+          userId: session.id,
+          action: "CREATE",
+          entity: "DEAL",
+          entityId: deal.id,
+          details: `إتمام صفقة بقيمة ${finalPrice.toLocaleString()} ج.م للعميل ${customer.name} - عمولة المندوب: ${commissionAmt.toLocaleString()} ج.م (المندوب: ${deal.salesRep?.name || targetSalesRepId})`,
+        },
+      });
+
+      return deal;
+    });
+
+    // Notify the Sales Representative (if different from manager who created the deal)
+    if (targetSalesRepId !== session.id) {
+      await prisma.notification.create({
+        data: {
+          userId: targetSalesRepId,
+          title: "🎉 تم تسجيل صفقة وعمولة جديدة لك!",
+          body: `تم إتمام صفقة لعميلك ${customer.name} بقيمة ${finalPrice.toLocaleString()} ج.م. عمولتك المسجلة: ${commissionAmt.toLocaleString()} ج.م`,
+          type: "SUCCESS",
+          link: `/dashboard/deals`,
+        },
+      }).catch(() => {});
+    }
+
+    // Notify the creator
+    await prisma.notification.create({
       data: {
         userId: session.id,
-        amount: commissionAmt,
-        notes: `عمولة صفقة مع العميل ${deal.customer.name}`,
-        status: "PENDING"
-      }
-    });
+        title: "🎉 صفقة جديدة مكتملة",
+        body: `تم إتمام صفقة مع ${customer.name} بقيمة ${finalPrice.toLocaleString()} جنيه`,
+        type: "SUCCESS",
+        link: `/dashboard/deals`,
+      },
+    }).catch(() => {});
+
+    return NextResponse.json({ success: true, deal: result });
+  } catch (error: any) {
+    if (error?.message === "DUPLICATE_DEAL_DETECTED") {
+      return NextResponse.json({ error: "تم إرسال هذه الصفقة مسبقاً، منعاً للتكرار يرجى عدم إعادة الإرسال سريعاً." }, { status: 409 });
+    }
+    console.error("Create Deal Error:", error);
+    return NextResponse.json({ error: "فشل إنشاء الصفقة. تحقق من صحة البيانات المدخلة." }, { status: 500 });
   }
-
-  // Create notification
-  await prisma.notification.create({
-    data: {
-      userId: session.id,
-      title: "🎉 صفقة جديدة مكتملة",
-      body: `تم إتمام صفقة مع ${deal.customer.name} بقيمة ${body.finalPrice.toLocaleString()} جنيه`,
-      type: "SUCCESS",
-      link: `/dashboard/deals`,
-    },
-  });
-
-  return NextResponse.json({ success: true, deal });
 }

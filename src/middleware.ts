@@ -14,11 +14,11 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Public pages and the explicitly public catalog/inquiry endpoints only.
-  // Do not use startsWith("/properties") because it also exempts similarly
-  // prefixed internal paths.
+  // NOTE: /share/* is intentionally NOT exempt. Until an approved publish /
+  // share mechanism exists, share pages must be served only to authenticated
+  // sessions. A bare UUID is not an authorization mechanism.
   if (
     publicExactRoutes.includes(pathname) ||
-    pathname.startsWith("/share/") ||
     pathname === "/properties" ||
     pathname.startsWith("/properties/") ||
     pathname.startsWith("/api/public/")

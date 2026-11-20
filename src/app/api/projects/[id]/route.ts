@@ -4,7 +4,7 @@ import { getSession } from "@/lib/auth";
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getSession();
@@ -12,11 +12,26 @@ export async function PUT(
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
+    const { id } = await params;
     const { name, description } = await request.json();
+    if (!name || typeof name !== "string") {
+      return NextResponse.json({ error: "اسم المشروع مطلوب" }, { status: 400 });
+    }
+
     const project = await prisma.project.update({
-      where: { id: params.id },
-      data: { name, description },
+      where: { id },
+      data: { name: name.trim(), description: description ? String(description).trim() : null },
     });
+
+    await prisma.auditLog.create({
+      data: {
+        userId: session.id,
+        action: "UPDATE",
+        entity: "PROJECT",
+        entityId: id,
+        details: `تحديث بيانات المشروع: ${project.name}`,
+      },
+    }).catch(() => {});
 
     return NextResponse.json(project);
   } catch (error) {
@@ -25,8 +40,8 @@ export async function PUT(
 }
 
 export async function DELETE(
-  request: NextRequest,
-  { params }: { params: { id: string } }
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getSession();
@@ -34,9 +49,20 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
-    await prisma.project.delete({
-      where: { id: params.id },
+    const { id } = await params;
+    const project = await prisma.project.delete({
+      where: { id },
     });
+
+    await prisma.auditLog.create({
+      data: {
+        userId: session.id,
+        action: "DELETE",
+        entity: "PROJECT",
+        entityId: id,
+        details: `حذف المشروع: ${project.name}`,
+      },
+    }).catch(() => {});
 
     return NextResponse.json({ success: true });
   } catch (error) {

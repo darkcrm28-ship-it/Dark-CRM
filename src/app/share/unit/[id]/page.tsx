@@ -1,9 +1,19 @@
 import { prisma } from "@/lib/db";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
+import { getSession } from "@/lib/auth";
 
-export default async function UnitBrochurePage({ params }: { params: { id: string } }) {
+export default async function UnitBrochurePage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  // Privacy guard: unit brochures expose internal customer details (askingPrice,
+  // building/unit numbers, paperwork status, installment terms). Until an
+  // approved publish/share mechanism exists, require an authenticated session.
+  const session = await getSession();
+  if (!session) {
+    redirect("/login");
+  }
+
   const customer = await prisma.customer.findUnique({
-    where: { id: params.id },
+    where: { id },
     include: { project: true }
   });
 
@@ -33,44 +43,44 @@ export default async function UnitBrochurePage({ params }: { params: { id: strin
         <div className="grid md:grid-cols-2 gap-10 items-center">
           <div className="animate-in-1">
             <h2 className="text-3xl md:text-5xl font-bold mb-6 leading-tight">
-               وحدة عقارية مميزة في <br />
-               <span className="text-[#d4af37]">{customer.project?.name || customer.projectName || "مشروع حصري"}</span>
+              وحدة عقارية مميزة في <br />
+              <span className="text-[#d4af37]">{customer.project?.name || customer.projectName || "مشروع حصري"}</span>
             </h2>
-            
+
             <div className="flex flex-wrap gap-4 mb-8">
-               <div className="bg-white/5 border border-white/10 px-4 py-2 rounded-xl backdrop-blur-md">
-                 <span className="block text-[10px] text-gray-500 uppercase">المساحة</span>
-                 <span className="text-lg font-bold">{customer.unitSize || "—"} م²</span>
-               </div>
-               <div className="bg-white/5 border border-white/10 px-4 py-2 rounded-xl backdrop-blur-md">
-                 <span className="block text-[10px] text-gray-500 uppercase">الدور</span>
-                 <span className="text-lg font-bold">{customer.floor || "—"}</span>
-               </div>
-               <div className="bg-white/5 border border-white/10 px-4 py-2 rounded-xl backdrop-blur-md">
-                 <span className="block text-[10px] text-gray-500 uppercase">الغرف</span>
-                 <span className="text-lg font-bold">{customer.bedrooms || "—"}</span>
-               </div>
-               <div className="bg-white/5 border border-white/10 px-4 py-2 rounded-xl backdrop-blur-md">
-                 <span className="block text-[10px] text-gray-500 uppercase">التشطيب</span>
-                 <span className="text-lg font-bold">{customer.finishing || "—"}</span>
-               </div>
+              <div className="bg-white/5 border border-white/10 px-4 py-2 rounded-xl backdrop-blur-md">
+                <span className="block text-[10px] text-gray-500 uppercase">المساحة</span>
+                <span className="text-lg font-bold">{customer.unitSize || "—"} م²</span>
+              </div>
+              <div className="bg-white/5 border border-white/10 px-4 py-2 rounded-xl backdrop-blur-md">
+                <span className="block text-[10px] text-gray-500 uppercase">الدور</span>
+                <span className="text-lg font-bold">{customer.floor || "—"}</span>
+              </div>
+              <div className="bg-white/5 border border-white/10 px-4 py-2 rounded-xl backdrop-blur-md">
+                <span className="block text-[10px] text-gray-500 uppercase">الغرف</span>
+                <span className="text-lg font-bold">{customer.bedrooms || "—"}</span>
+              </div>
+              <div className="bg-white/5 border border-white/10 px-4 py-2 rounded-xl backdrop-blur-md">
+                <span className="block text-[10px] text-gray-500 uppercase">التشطيب</span>
+                <span className="text-lg font-bold">{customer.finishing || "—"}</span>
+              </div>
             </div>
 
             <p className="text-gray-400 leading-relaxed mb-8 text-lg">
-              تعتبر هذه الوحدة من الفرص المميزة المتاحة في المنطقة، حيث تتميز بموقع استراتيجي وتصميم داخلي واسع. 
+              تعتبر هذه الوحدة من الفرص المميزة المتاحة في المنطقة، حيث تتميز بموقع استراتيجي وتصميم داخلي واسع.
               {customer.preferencesSummary && ` الملاحظات: ${customer.preferencesSummary}`}
             </p>
 
             <div className="p-6 bg-[#d4af37]/10 border border-[#d4af37]/20 rounded-2xl mb-8">
               <span className="block text-sm text-[#d4af37] mb-1">السعر الإجمالي</span>
               <div className="text-4xl font-black text-white">
-                {customer.askingPrice?.toLocaleString() || "اتصل لمعرفة السعر"} 
+                {customer.askingPrice?.toLocaleString() || "اتصل لمعرفة السعر"}
                 <span className="text-lg font-normal mr-2 text-gray-400">جنيه</span>
               </div>
             </div>
 
-            <a 
-              href={`https://wa.me/201234567890?text=استفسار عن وحدة ${customer.projectName}`} 
+            <a
+              href={`https://wa.me/201234567890?text=استفسار عن وحدة ${customer.projectName}`}
               className="inline-flex items-center gap-3 bg-[#25D366] hover:bg-[#20bd5c] text-black font-black px-8 py-4 rounded-2xl transition-all hover:scale-105"
             >
               <span className="text-xl">💬</span>
@@ -97,7 +107,7 @@ export default async function UnitBrochurePage({ params }: { params: { id: strin
               <li className="flex justify-between items-center">
                 <span className="text-gray-500">حالة الأوراق</span>
                 <span className="px-3 py-1 bg-[#d4af37]/20 text-[#d4af37] rounded-lg text-sm font-bold">
-                   {customer.paperworkStatus || "جاهزة"}
+                  {customer.paperworkStatus || "جاهزة"}
                 </span>
               </li>
               {customer.installmentAmount && (
@@ -108,7 +118,7 @@ export default async function UnitBrochurePage({ params }: { params: { id: strin
                 </li>
               )}
             </ul>
-            
+
             <div className="mt-10 pt-10 border-top border-white/10 text-center">
               <div className="w-12 h-12 bg-[#d4af37] rounded-full mx-auto mb-4 flex items-center justify-center text-black font-bold text-xl">D</div>
               <p className="text-gray-500 text-xs uppercase tracking-widest">Powered by Darek CRM</p>
@@ -121,8 +131,9 @@ export default async function UnitBrochurePage({ params }: { params: { id: strin
           <p>© {new Date().getFullYear()} شركة دارك للاستثمار والتسويق العقاري. جميع الحقوق محفوظة.</p>
         </footer>
       </div>
-      
-      <style dangerouslySetInnerHTML={{ __html: `
+
+      <style dangerouslySetInnerHTML={{
+        __html: `
         .animate-in { animation: slideUp 0.8s ease forwards; }
         .animate-in-1 { animation: slideUp 1s ease forwards; }
         .animate-in-2 { animation: slideUp 1.2s ease forwards; }

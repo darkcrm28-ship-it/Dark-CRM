@@ -10,6 +10,8 @@
     "deploy:cf": "opennextjs-cloudflare deploy",
     "start": "next start",
     "lint": "next lint",
+    "test": "node --experimental-strip-types scripts/run-tests.js",
+    "test:backup": "node scripts/test-backup-restore.js",
     "seed:admin": "node scripts/seed-admin.js"
   },
   "dependencies": {

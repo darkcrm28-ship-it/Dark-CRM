@@ -7,13 +7,7 @@ if (!process.env.DATABASE_URL) {
 }
 
 const nextConfig = {
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
-  typescript: {
-    ignoreBuildErrors: true,
-  },
-  
+  /* Strict build checks enabled: no ignored errors */
 };
 
 export default nextConfig;

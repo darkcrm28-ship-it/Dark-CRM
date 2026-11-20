@@ -23,13 +23,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify incoming secret token from headers or request body
-    const providedSecret =
-      request.headers.get("x-setup-secret") ||
-      request.nextUrl.searchParams.get("secret");
-
-    const body = await request.json().catch(() => ({}));
-    const token = providedSecret || body?.secret;
+    // Verify incoming secret token from header ONLY (no query string, no body).
+    // Query strings can leak through logs, referrer headers, and browser history.
+    const token = request.headers.get("x-setup-secret");
 
     if (!token || token !== setupSecret) {
       return NextResponse.json(
@@ -38,58 +34,76 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if any user already exists
-    const usersCount = await prisma.user.count();
-    if (usersCount > 0) {
+    const body = await request.json().catch(() => ({}));
+
+    // Check if any user already exists. Do this inside a transaction with an
+    // advisory lock so concurrent setup requests can't both create an admin.
+    const SETUP_LOCK = 74839301;
+    const outcome = await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(${SETUP_LOCK});`;
+
+      const usersCount = await tx.user.count();
+      if (usersCount > 0) {
+        return { __alreadyInitialized: true as const };
+      }
+
+      const { name, email, password } = body;
+
+      const adminEmail = (email && typeof email === "string" && email.includes("@"))
+        ? email.trim().toLowerCase()
+        : null;
+      const adminName = (name && typeof name === "string") ? name.trim() : "المدير العام";
+      const adminPassword = (password && typeof password === "string" && password.length >= 8)
+        ? password
+        : null;
+
+      if (!adminEmail) {
+        return { __validationError: "البريد الإلكتروني مطلوب وصحيح." as const };
+      }
+      if (!adminPassword) {
+        return { __validationError: "كلمة المرور مطلوبة ويجب ألا تقل عن 8 أحرف." as const };
+      }
+
+      const hashedPassword = await hashPassword(adminPassword);
+
+      const admin = await tx.user.create({
+        data: {
+          name: adminName,
+          email: adminEmail,
+          password: hashedPassword,
+          role: "GENERAL_MANAGER",
+        },
+      });
+
+      return { admin, alreadyInitialized: false as const };
+    });
+
+    if ("__alreadyInitialized" in outcome && outcome.__alreadyInitialized) {
       return NextResponse.json(
         { error: "النظام مهيأ بالفعل ويوجد مستخدمين مسجلين مسبقاً." },
         { status: 403 }
       );
     }
-
-    const { name, email, password } = body;
-
-    const adminEmail = (email && typeof email === "string" && email.includes("@")) ? email.trim().toLowerCase() : null;
-    const adminName = (name && typeof name === "string") ? name.trim() : "المدير العام";
-    const adminPassword = (password && typeof password === "string" && password.length >= 8)
-      ? password
-      : null;
-
-    if (!adminEmail) {
-      return NextResponse.json(
-        { error: "البريد الإلكتروني مطلوب وصحيح." },
-        { status: 400 }
-      );
+    if ("__validationError" in outcome && outcome.__validationError) {
+      return NextResponse.json({ error: outcome.__validationError }, { status: 400 });
+    }
+    if ("admin" in outcome && outcome.admin) {
+      return NextResponse.json({
+        success: true,
+        message: "تم تهيئة النظام وإنشاء حساب المدير العام بنجاح وبأمان.",
+        user: {
+          id: outcome.admin.id,
+          email: outcome.admin.email,
+          name: outcome.admin.name,
+          role: outcome.admin.role,
+        },
+      });
     }
 
-    if (!adminPassword) {
-      return NextResponse.json(
-        { error: "كلمة المرور مطلوبة ويجب ألا تقل عن 8 أحرف." },
-        { status: 400 }
-      );
-    }
-
-    const hashedPassword = await hashPassword(adminPassword);
-
-    const admin = await prisma.user.create({
-      data: {
-        name: adminName,
-        email: adminEmail,
-        password: hashedPassword,
-        role: "GENERAL_MANAGER",
-      },
-    });
-
-    return NextResponse.json({
-      success: true,
-      message: "تم تهيئة النظام وإنشاء حساب المدير العام بنجاح وبأمان.",
-      user: {
-        id: admin.id,
-        email: admin.email,
-        name: admin.name,
-        role: admin.role,
-      },
-    });
+    return NextResponse.json(
+      { error: "حدث خطأ غير متوقع أثناء التهيئة." },
+      { status: 500 }
+    );
   } catch (error) {
     console.error("Secure Setup Error:", error);
     return NextResponse.json(

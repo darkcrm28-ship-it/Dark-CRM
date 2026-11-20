@@ -3,13 +3,14 @@ import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import UserProfileClient from "./UserProfileClient";
 
-export default async function UserProfilePage({ params }: { params: { id: string } }) {
+export default async function UserProfilePage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const session = await getSession();
   if (!session) redirect("/login");
 
   // Fetch the user
   const user = await prisma.user.findUnique({
-    where: { id: params.id },
+    where: { id },
   });
 
   if (!user) {
@@ -52,12 +53,12 @@ export default async function UserProfilePage({ params }: { params: { id: string
   const totalSalesValue = deals.reduce((sum, d) => sum + (d.finalPrice || d.value || 0), 0);
   const totalCommissions = commissions.reduce((sum, c) => sum + (c.amount || 0), 0);
   const conversionRate = customers.length > 0 ? ((totalDeals / customers.length) * 100).toFixed(1) : 0;
-  
+
   const completedReminders = reminders.filter(r => r.status === "COMPLETED").length;
   const pendingReminders = reminders.filter(r => r.status === "PENDING").length;
 
   return (
-    <UserProfileClient 
+    <UserProfileClient
       user={user}
       customers={customers}
       deals={deals}

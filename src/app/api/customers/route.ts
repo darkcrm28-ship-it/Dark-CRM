@@ -163,7 +163,7 @@ export async function POST(request: NextRequest) {
         customer = await prisma.$transaction(
           async (tx) => {
             // حجز قفل المعاملة لتوليد الأكواد بالتسلسل منعاً للتزامن مع الاستيراد أو إضافة أخرى
-            await tx.$executeRaw`SELECT pg_advisory_xact_lock(${CUSTOMER_SEQUENCE_LOCK});`;
+            await tx.$queryRaw`SELECT pg_advisory_xact_lock(${CUSTOMER_SEQUENCE_LOCK});`;
 
             const maxCodeRes = await tx.$queryRaw<Array<{ max_seq: number | null }>>`
               SELECT MAX(
@@ -175,39 +175,80 @@ export async function POST(request: NextRequest) {
             const nextSeq = (maxCodeRes[0]?.max_seq || 0) + 1;
             const code = "CUST-" + nextSeq.toString().padStart(4, "0");
 
-            return await tx.customer.create({
+            const createdCustomer = await tx.customer.create({
               data: {
                 code,
-                name,
-                phone,
-                email,
+                name: name.trim(),
+                phone: phone.trim(),
+                email: email ? email.trim() : null,
                 type: type || (["INTERESTED", "BUYER", "RENTER"].includes(status) ? "BUYER" : "SELLER"),
                 status: status || "POTENTIAL_SELLER",
-                projectId,
-                area,
-                propertyType,
-                source,
+                projectId: projectId || null,
+                area: area || null,
+                propertyType: propertyType || null,
+                source: source || null,
                 installmentAmount: installmentAmount ? parseFloat(installmentAmount) : 0,
                 installmentRemaining: installmentRemaining ? parseInt(installmentRemaining) : 0,
-                installmentDetails,
-                governorate,
-                city,
-                executingCompany,
-                deliveryDate,
+                installmentDetails: installmentDetails || null,
+                governorate: governorate || null,
+                city: city || null,
+                executingCompany: executingCompany || null,
+                deliveryDate: deliveryDate || null,
                 floor: floor ? String(floor) : null,
                 bedrooms: bedrooms ? parseInt(bedrooms) : null,
                 bathrooms: bathrooms ? parseInt(bathrooms) : null,
-                finishing,
-                preferencesSummary,
+                finishing: finishing || null,
+                preferencesSummary: preferencesSummary || null,
                 askingPrice: askingPrice ? parseFloat(askingPrice) : null,
                 buildingNumber: buildingNumber ? String(buildingNumber) : null,
                 unitNumber: unitNumber ? String(unitNumber) : null,
                 unitSize: unitSize ? parseFloat(unitSize) : null,
-                paperworkStatus,
+                paperworkStatus: paperworkStatus || null,
                 customData: (customData || {}) as any,
                 assignedToId: session.role === "SALES_EMPLOYEE" ? session.id : null,
               },
             });
+
+            // Create initial note inside transaction
+            if (generalNotes?.trim()) {
+              await tx.interaction.create({
+                data: {
+                  customerId: createdCustomer.id,
+                  userId: session.id,
+                  type: "NOTE",
+                  notes: generalNotes.trim(),
+                },
+              });
+            }
+
+            // Create reminder if CALL_LATER and date provided inside transaction
+            if (status === "CALL_LATER" && followUpDate) {
+              const followUp = new Date(followUpDate);
+              if (!Number.isNaN(followUp.getTime())) {
+                await tx.reminder.create({
+                  data: {
+                    customerId: createdCustomer.id,
+                    userId: session.id,
+                    title: "اتصال متابعة",
+                    dueDate: followUp,
+                    status: "PENDING",
+                  },
+                });
+              }
+            }
+
+            // Create AuditLog for customer creation
+            await tx.auditLog.create({
+              data: {
+                userId: session.id,
+                action: "CREATE",
+                entity: "CUSTOMER",
+                entityId: createdCustomer.id,
+                details: `تمت إضافة العميل ${createdCustomer.name} (${code})`,
+              },
+            });
+
+            return createdCustomer;
           },
           {
             maxWait: 5000,
@@ -223,31 +264,6 @@ export async function POST(request: NextRequest) {
         }
         throw err;
       }
-    }
-
-    // Create initial note if provided
-    if (generalNotes?.trim()) {
-      await prisma.interaction.create({
-        data: {
-          customerId: customer.id,
-          userId: session.id,
-          type: "NOTE",
-          notes: generalNotes
-        }
-      });
-    }
-
-    // Create reminder if CALL_LATER and date provided
-    if (status === "CALL_LATER" && followUpDate) {
-      await prisma.reminder.create({
-        data: {
-          customerId: customer.id,
-          userId: session.id,
-          title: "اتصال متابعة",
-          dueDate: new Date(followUpDate),
-          status: "PENDING"
-        }
-      });
     }
 
     // --- SMART ACTIVITY MATCHING ---
@@ -325,11 +341,27 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "Invalid IDs" }, { status: 400 });
     }
 
-    await prisma.customer.deleteMany({
-      where: { id: { in: ids } }
+    const result = await prisma.$transaction(async (tx) => {
+      const deleted = await tx.customer.deleteMany({
+        where: { id: { in: ids } },
+      });
+
+      if (deleted.count > 0) {
+        await tx.auditLog.create({
+          data: {
+            userId: session.id,
+            action: "DELETE",
+            entity: "CUSTOMER",
+            entityId: ids.slice(0, 5).join(", ") + (ids.length > 5 ? ` (+${ids.length - 5} more)` : ""),
+            details: `حذف ${deleted.count} عميل نهائياً`,
+          },
+        });
+      }
+
+      return deleted;
     });
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, count: result.count });
   } catch (error) {
     console.error("Delete Customers Error:", error);
     return NextResponse.json({ error: "Failed to delete customers" }, { status: 500 });

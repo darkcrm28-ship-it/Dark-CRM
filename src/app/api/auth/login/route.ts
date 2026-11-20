@@ -34,12 +34,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create session
+    // Create session. Only the identity (id) is embedded in the token. Every
+    // authority decision is re-verified against the database by getSession(),
+    // so a role change or deactivation takes effect on the very next request.
     const sessionData = {
       id: user.id,
-      email: user.email,
-      role: user.role,
-      name: user.name,
     };
 
     const sessionToken = await encrypt(sessionData);

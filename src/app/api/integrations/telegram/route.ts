@@ -1,17 +1,52 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { getSession } from "@/lib/auth";
 
-export async function POST(req: Request) {
+// Telegram integration: authenticated internal notification sender.
+// - Requires a valid session with a managerial role.
+// - Sanitizes message to prevent HTML injection.
+// - Caps message length.
+// - Never returns the bot token in the response or logs.
+
+const MAX_MESSAGE_LENGTH = 4000;
+
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+export async function POST(req: NextRequest) {
   try {
-    const { message } = await req.json();
+    // 1. Authentication & authorization — no session = reject.
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    if (session.role !== "GENERAL_MANAGER" && session.role !== "SALES_MANAGER") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    const body = await req.json().catch(() => ({}));
+    const rawMessage = body?.message;
+
+    if (typeof rawMessage !== "string" || rawMessage.trim().length === 0) {
+      return NextResponse.json({ error: "message is required" }, { status: 400 });
+    }
+
+    // 2. Sanitize: escape HTML to prevent injection; cap length.
+    const safeMessage = escapeHtml(rawMessage.trim()).slice(0, MAX_MESSAGE_LENGTH);
 
     const botToken = process.env.TELEGRAM_BOT_TOKEN;
     const chatId = process.env.TELEGRAM_CHAT_ID;
 
     if (!botToken || !chatId) {
-      return NextResponse.json({ 
-        success: false, 
-        error: "Telegram credentials not configured" 
-      }, { status: 500 });
+      return NextResponse.json(
+        { success: false, error: "Telegram credentials not configured" },
+        { status: 500 }
+      );
     }
 
     const response = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
@@ -19,15 +54,28 @@ export async function POST(req: Request) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         chat_id: chatId,
-        text: message,
+        text: safeMessage,
         parse_mode: "HTML",
       }),
     });
 
-    const data = await response.json();
+    // 3. Do not echo back the bot token or any secret. Only return ok status.
+    const data = await response.json().catch(() => ({ ok: false }));
 
-    return NextResponse.json({ success: data.ok, data });
-  } catch (error) {
+    if (!response.ok) {
+      // Log a redacted reason only (never the token).
+      console.warn(
+        `Telegram sendMessage failed: status=${response.status} ok=${data?.ok ?? false}`
+      );
+      return NextResponse.json(
+        { success: false, error: "Failed to send Telegram message" },
+        { status: 502 }
+      );
+    }
+
+    return NextResponse.json({ success: Boolean(data.ok) });
+  } catch (error: any) {
+    console.error("Telegram Integration Error:", error?.message || error);
     return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
   }
 }

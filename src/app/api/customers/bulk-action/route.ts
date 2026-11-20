@@ -15,57 +15,90 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Invalid data" }, { status: 400 });
     }
 
-    if (action === "UNASSIGN") {
-      await prisma.customer.updateMany({
-        where: { id: { in: customerIds } },
-        data: { assignedToId: null }
-      });
+    await prisma.$transaction(async (tx) => {
+      if (action === "UNASSIGN") {
+        await tx.customer.updateMany({
+          where: { id: { in: customerIds } },
+          data: { assignedToId: null }
+        });
 
-      // Log activity
-      await prisma.interaction.createMany({
-        data: customerIds.map(id => ({
-          customerId: id,
-          userId: session.id,
-          type: "SYSTEM",
-          notes: `تم سحب العميل وإعادته لقاعدة البيانات بواسطة ${session.name}`
-        }))
-      });
-    } 
-    else if (action === "STATUS") {
-      await prisma.customer.updateMany({
-        where: { id: { in: customerIds } },
-        data: { status: value }
-      });
+        await tx.interaction.createMany({
+          data: customerIds.map(id => ({
+            customerId: id,
+            userId: session.id,
+            type: "SYSTEM",
+            notes: `تم سحب العميل وإعادته لقاعدة البيانات بواسطة ${session.name}`
+          }))
+        });
 
-      await prisma.interaction.createMany({
-        data: customerIds.map(id => ({
-          customerId: id,
-          userId: session.id,
-          type: "SYSTEM",
-          notes: `تم تغيير حالة العميل إلى ${value} بواسطة ${session.name}`
-        }))
-      });
-    }
-    else if (action === "RESET") {
-      await prisma.customer.updateMany({
-        where: { id: { in: customerIds } },
-        data: {
-          notes: null,
-          leadScore: 3,
-          preferencesSummary: null,
-          // Resetting other non-core fields if necessary
-        }
-      });
+        await tx.auditLog.create({
+          data: {
+            userId: session.id,
+            action: "UNASSIGN",
+            entity: "CUSTOMER",
+            entityId: customerIds.slice(0, 5).join(", "),
+            details: `سحب ${customerIds.length} عميل وإعادتهم للقاعدة`,
+          },
+        });
+      } 
+      else if (action === "STATUS") {
+        await tx.customer.updateMany({
+          where: { id: { in: customerIds } },
+          data: { status: value }
+        });
 
-      await prisma.interaction.createMany({
-        data: customerIds.map(id => ({
-          customerId: id,
-          userId: session.id,
-          type: "SYSTEM",
-          notes: `تم تصفير بيانات العميل بواسطة ${session.name}`
-        }))
-      });
-    }
+        await tx.interaction.createMany({
+          data: customerIds.map(id => ({
+            customerId: id,
+            userId: session.id,
+            type: "SYSTEM",
+            notes: `تم تغيير حالة العميل إلى ${value} بواسطة ${session.name}`
+          }))
+        });
+
+        await tx.auditLog.create({
+          data: {
+            userId: session.id,
+            action: "STATUS_CHANGE",
+            entity: "CUSTOMER",
+            entityId: customerIds.slice(0, 5).join(", "),
+            details: `تغيير حالة ${customerIds.length} عميل إلى ${value}`,
+          },
+        });
+      }
+      else if (action === "RESET") {
+        await tx.customer.updateMany({
+          where: { id: { in: customerIds } },
+          data: {
+            leadScore: 3,
+            preferencesSummary: null,
+            askingPrice: null,
+            installmentAmount: 0,
+            installmentRemaining: 0,
+            installmentDetails: null,
+          }
+        });
+
+        await tx.interaction.createMany({
+          data: customerIds.map(id => ({
+            customerId: id,
+            userId: session.id,
+            type: "SYSTEM",
+            notes: `تم تصفير بيانات العميل الإضافية بواسطة ${session.name}`
+          }))
+        });
+
+        await tx.auditLog.create({
+          data: {
+            userId: session.id,
+            action: "RESET",
+            entity: "CUSTOMER",
+            entityId: customerIds.slice(0, 5).join(", "),
+            details: `تصفير البيانات الإضافية لـ ${customerIds.length} عميل`,
+          },
+        });
+      }
+    });
 
     return NextResponse.json({ success: true });
   } catch (error) {

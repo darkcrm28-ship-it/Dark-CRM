@@ -24,7 +24,32 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const property = await prisma.property.create({ data: body });
+    const allowedFields = [
+      "title", "projectName", "unitNumber", "buildingNumber", "zone", "floor",
+      "size", "bedrooms", "bathrooms", "unitType", "finishing", "price",
+      "status", "description", "images", "monthlyInstallment", "remainingMonths",
+      "installmentType", "installmentPercentage", "customData",
+    ];
+    const data: any = Object.fromEntries(
+      Object.entries(body).filter(([key]) => allowedFields.includes(key))
+    );
+
+    if (data.price !== undefined) data.price = parseFloat(data.price) || 0;
+    if (data.size !== undefined) data.size = parseFloat(data.size) || null;
+    if (data.bedrooms !== undefined) data.bedrooms = parseInt(data.bedrooms) || null;
+    if (data.bathrooms !== undefined) data.bathrooms = parseInt(data.bathrooms) || null;
+
+    const property = await prisma.property.create({ data });
+
+    await prisma.auditLog.create({
+      data: {
+        userId: session.id,
+        action: "CREATE",
+        entity: "PROPERTY",
+        entityId: property.id,
+        details: `إضافة عقار جديد: ${property.title || property.projectName || "بدون عنوان"}`,
+      },
+    }).catch(() => {});
 
     // --- AUTO-MATCHING ENGINE ---
     // Find buyers who might be interested in this new property

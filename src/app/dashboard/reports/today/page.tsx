@@ -2,12 +2,13 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import TodayReportClient from "@/app/dashboard/reports/today/TodayReportClient";
 
-export default async function TodayReportPage({ searchParams }: { searchParams: { type?: string; empId?: string } }) {
+export default async function TodayReportPage({ searchParams }: { searchParams: Promise<{ type?: string; empId?: string }> }) {
+  const resolvedSearchParams = await searchParams;
   const session = await getSession();
   const isManager = session?.role === "GENERAL_MANAGER" || session?.role === "SALES_MANAGER";
   
-  const type = searchParams.type || "calls";
-  const empId = searchParams.empId;
+  const type = resolvedSearchParams.type || "calls";
+  const empId = resolvedSearchParams.empId;
 
   const startOfToday = new Date();
   startOfToday.setHours(0, 0, 0, 0);

@@ -2,66 +2,101 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 
-export async function POST(req: Request) {
+const ACCOUNTING_LOCK_ID = 74839210;
+const ALLOWED_ROLES = ["GENERAL_MANAGER", "ACCOUNTING_MANAGER"];
+
+export async function POST() {
   try {
     const session = await getSession();
-    if (!session || session.role !== "GENERAL_MANAGER") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!session || !ALLOWED_ROLES.includes(session.role)) {
+      return NextResponse.json({ error: "Unauthorized. Financial managers only." }, { status: 403 });
     }
 
-    // 1. Sync PENDING Commissions (to Expenses)
-    const pendingCommissions = await prisma.commission.findMany({
-      where: { status: "PENDING" },
-    });
+    const syncResult = await prisma.$transaction(
+      async (tx) => {
+        // حجز قفل متزامن لمنع تشغيل عمليتين متزامنتين من إنشاء معاملات مالية مكررة
+        await tx.$queryRaw`SELECT pg_advisory_xact_lock(${ACCOUNTING_LOCK_ID});`;
 
-    for (const comm of pendingCommissions) {
-      const existing = await prisma.financialTransaction.findFirst({
-        where: { relatedId: comm.id },
-      });
+        let syncedCommissionsCount = 0;
+        let syncedDealsCount = 0;
 
-      if (!existing) {
-        await prisma.financialTransaction.create({
-          data: {
-            type: "EXPENSE",
-            category: "COMMISSION",
-            amount: comm.amount,
-            description: `عمولة موظف - ${comm.notes || ""}`,
-            status: "PENDING",
-            relatedId: comm.id,
-            date: comm.createdAt,
-          },
+        // 1. Sync PENDING Commissions (to Expenses)
+        const pendingCommissions = await tx.commission.findMany({
+          where: { status: "PENDING" },
         });
-      }
-    }
 
-    // 2. Sync Completed Deals (to Revenue)
-    const completedDeals = await prisma.deal.findMany({
-      where: { status: "CLOSED" },
-    });
+        for (const comm of pendingCommissions) {
+          const existing = await tx.financialTransaction.findFirst({
+            where: { relatedId: comm.id },
+            select: { id: true },
+          });
 
-    for (const deal of completedDeals) {
-      const existing = await prisma.financialTransaction.findFirst({
-        where: { relatedId: deal.id },
-      });
+          if (!existing) {
+            await tx.financialTransaction.create({
+              data: {
+                type: "EXPENSE",
+                category: "COMMISSION",
+                amount: comm.amount,
+                description: `عمولة موظف - ${comm.notes || ""}`,
+                status: "PENDING",
+                relatedId: comm.id,
+                date: comm.createdAt,
+              },
+            });
+            syncedCommissionsCount++;
+          }
+        }
 
-      if (!existing) {
-        await prisma.financialTransaction.create({
-          data: {
-            type: "INCOME",
-            category: "REVENUE",
-            amount: deal.value,
-            description: `إيراد صفقة مغلقة - قيمة العقد`,
-            status: "COMPLETED",
-            relatedId: deal.id,
-            date: deal.closedAt || deal.createdAt,
-          },
+        // 2. Sync Completed Deals (to Revenue)
+        const completedDeals = await tx.deal.findMany({
+          where: { status: { in: ["CLOSED", "COMPLETED"] } },
         });
-      }
-    }
 
-    return NextResponse.json({ success: true });
+        for (const deal of completedDeals) {
+          const existing = await tx.financialTransaction.findFirst({
+            where: { relatedId: deal.id },
+            select: { id: true },
+          });
+
+          if (!existing) {
+            await tx.financialTransaction.create({
+              data: {
+                type: "INCOME",
+                category: "REVENUE",
+                amount: deal.value,
+                description: `إيراد صفقة مكتملة - قيمة العقد`,
+                status: "COMPLETED",
+                relatedId: deal.id,
+                date: deal.closedAt || deal.createdAt,
+              },
+            });
+            syncedDealsCount++;
+          }
+        }
+
+        if (syncedCommissionsCount > 0 || syncedDealsCount > 0) {
+          await tx.auditLog.create({
+            data: {
+              userId: session.id,
+              action: "SYNC",
+              entity: "FINANCIAL_TRANSACTION",
+              entityId: "ACCOUNTING_SYNC",
+              details: `مزامنة الحسابات: ${syncedDealsCount} صفقة إيراد، ${syncedCommissionsCount} عمولة مصروف`,
+            },
+          });
+        }
+
+        return { syncedCommissionsCount, syncedDealsCount };
+      },
+      {
+        maxWait: 5000,
+        timeout: 15000,
+      }
+    );
+
+    return NextResponse.json({ success: true, ...syncResult });
   } catch (error) {
-    console.error("Sync error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    console.error("Accounting Sync Error:", error);
+    return NextResponse.json({ error: "Internal server error during accounting sync" }, { status: 500 });
   }
 }
