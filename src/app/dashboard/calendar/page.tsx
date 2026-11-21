@@ -1,13 +1,13 @@
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+import { requirePageRole, SALES_MANAGER_ROLES, SALES_ROLES } from "@/lib/auth";
 import CalendarClient from "./CalendarClient";
 
 export default async function CalendarPage() {
-  const session = await getSession();
-  const isManager = session?.role === "GENERAL_MANAGER" || session?.role === "SALES_MANAGER";
+  const session = await requirePageRole(SALES_ROLES);
+  const isManager = SALES_MANAGER_ROLES.includes(session.role);
 
   const reminders = await prisma.reminder.findMany({
-    where: isManager ? {} : { userId: session?.id },
+    where: isManager ? {} : { userId: session.id, customer: { assignedToId: session.id } },
     orderBy: { dueDate: "asc" },
     include: {
       customer: { select: { id: true, name: true, phone: true } },
@@ -17,7 +17,7 @@ export default async function CalendarPage() {
 
   const customers = isManager
     ? await prisma.customer.findMany({ select: { id: true, name: true, phone: true }, orderBy: { name: "asc" } })
-    : await prisma.customer.findMany({ where: { assignedToId: session?.id }, select: { id: true, name: true, phone: true }, orderBy: { name: "asc" } });
+    : await prisma.customer.findMany({ where: { assignedToId: session.id }, select: { id: true, name: true, phone: true }, orderBy: { name: "asc" } });
 
   return <CalendarClient reminders={reminders} customers={customers} isManager={isManager} />;
 }

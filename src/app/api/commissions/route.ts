@@ -1,17 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth";
-
-const MANAGER_ROLES = ["GENERAL_MANAGER", "HR_MANAGER", "ACCOUNTING_MANAGER"];
+import { requireRole, COMMISSION_ROLES, FINANCE_ROLES } from "@/lib/auth";
 
 export async function GET() {
   try {
-    const session = await getSession();
-    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const session = await requireRole(COMMISSION_ROLES);
+    if (session instanceof NextResponse) return session;
 
-    const isManager = MANAGER_ROLES.includes(session.role);
     const commissions = await prisma.commission.findMany({
-      where: isManager ? {} : { userId: session.id },
       orderBy: { createdAt: "desc" },
       include: {
         user: { select: { id: true, name: true, email: true, role: true } },
@@ -27,10 +23,8 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getSession();
-    if (!session || !MANAGER_ROLES.includes(session.role)) {
-      return NextResponse.json({ error: "غير مصرح لك بإضافة عمولات" }, { status: 403 });
-    }
+    const session = await requireRole(FINANCE_ROLES);
+    if (session instanceof NextResponse) return session;
 
     const { userId, amount, description } = await request.json();
     const parsedAmount = typeof amount === "number" ? amount : parseFloat(amount);

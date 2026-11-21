@@ -1,11 +1,11 @@
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+import { getSession, ROLE } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import AccountingClient from "@/app/dashboard/accounting/AccountingClient";
 
 export default async function AccountingPage() {
   const session = await getSession();
-  if (!session || session.role !== "GENERAL_MANAGER") {
+  if (!session || (session.role !== ROLE.GENERAL_MANAGER && session.role !== ROLE.ACCOUNTING_MANAGER)) {
     redirect("/dashboard");
   }
 

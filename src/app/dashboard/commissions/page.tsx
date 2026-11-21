@@ -1,13 +1,12 @@
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+import { getSession, COMMISSION_ROLES } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import CommissionsClient from "./CommissionsClient";
 
 export default async function CommissionsPage() {
   const session = await getSession();
 
-  // Only General Manager and HR Manager can access this page
-  if (session?.role !== "GENERAL_MANAGER" && session?.role !== "HR_MANAGER") {
+  if (!session || !COMMISSION_ROLES.includes(session.role)) {
     redirect("/dashboard");
   }
 

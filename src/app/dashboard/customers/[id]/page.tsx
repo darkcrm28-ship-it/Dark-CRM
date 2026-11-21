@@ -1,18 +1,17 @@
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+import { requirePageRole, ROLE, SALES_ROLES } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import CustomerDetailsClient from "./CustomerDetailsClient";
 
 export default async function CustomerPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const session = await getSession();
-  
-  if (!session) {
-    redirect("/login");
-  }
+  const session = await requirePageRole(SALES_ROLES);
 
-  const customer = await prisma.customer.findUnique({
-    where: { id },
+  const customer = await prisma.customer.findFirst({
+    where: {
+      id,
+      ...(session.role === ROLE.SALES_EMPLOYEE ? { assignedToId: session.id } : {}),
+    },
     include: {
       interactions: {
         orderBy: { createdAt: 'desc' },
@@ -26,11 +25,6 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
 
   if (!customer) {
     return <div className="text-center p-8">العميل غير موجود</div>;
-  }
-
-  // Ensure employee only sees their own assigned customers, unless they are managers
-  if (session.role === "SALES_EMPLOYEE" && customer.assignedToId !== session.id) {
-    return <div className="text-center p-8 text-[var(--color-danger)]">غير مصرح لك بمشاهدة هذا العميل</div>;
   }
 
   return <CustomerDetailsClient initialCustomer={customer} currentUser={session} />;

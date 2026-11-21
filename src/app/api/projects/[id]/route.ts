@@ -1,16 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+import { requireRole, ROLE, SALES_MANAGER_ROLES } from "@/lib/auth";
 
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getSession();
-    if (!session || (session.role !== "GENERAL_MANAGER" && session.role !== "SALES_MANAGER")) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
-    }
+    const session = await requireRole(SALES_MANAGER_ROLES);
+    if (session instanceof NextResponse) return session;
 
     const { id } = await params;
     const { name, description } = await request.json();
@@ -44,10 +42,8 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getSession();
-    if (!session || session.role !== "GENERAL_MANAGER") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
-    }
+    const session = await requireRole([ROLE.GENERAL_MANAGER]);
+    if (session instanceof NextResponse) return session;
 
     const { id } = await params;
     const project = await prisma.project.delete({

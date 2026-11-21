@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+import { requireRole, SALES_ROLES, SALES_MANAGER_ROLES } from "@/lib/auth";
 
 export async function GET() {
   try {
-    const session = await getSession();
-    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const session = await requireRole(SALES_ROLES);
+    if (session instanceof NextResponse) return session;
 
     const properties = await prisma.property.findMany({
       orderBy: { createdAt: "desc" },
@@ -18,10 +18,8 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getSession();
-    if (!session || (session.role !== "GENERAL_MANAGER" && session.role !== "SALES_MANAGER")) {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 403 });
-    }
+    const session = await requireRole(SALES_MANAGER_ROLES);
+    if (session instanceof NextResponse) return session;
 
     const body = await request.json();
     const allowedFields = [

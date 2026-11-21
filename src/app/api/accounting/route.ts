@@ -1,15 +1,11 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth";
-
-const ALLOWED_ROLES = ["GENERAL_MANAGER", "ACCOUNTING_MANAGER"];
+import { requireRole, FINANCE_ROLES } from "@/lib/auth";
 
 export async function GET(req: Request) {
   try {
-    const session = await getSession();
-    if (!session || !ALLOWED_ROLES.includes(session.role)) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
-    }
+    const session = await requireRole(FINANCE_ROLES);
+    if (session instanceof NextResponse) return session;
 
     const { searchParams } = new URL(req.url);
     const startDate = searchParams.get("start") || new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
@@ -35,10 +31,8 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const session = await getSession();
-    if (!session || !ALLOWED_ROLES.includes(session.role)) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
-    }
+    const session = await requireRole(FINANCE_ROLES);
+    if (session instanceof NextResponse) return session;
 
     const data = await req.json();
     const amount = typeof data.amount === "number" ? data.amount : parseFloat(data.amount);
@@ -84,10 +78,8 @@ export async function POST(req: Request) {
 
 export async function PATCH(req: Request) {
   try {
-    const session = await getSession();
-    if (!session || !ALLOWED_ROLES.includes(session.role)) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
-    }
+    const session = await requireRole(FINANCE_ROLES);
+    if (session instanceof NextResponse) return session;
 
     const data = await req.json();
     if (!data.id || typeof data.id !== "string") {

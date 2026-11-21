@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+import { requireManager, requireRole, ROLE, SALES_ROLES } from "@/lib/auth";
 
 export async function GET() {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const isManager = session.role === "GENERAL_MANAGER" || session.role === "SALES_MANAGER";
+  const session = await requireRole(SALES_ROLES);
+  if (session instanceof NextResponse) return session;
+  const isManager = session.role === ROLE.GENERAL_MANAGER || session.role === ROLE.SALES_MANAGER;
   const deals = await prisma.deal.findMany({
     where: isManager ? {} : { salesRepId: session.id },
     orderBy: { createdAt: "desc" },
@@ -20,10 +20,8 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getSession();
-    if (!session || (session.role !== "GENERAL_MANAGER" && session.role !== "SALES_MANAGER")) {
-      return NextResponse.json({ error: "غير مصرح لك بإنشاء الصفقات" }, { status: 403 });
-    }
+    const session = await requireManager();
+    if (session instanceof NextResponse) return session;
 
     const body = await request.json();
     const { customerId, propertyId, salesRepId: requestedSalesRepId } = body;

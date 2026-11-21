@@ -1,7 +1,15 @@
 "use client";
 
-import React, { useState } from "react";
-import { MappingTemplate, getSavedTemplates, saveCustomTemplate, suggestMatchingTemplate } from "@/lib/import-templates";
+import React, { useState, useRef } from "react";
+import {
+  MappingTemplate,
+  getSavedTemplates,
+  saveCustomTemplate,
+  suggestMatchingTemplate,
+  exportTemplatesAsJson,
+  importTemplatesFromJson,
+  autoDetectColumnMapping,
+} from "@/lib/import-templates";
 
 export interface ColumnMapperStepProps {
   sheetName: string;
@@ -11,19 +19,24 @@ export interface ColumnMapperStepProps {
   customFieldDefs?: Array<{ id: string; name: string; label: string }>;
   onUpdateMapping: (columnName: string, targetField: string) => void;
   onApplyTemplate: (template: MappingTemplate) => void;
+  onResetAutoMapping?: (newMapping: Record<string, string>) => void;
 }
 
 // قائمة الحقول القياسية في Dark CRM المصنفة حسب المجموعات
 const TARGET_FIELD_GROUPS = [
   {
-    group: "بيانات العميل الأساسية (إلزامية واختيارية)",
+    group: "بيانات العميل الأساسية",
     fields: [
       { key: "name", label: "اسم العميل بالكامل * (إلزامي)", required: true },
       { key: "phone", label: "رقم الهاتف المحمول * (إلزامي)", required: true },
-      { key: "email", label: "البريد الإلكتروني", required: false },
       { key: "nationalId", label: "الرقم القومي (14 رقماً)", required: false },
+      { key: "email", label: "البريد الإلكتروني", required: false },
+      { key: "type", label: "نوع العميل (SELLER / BUYER / LEAD)", required: false },
+      { key: "status", label: "حالة العميل في الـ CRM", required: false },
       { key: "source", label: "مصدر العميل (Source)", required: false },
-    ]
+      { key: "customerType", label: "تصنيف العميل (فرد / شركة)", required: false },
+      { key: "leadScore", label: "تقييم العميل (1-5)", required: false },
+    ],
   },
   {
     group: "بيانات ومواصفات الوحدة العقارية",
@@ -31,27 +44,36 @@ const TARGET_FIELD_GROUPS = [
       { key: "projectName", label: "اسم المشروع / الكمبوند", required: false },
       { key: "unitNumber", label: "رقم الوحدة / الشقة", required: false },
       { key: "buildingNumber", label: "رقم العمارة / المبنى", required: false },
+      { key: "zoneNumber", label: "المجموعة / المرحلة (Zone)", required: false },
       { key: "floor", label: "الدور / الطابق", required: false },
       { key: "area", label: "المنطقة / الحي", required: false },
+      { key: "governorate", label: "المحافظة", required: false },
+      { key: "city", label: "المدينة", required: false },
       { key: "propertyType", label: "نوع العقار (شقة، فيلا، مكتب...)", required: false },
       { key: "unitSize", label: "المساحة (م²)", required: false },
       { key: "bedrooms", label: "عدد الغرف", required: false },
       { key: "bathrooms", label: "عدد الحمامات", required: false },
       { key: "finishing", label: "حالة التشطيب", required: false },
-      { key: "deliveryDate", label: "تاريخ الاستلام", required: false },
-      { key: "executingCompany", label: "الشركة المنفذة / المطور", required: false },
-    ]
+      { key: "unitStatus", label: "حالة الوحدة (متاحة، محجوزة...)", required: false },
+      { key: "deliveryDate", label: "تاريخ الاستلام / التعاقد", required: false },
+      { key: "executingCompany", label: "الشركة المطورة / المنفذة", required: false },
+      { key: "paperworkStatus", label: "الموقف القانوني / المستندات", required: false },
+    ],
   },
   {
-    group: "الأسعار وتفاصيل الأقساط",
+    group: "الأسعار ونظام السداد والأقساط",
     fields: [
       { key: "askingPrice", label: "السعر الإجمالي المطلوب", required: false },
       { key: "installmentAmount", label: "قيمة القسط", required: false },
       { key: "installmentRemaining", label: "عدد الأقساط المتبقية", required: false },
       { key: "installmentDetails", label: "تفاصيل ونظام السداد", required: false },
-    ]
-  }
+      { key: "budgetMin", label: "الحد الأدنى للميزانية (للمشتري)", required: false },
+      { key: "budgetMax", label: "الحد الأقصى للميزانية (للمشتري)", required: false },
+    ],
+  },
 ];
+
+const CRITICAL_UNIQUE_FIELDS = new Set(["name", "phone", "nationalId", "unitNumber"]);
 
 export default function ColumnMapperStep({
   sheetName,
@@ -60,11 +82,13 @@ export default function ColumnMapperStep({
   mapping,
   customFieldDefs = [],
   onUpdateMapping,
-  onApplyTemplate
+  onApplyTemplate,
+  onResetAutoMapping,
 }: ColumnMapperStepProps) {
   const [templates, setTemplates] = useState<MappingTemplate[]>(() => getSavedTemplates());
   const [showSaveTemplateModal, setShowSaveTemplateModal] = useState(false);
   const [newTemplateName, setNewTemplateName] = useState("");
+  const jsonFileInputRef = useRef<HTMLInputElement>(null);
 
   const suggested = suggestMatchingTemplate(sourceHeaders);
 
@@ -79,13 +103,18 @@ export default function ColumnMapperStep({
   const hasName = Object.values(mapping).includes("name");
   const hasPhone = Object.values(mapping).includes("phone");
 
+  // التحقق من تكرار حقول أساسية مسببة لفساد البيانات
+  const duplicateCriticalFields = Object.keys(targetUsageCounts).filter(
+    (key) => CRITICAL_UNIQUE_FIELDS.has(key) && targetUsageCounts[key] > 1
+  );
+
   const handleSaveTemplate = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTemplateName.trim()) return;
     const saved = saveCustomTemplate({
       name: newTemplateName.trim(),
       matchHeaders: sourceHeaders,
-      mapping: { ...mapping }
+      mapping: { ...mapping },
     });
     setTemplates(getSavedTemplates());
     setShowSaveTemplateModal(false);
@@ -93,9 +122,55 @@ export default function ColumnMapperStep({
     alert(`✅ تم حفظ القالب "${saved.name}" بنجاح!`);
   };
 
+  const handleExportTemplates = () => {
+    const jsonStr = exportTemplatesAsJson();
+    const blob = new Blob([jsonStr], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `dark-crm-templates-${new Date().toISOString().split("T")[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportJsonFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const text = event.target?.result as string;
+        const res = importTemplatesFromJson(text);
+        if (res.success) {
+          setTemplates(getSavedTemplates());
+          alert(`✅ تم استيراد ${res.count} قالب بنجاح وتحديث قائمة القوالب!`);
+        } else {
+          alert(`❌ خطأ في استيراد القوالب: ${res.error}`);
+        }
+      } catch (err: any) {
+        alert(`❌ فشل قراءة الملف: ${err.message}`);
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  };
+
+  const handleAutoDetect = () => {
+    const detected = autoDetectColumnMapping(sourceHeaders);
+    if (onResetAutoMapping) {
+      onResetAutoMapping(detected);
+    } else {
+      for (const [col, target] of Object.entries(detected)) {
+        onUpdateMapping(col, target);
+      }
+    }
+  };
+
   return (
     <div>
-      {/* Top Bar: Template Selection & Suggestion */}
+      {/* Top Bar: Template Selection & Actions */}
       <div style={{
         display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12,
         padding: "12px 18px", marginBottom: 16, borderRadius: 10,
@@ -103,7 +178,7 @@ export default function ColumnMapperStep({
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
           <span style={{ fontWeight: 800, fontSize: 13, color: "var(--gold-primary)" }}>
-            ⚡ تطبيق قالب ربط مسبق:
+            ⚡ تطبيق قالب ربط:
           </span>
           <select
             onChange={(e) => {
@@ -112,25 +187,64 @@ export default function ColumnMapperStep({
             }}
             defaultValue=""
             className="input"
-            style={{ minWidth: 260, fontSize: 13, height: 38 }}
+            style={{ minWidth: 240, fontSize: 13, height: 38 }}
           >
             <option value="" disabled>اختر قالباً لتطبيقه على هذه الورقة...</option>
             {templates.map(t => (
               <option key={t.id} value={t.id}>
-                {t.name} {t.scope === "GLOBAL" ? "(قالب معتمد)" : "(مخصص)"}
+                {t.name} {t.scope === "GLOBAL" ? "(معتمد)" : "(مخصص)"}
               </option>
             ))}
           </select>
+
+          <button
+            type="button"
+            onClick={handleAutoDetect}
+            className="btn btn-secondary"
+            title="إعادة الكشف التلقائي عن الأعمدة بالعربية والإنجليزية"
+            style={{ fontSize: 12, padding: "8px 12px", height: 38 }}
+          >
+            🔄 كشف تلقائي ذكي
+          </button>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setShowSaveTemplateModal(true)}
-          className="btn btn-secondary"
-          style={{ fontSize: 12, padding: "8px 14px", height: 38 }}
-        >
-          💾 حفظ الربط الحالي كقالب جديد
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <button
+            type="button"
+            onClick={() => setShowSaveTemplateModal(true)}
+            className="btn btn-secondary"
+            style={{ fontSize: 12, padding: "8px 12px", height: 38 }}
+          >
+            💾 حفظ كقالب
+          </button>
+
+          <button
+            type="button"
+            onClick={handleExportTemplates}
+            className="btn btn-ghost"
+            title="تصدير القوالب المخصصة لمشاركتها مع موظفين آخرين أو حفظ نسخة احتياطية"
+            style={{ fontSize: 12, padding: "8px 12px", height: 38 }}
+          >
+            📤 تصدير JSON
+          </button>
+
+          <input
+            type="file"
+            ref={jsonFileInputRef}
+            accept=".json,application/json"
+            style={{ display: "none" }}
+            onChange={handleImportJsonFile}
+          />
+          <button
+            type="button"
+            onClick={() => jsonFileInputRef.current?.click()}
+            className="btn btn-ghost"
+            title="استيراد قوالب مخصصة من ملف JSON مشارك"
+            style={{ fontSize: 12, padding: "8px 12px", height: 38 }}
+          >
+            📥 استيراد JSON
+          </button>
+        </div>
       </div>
 
       {/* Suggested Template Banner (if similarity >= 60%) */}
@@ -151,6 +265,17 @@ export default function ColumnMapperStep({
           >
             تطبيق القالب المقترح
           </button>
+        </div>
+      )}
+
+      {/* Critical Duplicate Mapping Error Banner */}
+      {duplicateCriticalFields.length > 0 && (
+        <div style={{
+          padding: "10px 16px", borderRadius: 8, marginBottom: 16,
+          background: "rgba(239, 68, 68, 0.15)", border: "1px solid rgba(239, 68, 68, 0.4)",
+          color: "var(--accent-red)", fontWeight: 700, fontSize: 13
+        }}>
+          🛑 خطأ تكرار حقول أساسية: الحقول ({duplicateCriticalFields.join(", ")}) تم ربطها بأكثر من عمود! يجب فك هذا الربط المزدوج لمنع تلف بيانات العملاء.
         </div>
       )}
 

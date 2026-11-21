@@ -1,4 +1,5 @@
 const { PrismaClient } = require('@prisma/client');
+require('./scripts/load-test-env');
 const prisma = new PrismaClient();
 
 async function main() {

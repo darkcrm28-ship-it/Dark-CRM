@@ -1,20 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+import { requireSession, requireRole, ROLE } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
+  const session = await requireSession();
+  if (session instanceof NextResponse) return session;
   const settings = await prisma.systemSettings.findUnique({ where: { id: "GLOBAL" } });
   return NextResponse.json(settings);
 }
 
 export async function PUT(request: NextRequest) {
   try {
-    const session = await getSession();
-    if (session?.role !== "GENERAL_MANAGER") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const session = await requireRole([ROLE.GENERAL_MANAGER]);
+    if (session instanceof NextResponse) return session;
 
     const data = await request.json();
     const settings = await prisma.systemSettings.upsert({

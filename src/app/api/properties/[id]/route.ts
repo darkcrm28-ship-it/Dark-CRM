@@ -1,16 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+import { requireRole, SALES_MANAGER_ROLES } from "@/lib/auth";
 
 const MANAGER_ROLES = ["GENERAL_MANAGER", "SALES_MANAGER"];
 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const session = await getSession();
-    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    if (!MANAGER_ROLES.includes(session.role)) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
+    const session = await requireRole(SALES_MANAGER_ROLES);
+    if (session instanceof NextResponse) return session;
 
     const { id } = await params;
     const body = await request.json();
@@ -33,11 +30,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
 export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const session = await getSession();
-    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    if (!MANAGER_ROLES.includes(session.role)) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
+    const session = await requireRole(SALES_MANAGER_ROLES);
+    if (session instanceof NextResponse) return session;
 
     const { id } = await params;
     await prisma.property.delete({ where: { id } });

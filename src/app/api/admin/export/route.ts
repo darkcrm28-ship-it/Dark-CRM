@@ -1,13 +1,11 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+import { requireRole, ROLE } from "@/lib/auth";
 
 export async function GET() {
   try {
-    const session = await getSession();
-    if (session?.role !== "GENERAL_MANAGER") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
-    }
+    const session = await requireRole([ROLE.GENERAL_MANAGER]);
+    if (session instanceof NextResponse) return session;
 
     const [customers, properties, deals, interactions, logs] = await Promise.all([
       prisma.customer.findMany({ 

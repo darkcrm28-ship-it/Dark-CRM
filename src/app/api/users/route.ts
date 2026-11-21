@@ -1,14 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+import { ALLOWED_ROLES, requireRole, ROLE, HR_ROLES } from "@/lib/auth";
 import { hashPassword } from "@/lib/auth-server";
 
 export async function GET() {
   try {
-    const session = await getSession();
-    if (session?.role !== "GENERAL_MANAGER") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
-    }
+    const session = await requireRole(HR_ROLES);
+    if (session instanceof NextResponse) return session;
     const users = await prisma.user.findMany({
       orderBy: { createdAt: "desc" },
       select: {
@@ -24,16 +22,16 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getSession();
-    
-    if (session?.role !== "GENERAL_MANAGER") {
-      return NextResponse.json({ error: "غير مصرح لك بإضافة مستخدمين" }, { status: 403 });
-    }
+    const session = await requireRole([ROLE.GENERAL_MANAGER]);
+    if (session instanceof NextResponse) return session;
 
     const { name, email, password, role, phone, nationalId, address, dateJoined, salaryBase } = await request.json();
 
     if (!name || !email || !password || !role) {
       return NextResponse.json({ error: "الحقول الأساسية مطلوبة" }, { status: 400 });
+    }
+    if (!ALLOWED_ROLES.has(role)) {
+      return NextResponse.json({ error: "الدور المحدد غير صالح" }, { status: 400 });
     }
 
     const existing = await prisma.user.findUnique({ where: { email } });

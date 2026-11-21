@@ -1,6 +1,6 @@
 
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/lib/auth";
+import { requireRole, SALES_ROLES } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -15,14 +15,8 @@ const ALLOWED_MIME_TYPES = [
 export async function POST(request: NextRequest) {
   try {
     // Verify user session
-    const session = await getSession();
-
-    if (!session) {
-      return NextResponse.json(
-        { error: "يجب تسجيل الدخول لرفع الصور." },
-        { status: 401 }
-      );
-    }
+    const session = await requireRole(SALES_ROLES);
+    if (session instanceof NextResponse) return session;
 
     const privateKey = process.env.IMAGEKIT_PRIVATE_KEY;
 

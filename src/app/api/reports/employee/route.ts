@@ -1,13 +1,11 @@
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+import { requireManager } from "@/lib/auth";
 import { NextResponse } from "next/server";
 import { cairoDateRange } from "@/lib/report-time";
 
 export async function GET(req: Request) {
-  const session = await getSession();
-  if (!session || (session.role !== "GENERAL_MANAGER" && session.role !== "SALES_MANAGER")) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const session = await requireManager();
+  if (session instanceof NextResponse) return session;
 
   const { searchParams } = new URL(req.url);
   const allowedParams = new Set(["id", "start", "end"]);

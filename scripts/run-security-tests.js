@@ -1,6 +1,6 @@
 /**
  * Dark CRM — Security Regression Tests
- * Run: node scripts/run-security-tests.js
+ * Run: npm run test:security (requires .env.test connected to an isolated test branch)
  *
  * Covers:
  *  1. Valid session accepted
@@ -14,25 +14,9 @@
  *  9. Public inquiry: invalid input rejected, concurrent submissions capped
  */
 
+require("./load-test-env");
 const path = require("path");
 const fs = require("fs");
-
-// Load .env
-const envPath = path.join(__dirname, "..", ".env");
-if (fs.existsSync(envPath)) {
-  const lines = fs.readFileSync(envPath, "utf-8").split("\n");
-  for (const line of lines) {
-    const t = line.trim();
-    if (!t || t.startsWith("#")) continue;
-    const eq = t.indexOf("=");
-    if (eq < 0) continue;
-    const k = t.slice(0, eq).trim();
-    let v = t.slice(eq + 1).trim();
-    if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) v = v.slice(1, -1).trim();
-    if (!process.env[k]) process.env[k] = v;
-  }
-  console.log("✅ .env loaded\n");
-}
 
 const { neonConfig, Pool } = require("@neondatabase/serverless");
 const ws = require("ws");

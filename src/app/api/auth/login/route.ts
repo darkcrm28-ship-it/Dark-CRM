@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { encrypt } from "@/lib/auth";
+import { ALLOWED_ROLES, encrypt, type AppRole } from "@/lib/auth";
 import { verifyPassword } from "@/lib/auth-server";
 
 export async function POST(request: NextRequest) {
@@ -32,6 +32,10 @@ export async function POST(request: NextRequest) {
         { error: "بيانات الدخول غير صحيحة" },
         { status: 401 }
       );
+    }
+
+    if (!ALLOWED_ROLES.has(user.role as AppRole)) {
+      return NextResponse.json({ error: "هذا الدور غير مفعّل لتسجيل الدخول" }, { status: 403 });
     }
 
     // Create session. Only the identity (id) is embedded in the token. Every

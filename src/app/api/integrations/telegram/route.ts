@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/lib/auth";
+import { requireManager } from "@/lib/auth";
 
 // Telegram integration: authenticated internal notification sender.
 // - Requires a valid session with a managerial role.
@@ -21,13 +21,8 @@ function escapeHtml(text: string): string {
 export async function POST(req: NextRequest) {
   try {
     // 1. Authentication & authorization — no session = reject.
-    const session = await getSession();
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-    if (session.role !== "GENERAL_MANAGER" && session.role !== "SALES_MANAGER") {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
+    const session = await requireManager();
+    if (session instanceof NextResponse) return session;
 
     const body = await req.json().catch(() => ({}));
     const rawMessage = body?.message;

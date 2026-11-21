@@ -1,13 +1,13 @@
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+import { requirePageRole, SALES_MANAGER_ROLES, SALES_ROLES } from "@/lib/auth";
 import CustomersClient from "../customers/CustomersClient";
 
 export default async function LeadsPage() {
-  const session = await getSession();
-  const isManager = session?.role === "GENERAL_MANAGER" || session?.role === "SALES_MANAGER";
+  const session = await requirePageRole(SALES_ROLES);
+  const isManager = SALES_MANAGER_ROLES.includes(session.role);
 
   const where = {
-    ...(isManager ? {} : { assignedToId: session?.id }),
+    ...(isManager ? {} : { assignedToId: session.id }),
     isArchived: false,
     status: { notIn: ["NOT_INTERESTED", "DO_NOT_SELL"] },
     type: { in: ["SELLER", "LEAD"] },

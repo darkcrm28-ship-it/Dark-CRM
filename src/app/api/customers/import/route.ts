@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createHash } from "crypto";
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+import { requireManager } from "@/lib/auth";
 import {
   normalizePhone,
   normalizeArabicText,
@@ -76,10 +76,8 @@ const KNOWN_CUSTOMER_FIELDS = new Set([
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getSession();
-    if (session?.role !== "GENERAL_MANAGER" && session?.role !== "SALES_MANAGER") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
-    }
+    const session = await requireManager();
+    if (session instanceof NextResponse) return session;
 
     const body = await request.json();
     const customers = body?.customers;
@@ -616,10 +614,11 @@ export async function POST(request: NextRequest) {
                 email: asText(row.raw.email) || null,
                 type: asText(row.raw.type) || defaultType,
                 status: asText(row.raw.status) || defaultStatus,
-                projectId,
+                projectId: asText(row.raw.projectId) || projectId,
                 projectName: row.projectName,
                 unitNumber: row.unitNumber,
                 buildingNumber: row.buildingNumber,
+                zoneNumber: asText(row.raw.zoneNumber) || null,
                 floor: asText(row.raw.floor) || null,
                 area: asText(row.raw.area) || null,
                 propertyType: asText(row.raw.propertyType) || null,
@@ -635,6 +634,18 @@ export async function POST(request: NextRequest) {
                     ? Math.floor(normalizeNumber(row.raw.installmentRemaining)!)
                     : 0,
                 installmentDetails: asText(row.raw.installmentDetails) || null,
+                remainingInstallments: normalizeNumber(row.raw.remainingInstallments) ?? 0,
+                installmentDuration:
+                  normalizeNumber(row.raw.installmentDuration) !== null
+                    ? Math.floor(normalizeNumber(row.raw.installmentDuration)!)
+                    : null,
+                budgetMin: normalizeNumber(row.raw.budgetMin) ?? 0,
+                budgetMax: normalizeNumber(row.raw.budgetMax) ?? 0,
+                preferredZone: asText(row.raw.preferredZone) || null,
+                preferredSize: normalizeNumber(row.raw.preferredSize) ?? 0,
+                customerType: asText(row.raw.customerType) || null,
+                pipelineStage: asText(row.raw.pipelineStage) || null,
+                unitStatus: asText(row.raw.unitStatus) || null,
                 finishing: asText(row.raw.finishing) || null,
                 bedrooms:
                   normalizeNumber(row.raw.bedrooms) !== null

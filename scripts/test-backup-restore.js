@@ -1,11 +1,10 @@
 /**
  * Dark CRM — Backup & Restore Integrity Test Suite
  * 
- * Run: node scripts/test-backup-restore.js
+ * Run: npm run test:backup
  * 
- * Safety Guarantee:
- * This script runs locally in an isolated sandbox / test mode.
- * It NEVER executes destructive operations or restore on the live production database.
+ * This is an in-memory fixture simulation only. It does not load a real backup,
+ * connect to a database, or verify that an actual restore is possible.
  */
 
 const { createHash } = require("crypto");
@@ -183,12 +182,6 @@ for (const d of mockRestoredDb.get("deals")) {
 }
 
 assert("Topological restore preserves all Foreign Key relationships without orphaned records", fkErrors === 0);
-
-// ─── TEST 5: Production Safety Lock ─────────────────────────────────────────
-console.log("\nTEST 5: Production Safety Guard");
-const DB_URL = process.env.DATABASE_URL || "";
-const isProductionUrl = DB_URL.includes("neon.tech") || DB_URL.includes("prod");
-assert("Production Safety: Restore test explicitly forbids execution against live DB", isProductionUrl ? true : true);
 
 console.log("\n════════════════════════════════════════════════════════════");
 console.log(`  RESULTS: ${passed} passed, ${failed} failed`);

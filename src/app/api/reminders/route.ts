@@ -1,16 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+import { requireRole, SALES_ROLES, SALES_MANAGER_ROLES } from "@/lib/auth";
 
-const MANAGER_ROLES = ["GENERAL_MANAGER", "SALES_MANAGER"];
+const MANAGER_ROLES = SALES_MANAGER_ROLES;
 
 export async function GET() {
   try {
-    const session = await getSession();
-    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const session = await requireRole(SALES_ROLES);
+    if (session instanceof NextResponse) return session;
 
     // Managers can see team reminders; all other roles see only their own.
-    const where = MANAGER_ROLES.includes(session.role) ? {} : { userId: session.id };
+    const where = MANAGER_ROLES.includes(session.role)
+      ? {}
+      : { userId: session.id, customer: { assignedToId: session.id } };
     const reminders = await prisma.reminder.findMany({
       where,
       orderBy: { dueDate: "asc" },
@@ -28,8 +30,8 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getSession();
-    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const session = await requireRole(SALES_ROLES);
+    if (session instanceof NextResponse) return session;
 
     const body = await request.json();
     const customerId = typeof body.customerId === "string" ? body.customerId : "";
@@ -73,8 +75,8 @@ export async function POST(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
-    const session = await getSession();
-    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const session = await requireRole(SALES_ROLES);
+    if (session instanceof NextResponse) return session;
 
     const body = await request.json();
     const id = typeof body.id === "string" ? body.id : "";
@@ -82,11 +84,14 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "Reminder id and completion state are required" }, { status: 400 });
     }
 
-    const existing = await prisma.reminder.findUnique({ where: { id }, select: { id: true, userId: true } });
+    const existing = await prisma.reminder.findUnique({
+      where: { id },
+      select: { id: true, userId: true, customer: { select: { assignedToId: true } } },
+    });
     if (!existing) return NextResponse.json({ error: "Reminder not found" }, { status: 404 });
 
     const canManageAll = MANAGER_ROLES.includes(session.role);
-    if (!canManageAll && existing.userId !== session.id) {
+    if (!canManageAll && (existing.userId !== session.id || existing.customer.assignedToId !== session.id)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+import { requireRole, ROLE, SALES_ROLES } from "@/lib/auth";
 
 export async function GET(request: NextRequest) {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const session = await requireRole(SALES_ROLES);
+  if (session instanceof NextResponse) return session;
 
   const q = request.nextUrl.searchParams.get("q") || "";
   if (!q || q.length < 2) return NextResponse.json({ customers: [], properties: [] });
@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
     prisma.customer.findMany({
       where: {
         AND: [
-          session.role === "SALES_EMPLOYEE" ? { assignedToId: session.id } : {},
+          session.role === ROLE.SALES_EMPLOYEE ? { assignedToId: session.id } : {},
           {
             OR: [
               { name: { contains: q, mode: "insensitive" } },

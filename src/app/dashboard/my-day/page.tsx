@@ -1,11 +1,9 @@
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth";
-import { redirect } from "next/navigation";
+import { requirePageRole, SALES_ROLES } from "@/lib/auth";
 import MyDayClient from "./MyDayClient";
 
 export default async function MyDayPage() {
-  const session = await getSession();
-  if (!session) redirect("/login");
+  const session = await requirePageRole(SALES_ROLES);
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -26,13 +24,13 @@ export default async function MyDayPage() {
   ] = await Promise.all([
     // Today's reminders
     prisma.reminder.findMany({
-      where: { userId: session.id, status: "PENDING", dueDate: { gte: today, lt: tomorrow } },
+      where: { userId: session.id, customer: { assignedToId: session.id }, status: "PENDING", dueDate: { gte: today, lt: tomorrow } },
       include: { customer: { select: { id: true, name: true, phone: true } } },
       orderBy: { dueDate: "asc" },
     }),
     // Overdue reminders
     prisma.reminder.findMany({
-      where: { userId: session.id, status: "PENDING", dueDate: { lt: today } },
+      where: { userId: session.id, customer: { assignedToId: session.id }, status: "PENDING", dueDate: { lt: today } },
       include: { customer: { select: { id: true, name: true, phone: true } } },
       orderBy: { dueDate: "asc" },
     }),

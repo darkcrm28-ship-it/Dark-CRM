@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+import { ALLOWED_ROLES, requireRole, ROLE } from "@/lib/auth";
 import { hashPassword } from "@/lib/auth-server";
 
 export async function PUT(
@@ -8,15 +8,17 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getSession();
-    if (!session || session.role !== "GENERAL_MANAGER") {
-      return NextResponse.json({ error: "Unauthorized. Only General Manager can update users." }, { status: 403 });
-    }
+    const session = await requireRole([ROLE.GENERAL_MANAGER]);
+    if (session instanceof NextResponse) return session;
 
     const { id } = await params;
     const data = await request.json();
     
     const { name, email, password: newPassword, role, phone, nationalId, address, dateJoined, salaryBase, isActive, expertAreas } = data;
+
+    if (role !== undefined && !ALLOWED_ROLES.has(role)) {
+      return NextResponse.json({ error: "الدور المحدد غير صالح" }, { status: 400 });
+    }
 
     const updateData: any = {
       name,

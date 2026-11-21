@@ -1,13 +1,13 @@
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+import { requirePageRole, ROLE, SALES_ROLES } from "@/lib/auth";
 import DealsClient from "./DealsClient";
 
 export default async function DealsPage() {
-  const session = await getSession();
-  const isManager = session?.role === "GENERAL_MANAGER" || session?.role === "SALES_MANAGER";
+  const session = await requirePageRole(SALES_ROLES);
+  const isManager = session.role === ROLE.GENERAL_MANAGER || session.role === ROLE.SALES_MANAGER;
 
   const deals = await prisma.deal.findMany({
-    where: isManager ? {} : { salesRepId: session?.id },
+    where: isManager ? {} : { salesRepId: session.id },
     orderBy: { createdAt: "desc" },
     include: {
       customer: { select: { id: true, name: true, phone: true, unitNumber: true, projectName: true } },

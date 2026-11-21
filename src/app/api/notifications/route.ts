@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+import { requireSession, ROLE, SALES_ROLES } from "@/lib/auth";
 
 export async function GET() {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const session = await requireSession();
+  if (session instanceof NextResponse) return session;
 
   const notifications = await prisma.notification.findMany({
     where: { userId: session.id },
@@ -14,14 +14,17 @@ export async function GET() {
 
   // Fetch pending reminders due today or earlier
   const now = new Date();
-  const reminders = await prisma.reminder.findMany({
-    where: { 
-      userId: session.id, 
-      status: "PENDING",
-      dueDate: { lte: now }
-    },
-    include: { customer: { select: { name: true } } }
-  });
+  const reminders = SALES_ROLES.includes(session.role)
+    ? await prisma.reminder.findMany({
+        where: {
+          userId: session.id,
+          status: "PENDING",
+          dueDate: { lte: now },
+          ...(session.role === ROLE.SALES_EMPLOYEE ? { customer: { assignedToId: session.id } } : {}),
+        },
+        include: { customer: { select: { name: true } } },
+      })
+    : [];
 
   // Convert reminders to a notification-like format
   const reminderNotifs = reminders.map(r => ({
@@ -40,8 +43,8 @@ export async function GET() {
 }
 
 export async function PATCH(request: NextRequest) {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const session = await requireSession();
+  if (session instanceof NextResponse) return session;
   // Mark all as read
   await prisma.notification.updateMany({ where: { userId: session.id }, data: { read: true } });
   return NextResponse.json({ success: true });

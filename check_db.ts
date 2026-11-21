@@ -1,3 +1,4 @@
+import "./scripts/load-test-env.js";
 import { prisma } from "./src/lib/db";
 
 async function main() {

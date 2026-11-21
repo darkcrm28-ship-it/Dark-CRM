@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+import { requireRole, ROLE, SALES_ROLES } from "@/lib/auth";
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getSession();
-    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const session = await requireRole(SALES_ROLES);
+    if (session instanceof NextResponse) return session;
 
-    const isManager = session.role === "GENERAL_MANAGER" || session.role === "SALES_MANAGER";
+    const isManager = session.role === ROLE.GENERAL_MANAGER || session.role === ROLE.SALES_MANAGER;
     const { searchParams } = request.nextUrl;
 
     const page = Math.max(1, parseInt(searchParams.get("page") || "1"));
@@ -135,8 +135,8 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getSession();
-    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const session = await requireRole(SALES_ROLES);
+    if (session instanceof NextResponse) return session;
 
     const data = await request.json();
     const { 
@@ -205,7 +205,7 @@ export async function POST(request: NextRequest) {
                 unitSize: unitSize ? parseFloat(unitSize) : null,
                 paperworkStatus: paperworkStatus || null,
                 customData: (customData || {}) as any,
-                assignedToId: session.role === "SALES_EMPLOYEE" ? session.id : null,
+                assignedToId: session.role === ROLE.SALES_EMPLOYEE ? session.id : null,
               },
             });
 
@@ -331,10 +331,8 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const session = await getSession();
-    if (session?.role !== "GENERAL_MANAGER") {
-      return NextResponse.json({ error: "Only General Manager can delete customers" }, { status: 403 });
-    }
+    const session = await requireRole([ROLE.GENERAL_MANAGER]);
+    if (session instanceof NextResponse) return session;
 
     const { ids } = await request.json();
     if (!ids || !Array.isArray(ids)) {

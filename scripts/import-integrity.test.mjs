@@ -40,18 +40,21 @@ assertEq("Strict null", isValidNationalIdStrict(null), false);
 assertEq("Strict undefined", isValidNationalIdStrict(undefined), false);
 
 console.log("\n--- Test Block E: decideImportMatch ---");
+const validNatId1 = "29801010100010"; // valid 14-digit: Cairo, 1998-01-01
+const validNatId2 = "29902020200028"; // valid 14-digit: Alexandria, 1999-02-02
+
 const d1 = decideImportMatch({
-  rowName: "أحمد علي", rowNationalId: "1234567890123456",
-  rowIdentity: { kind: "NATIONAL_ID", value: "1234567890123456" },
-  exName: "أحمد علي", exNationalId: "1234567890123456",
+  rowName: "أحمد علي", rowNationalId: validNatId1,
+  rowIdentity: { kind: "NATIONAL_ID", value: validNatId1 },
+  exName: "أحمد علي", exNationalId: validNatId1,
   unitMatches: true, bothNoUnit: false, phoneMatches: false, nationalIdMatches: true,
 });
 assertEq("E1 unit+sameNatId → DUPLICATE", d1.action, "DUPLICATE");
 
 const d2 = decideImportMatch({
-  rowName: "أحمد علي", rowNationalId: "1234567890123456",
-  rowIdentity: { kind: "NATIONAL_ID", value: "1234567890123456" },
-  exName: "حسان علي", exNationalId: "9876543210987654",
+  rowName: "أحمد علي", rowNationalId: validNatId1,
+  rowIdentity: { kind: "NATIONAL_ID", value: validNatId1 },
+  exName: "حسان علي", exNationalId: validNatId2,
   unitMatches: true, bothNoUnit: false, phoneMatches: false, nationalIdMatches: false,
 });
 assertEq("E2 unit+diffNatId → CO_OWNER", d2.action, "CO_OWNER");
@@ -73,9 +76,9 @@ const d4 = decideImportMatch({
 assertEq("E4 unit+phone+diffName → INSERT_REVIEW", d4.action, "INSERT_REVIEW");
 
 const d5 = decideImportMatch({
-  rowName: "أحمد علي", rowNationalId: "1234567890123456",
-  rowIdentity: { kind: "NATIONAL_ID", value: "1234567890123456" },
-  exName: "حسان علي", exNationalId: "1234567890123456",
+  rowName: "أحمد علي", rowNationalId: validNatId1,
+  rowIdentity: { kind: "NATIONAL_ID", value: validNatId1 },
+  exName: "حسان علي", exNationalId: validNatId1,
   unitMatches: false, bothNoUnit: true, phoneMatches: false, nationalIdMatches: true,
 });
 assertEq("E5 bothNoUnit+sameNatId → DUPLICATE", d5.action, "DUPLICATE");
@@ -106,11 +109,11 @@ assertEq("E8 UNVERIFIED → INSERT_REVIEW", d8.action, "INSERT_REVIEW");
 
 const d9 = decideImportMatch({
   rowName: "أحمد علي", rowNationalId: null,
-  rowIdentity: { kind: "UNVERIFIED", value: null },
+  rowIdentity: { kind: "PHONE", value: "01000000001" },
   exName: "حسان علي", exNationalId: null,
   unitMatches: false, bothNoUnit: false, phoneMatches: false, nationalIdMatches: false,
 });
-assertEq("E9 different unverified → INSERT", d9.action, "INSERT");
+assertEq("E9 different verified identity → INSERT", d9.action, "INSERT");
 
 console.log("\n--- Test Block F: generateUnverifiedPlaceholder stability ---");
 const seed1 = generateUnverifiedPlaceholder("test-seed-1");
@@ -124,14 +127,11 @@ console.log("\n--- Test Block G: xlsx module load (offline sanity) ---");
 const xlsx = await import("xlsx");
 assertEq("G1 xlsx loads", typeof xlsx.read, "function");
 
-console.log("\n🎉 All import-integrity test assertions passed!");
-
-// ── Test Block H: isSamePhone + isDistinctCoOwner ─────────────────────────
 console.log("\n--- Test Block H: phone equality + co-owner detection ---");
 assertEq("H1 isSamePhone same normalized", isSamePhone("01000000001", "01000000001"), true);
 assertEq("H2 isSamePhone international vs local", isSamePhone("+201000000001", "01000000001"), true);
 assertEq("H3 isSamePhone diff", isSamePhone("01000000001", "01000000002"), false);
-assertEq("H4 distinct co-owners different NIDs", isDistinctCoOwner("أحمد إبراهيم", "حسان علي", "1234567890123456", "9876543210987654"), true);
-assertEq("H5 same nationalId → not distinct", isDistinctCoOwner("أحمد إبراهيم", "حسان علي", "1234567890123456", "1234567890123456"), false);
+assertEq("H4 distinct co-owners different NIDs", isDistinctCoOwner("أحمد إبراهيم", "حسان علي", validNatId1, validNatId2), true);
+assertEq("H5 same nationalId → not distinct", isDistinctCoOwner("أحمد إبراهيم", "حسان علي", validNatId1, validNatId1), false);
 
 console.log("\n📊 All import-integrity test blocks completed!");

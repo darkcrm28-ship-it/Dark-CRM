@@ -1,25 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth";
-
-const MANAGER_ROLES = ["GENERAL_MANAGER", "SALES_MANAGER"];
-
-function customerAccessWhere(customerId: string, session: { id: string; role: string }) {
-  if (MANAGER_ROLES.includes(session.role)) return { id: customerId };
-  if (session.role === "SALES_EMPLOYEE") return { id: customerId, assignedToId: session.id };
-  return { id: "__forbidden__" };
-}
+import { requireCustomerAccess, requireRole, ROLE, SALES_ROLES } from "@/lib/auth";
 
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getSession();
-    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const { id } = await params;
+    const access = await requireCustomerAccess(id);
+    if (access instanceof NextResponse) return access;
     const customer = await prisma.customer.findFirst({
-      where: customerAccessWhere(id, session),
+      where: access.where,
       include: {
         assignedTo: { select: { id: true, name: true } },
         project: { select: { id: true, name: true } },
@@ -42,9 +34,9 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getSession();
-    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const { id } = await params;
+    const session = await requireRole(SALES_ROLES);
+    if (session instanceof NextResponse) return session;
     const data = await request.json();
     const {
       status, type, projectId, installmentAmount, installmentRemaining, installmentDetails,
@@ -88,7 +80,9 @@ export async function PUT(
     const customer = await prisma.$transaction(async (tx) => {
       // Re-check assignment inside the same transaction as the update to avoid
       // changing a customer after their assignment has been revoked.
-      const oldCustomer = await tx.customer.findFirst({ where: customerAccessWhere(id, session) });
+      const oldCustomer = await tx.customer.findFirst({
+        where: session.role === ROLE.SALES_EMPLOYEE ? { id, assignedToId: session.id } : { id },
+      });
       if (!oldCustomer) return null;
 
       if (status !== undefined) {

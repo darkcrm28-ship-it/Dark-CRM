@@ -1,4 +1,4 @@
-import { getSession } from "@/lib/auth";
+import { getSession, ROLE } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { redirect } from "next/navigation";
 import DashboardClient from "./DashboardClient";
@@ -11,6 +11,9 @@ export default async function DashboardPage() {
     redirect("/login");
     return null;
   }
+
+  if (session.role === ROLE.HR_MANAGER) redirect("/dashboard/commissions");
+  if (session.role === ROLE.ACCOUNTING_MANAGER) redirect("/dashboard/accounting");
 
   const isManager = session.role === "GENERAL_MANAGER" || session.role === "SALES_MANAGER";
   const where = isManager ? {} : { assignedToId: session.id };
@@ -39,6 +42,7 @@ export default async function DashboardPage() {
     prisma.interaction.findMany({
       where: {
         ...interactionWhere,
+        ...(session.role === ROLE.SALES_EMPLOYEE ? { customer: { assignedToId: session.id } } : {}),
         createdAt: { gte: startOfYesterday } // Today and Yesterday only
       },
       take: 12,

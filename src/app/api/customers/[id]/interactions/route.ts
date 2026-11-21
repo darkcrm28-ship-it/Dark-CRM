@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth";
-
-const MANAGER_ROLES = ["GENERAL_MANAGER", "SALES_MANAGER"];
+import { requireCustomerAccess } from "@/lib/auth";
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const session = await getSession();
-    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const { id } = await params;
+    const access = await requireCustomerAccess(id);
+    if (access instanceof NextResponse) return access;
+    const { session } = access;
 
     const body = await request.json();
     const { type, notes, reminderDate, reminderTitle } = body;
@@ -25,11 +24,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     const result = await prisma.$transaction(async (tx) => {
       const customer = await tx.customer.findFirst({
-        where: MANAGER_ROLES.includes(session.role)
-          ? { id }
-          : session.role === "SALES_EMPLOYEE"
-            ? { id, assignedToId: session.id }
-            : { id: "__forbidden__" },
+        where: access.where,
         select: { id: true },
       });
       if (!customer) return null;

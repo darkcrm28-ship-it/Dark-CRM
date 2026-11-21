@@ -1,15 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+import { requireManager } from "@/lib/auth";
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getSession();
+    const session = await requireManager();
     
     // Only General Manager or Sales Manager can assign
-    if (session?.role !== "GENERAL_MANAGER" && session?.role !== "SALES_MANAGER") {
-      return NextResponse.json({ error: "غير مصرح لك بتعيين العملاء" }, { status: 403 });
-    }
+    if (session instanceof NextResponse) return session;
 
     const { customerIds, employeeId } = await request.json();
 
@@ -19,7 +17,7 @@ export async function POST(request: NextRequest) {
 
     // Update assignment inside atomic transaction
     const targetEmployee = await prisma.user.findUnique({
-      where: { id: employeeId },
+      where: { id: employeeId, role: { in: ["SALES_EMPLOYEE", "SALES_MANAGER"] }, isActive: true },
       select: { id: true, name: true },
     });
 

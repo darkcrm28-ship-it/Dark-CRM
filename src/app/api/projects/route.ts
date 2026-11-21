@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+import { requireRole, SALES_ROLES, SALES_MANAGER_ROLES } from "@/lib/auth";
 
 export async function GET() {
   try {
+    const session = await requireRole(SALES_ROLES);
+    if (session instanceof NextResponse) return session;
     const projects = await prisma.project.findMany({
       orderBy: { createdAt: "desc" },
       include: {
@@ -20,10 +22,8 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getSession();
-    if (session?.role !== "GENERAL_MANAGER" && session?.role !== "SALES_MANAGER") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
-    }
+    const session = await requireRole(SALES_MANAGER_ROLES);
+    if (session instanceof NextResponse) return session;
 
     const { name, description } = await request.json();
     if (!name) return NextResponse.json({ error: "Project name is required" }, { status: 400 });

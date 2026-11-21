@@ -115,7 +115,7 @@ export function normalizePhone(value: unknown): PhoneNormalizationResult {
   const hasPlus = converted.startsWith("+");
   const hasDoubleZero = converted.startsWith("00");
 
-  let digits = converted.replace(/\D/g, "");
+  const digits = converted.replace(/\D/g, "");
   if (!digits) {
     return {
       isValid: false,

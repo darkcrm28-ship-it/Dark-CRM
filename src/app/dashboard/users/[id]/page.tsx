@@ -1,16 +1,32 @@
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth";
-import { redirect } from "next/navigation";
+import { requirePageRole, ROLE } from "@/lib/auth";
 import UserProfileClient from "./UserProfileClient";
 
 export default async function UserProfilePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const session = await getSession();
-  if (!session) redirect("/login");
+  await requirePageRole([ROLE.GENERAL_MANAGER]);
 
   // Fetch the user
   const user = await prisma.user.findUnique({
     where: { id },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+      phone: true,
+      dateJoined: true,
+      isActive: true,
+      nationalId: true,
+      birthDate: true,
+      address: true,
+      emergencyContactName: true,
+      emergencyContactPhone: true,
+      qualification: true,
+      experience: true,
+      salaryBase: true,
+      bankAccountDetails: true,
+    },
   });
 
   if (!user) {

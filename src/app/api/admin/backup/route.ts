@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+import { requireRole, ROLE } from "@/lib/auth";
 import * as XLSX from "xlsx";
 import { createHash } from "crypto";
 
@@ -33,10 +33,8 @@ function generateSqlInserts(tableName: string, rows: any[]): string {
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getSession();
-    if (!session || session.role !== "GENERAL_MANAGER") {
-      return NextResponse.json({ error: "Unauthorized. General Manager only." }, { status: 403 });
-    }
+    const session = await requireRole([ROLE.GENERAL_MANAGER]);
+    if (session instanceof NextResponse) return session;
 
     const format = request.nextUrl.searchParams.get("format") || "json";
     const dateStr = new Date().toISOString().split("T")[0];

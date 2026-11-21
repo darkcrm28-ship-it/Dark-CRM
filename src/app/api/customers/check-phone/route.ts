@@ -1,17 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+import { requireRole, SALES_ROLES } from "@/lib/auth";
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getSession();
-    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const session = await requireRole(SALES_ROLES);
+    if (session instanceof NextResponse) return session;
 
     const phone = request.nextUrl.searchParams.get("phone");
     if (!phone) return NextResponse.json({ error: "Phone required" }, { status: 400 });
 
     const customer = await prisma.customer.findFirst({
-      where: { phone: { contains: phone } },
+      where: {
+        phone: { contains: phone },
+        ...(session.role === "SALES_EMPLOYEE" ? { assignedToId: session.id } : {}),
+      },
       select: { id: true, name: true, phone: true }
     });
 

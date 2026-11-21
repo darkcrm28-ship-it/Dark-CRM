@@ -8,6 +8,7 @@ import AutoLogout from "@/components/AutoLogout";
 import CommandPalette from "@/components/CommandPalette";
 import SmartLogger from "@/components/SmartLogger";
 import DatabaseBackupTrigger from "@/components/DatabaseBackupTrigger";
+import { ROLE, SALES_ROLES, SALES_MANAGER_ROLES, COMMISSION_ROLES } from "@/lib/auth";
 import {
   LayoutDashboard,
   User,
@@ -41,15 +42,16 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const session = await getSession();
   if (!session) redirect("/login");
 
-  const isManager = session.role === "GENERAL_MANAGER" || session.role === "SALES_MANAGER";
-  const isHR = session.role === "GENERAL_MANAGER" || session.role === "HR_MANAGER";
+  const isSales = SALES_ROLES.includes(session.role);
+  const isManager = SALES_MANAGER_ROLES.includes(session.role);
+  const canViewCommissions = COMMISSION_ROLES.includes(session.role);
 
   const navItems = [
     {
       href: "/dashboard",
       icon: <LayoutDashboard size={18} />,
       label: "لوحة القيادة",
-      show: true,
+      show: isSales,
       section: "main",
     },
     {
@@ -65,28 +67,28 @@ export default async function DashboardLayout({ children }: { children: React.Re
       href: "/dashboard/customers",
       icon: <Database size={18} />,
       label: "قاعدة العملاء الشاملة",
-      show: true,
+      show: isSales,
       section: "main",
     },
     {
       href: "/dashboard/available-for-sale",
       icon: <Building size={18} />,
       label: "الوحدات المعروضة",
-      show: true,
+      show: isSales,
       section: "main",
     },
     {
       href: "/dashboard/buyers",
       icon: <ShoppingBag size={18} />,
       label: "المشترين والمستأجرين",
-      show: true,
+      show: isSales,
       section: "main",
     },
     {
       href: "/dashboard/not-interested",
       icon: <UserX size={18} />,
       label: "قائمة غير المهتمين",
-      show: true,
+      show: isSales,
       section: "main",
     },
 
@@ -101,14 +103,14 @@ export default async function DashboardLayout({ children }: { children: React.Re
       href: "/dashboard/calendar",
       icon: <Calendar size={18} />,
       label: "التقويم والمواعيد",
-      show: true,
+      show: isSales,
       section: "main",
     },
     {
       href: "/dashboard/overdue-reminders",
       icon: <AlertTriangle size={18} />,
       label: "المتابعات المتأخرة",
-      show: true,
+      show: isSales,
       section: "main",
     },
 
@@ -131,49 +133,49 @@ export default async function DashboardLayout({ children }: { children: React.Re
       href: "/dashboard/commissions",
       icon: <Coins size={18} />,
       label: "العمولات والرواتب",
-      show: isHR,
+      show: canViewCommissions,
       section: "admin",
     },
     {
       href: "/dashboard/audit",
       icon: <ShieldCheck size={18} />,
       label: "سجل العمليات (Audit)",
-      show: session.role === "GENERAL_MANAGER",
+      show: session.role === ROLE.GENERAL_MANAGER,
       section: "admin",
     },
     {
       href: "/dashboard/users",
       icon: <KeyRound size={18} />,
       label: "إدارة المستخدمين",
-      show: session.role === "GENERAL_MANAGER",
+      show: session.role === ROLE.GENERAL_MANAGER,
       section: "admin",
     },
     {
       href: "/dashboard/settings/custom-fields",
       icon: <SlidersHorizontal size={18} />,
       label: "الحقول الديناميكية",
-      show: session.role === "GENERAL_MANAGER",
+      show: session.role === ROLE.GENERAL_MANAGER,
       section: "admin",
     },
     {
       href: "/dashboard/settings",
       icon: <Settings size={18} />,
       label: "إعدادات النظام",
-      show: session.role === "GENERAL_MANAGER",
+      show: session.role === ROLE.GENERAL_MANAGER,
       section: "admin",
     },
     {
       href: "/dashboard/accounting",
       icon: <Wallet size={18} />,
       label: "المحاسبة والخزينة",
-      show: session.role === "GENERAL_MANAGER",
+      show: session.role === ROLE.GENERAL_MANAGER || session.role === ROLE.ACCOUNTING_MANAGER,
       section: "admin",
     },
     {
       href: "/dashboard/integrations",
       icon: <Cpu size={18} />,
       label: "الربط التقني والتكامل",
-      show: session.role === "GENERAL_MANAGER",
+      show: session.role === ROLE.GENERAL_MANAGER,
       section: "admin",
     },
   ];
@@ -207,7 +209,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           </div>
           <div className="topbar-actions-group">
             {isManager && <DatabaseBackupTrigger />}
-            <GlobalSearch />
+            {isSales && <GlobalSearch />}
             <NotificationsBell />
           </div>
         </header>
@@ -215,11 +217,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
         <main className="page-body">{children}</main>
       </div>
 
-      <CommandPalette />
+      {isSales && <CommandPalette />}
       <SmartLogger />
 
       {/* Mobile Bottom Navigation */}
-      <nav className="mobile-bottom-nav">
+      {isSales && <nav className="mobile-bottom-nav">
         <Link href="/dashboard">
           <LayoutDashboard size={18} />
           <span>الرئيسية</span>
@@ -236,7 +238,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           <Building size={18} />
           <span>المعروض</span>
         </Link>
-      </nav>
+      </nav>}
     </div>
   );
 }

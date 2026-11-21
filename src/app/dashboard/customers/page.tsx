@@ -1,12 +1,12 @@
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+import { requirePageRole, SALES_MANAGER_ROLES, SALES_ROLES } from "@/lib/auth";
 import CustomersClient from "./CustomersClient";
 
 export default async function CustomersPage() {
-  const session = await getSession();
-  const isManager = session?.role === "GENERAL_MANAGER" || session?.role === "SALES_MANAGER";
+  const session = await requirePageRole(SALES_ROLES);
+  const isManager = SALES_MANAGER_ROLES.includes(session.role);
 
-  const where = isManager ? {} : { assignedToId: session?.id };
+  const where = isManager ? {} : { assignedToId: session.id };
 
   const [total, customers] = await Promise.all([
     prisma.customer.count({ where }),

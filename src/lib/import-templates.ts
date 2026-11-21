@@ -344,3 +344,279 @@ export function suggestMatchingTemplate(
 
   return bestMatch;
 }
+
+// ─── القاموس الذكي للتعرف على الأعمدة بالعربية والإنجليزية ───────────────────────
+const COLUMN_ALIAS_PATTERNS: Array<{ target: string; patterns: RegExp[] }> = [
+  {
+    target: "name",
+    patterns: [
+      /^(الاسم|اسم\s*العميل|اسم\s*المالك|العميل|المالك|اسم\s*المشتري|المشتري|الاسم\s*بالكامل|الاسم\s*رباعي|اسم\s*صاحب\s*الشأن)$/i,
+      /^(name|full\s*name|client\s*name|customer\s*name|owner\s*name|buyer\s*name|customer)$/i,
+    ],
+  },
+  {
+    target: "phone",
+    patterns: [
+      /^(رقم\s*الهاتف|الهاتف|رقم\s*الموبايل|الموبايل|المحمول|تليفون|رقم\s*التليفون|الجوال|رقم\s*الجوال|هاتف\s*العميل|موبايل\s*العميل|اتصال)$/i,
+      /^(phone|mobile|cell|cellphone|telephone|phone\s*number|mobile\s*number|contact\s*no|contact)$/i,
+    ],
+  },
+  {
+    target: "nationalId",
+    patterns: [
+      /^(الرقم\s*القومي|القومي|رقم\s*البطاقة|بطاقة\s*الرقم\s*القومي|رقم\s*الهوية|الهوية\s*الوطنية|الهوية)$/i,
+      /^(national\s*id|nid|id\s*number|ssn|national\s*number|civil\s*id)$/i,
+    ],
+  },
+  {
+    target: "email",
+    patterns: [
+      /^(البريد|البريد\s*الإلكتروني|البريد\s*الالكتروني|الإيميل|الايميل)$/i,
+      /^(email|e-mail|mail)$/i,
+    ],
+  },
+  {
+    target: "type",
+    patterns: [
+      /^(نوع\s*العميل|تصنيف\s*العميل|صفة\s*العميل|بائع\s*\/\s*مشتري)$/i,
+      /^(customer\s*type|client\s*type|lead\s*type|category)$/i,
+    ],
+  },
+  {
+    target: "status",
+    patterns: [
+      /^(حالة\s*العميل|الحالة|مرحلة\s*العميل)$/i,
+      /^(status|customer\s*status|lead\s*status)$/i,
+    ],
+  },
+  {
+    target: "projectName",
+    patterns: [
+      /^(المشروع|اسم\s*المشروع|الكمبوند|اسم\s*الكمبوند|القرية|اسم\s*القرية|المنتجع)$/i,
+      /^(project|compound|project\s*name|development)$/i,
+    ],
+  },
+  {
+    target: "unitNumber",
+    patterns: [
+      /^(رقم\s*الوحدة|الوحدة|كود\s*الوحدة|رقم\s*الشقة|الشقة|رقم\s*الفيلا|كود\s*الشقة)$/i,
+      /^(unit\s*no|unit\s*number|unit|flat\s*no|apartment\s*no|apt\s*no|flat)$/i,
+    ],
+  },
+  {
+    target: "buildingNumber",
+    patterns: [
+      /^(رقم\s*العمارة|العمارة|رقم\s*المبنى|المبنى|البلوك|رقم\s*البلوك|المجموعة|العمارة\s*رقم)$/i,
+      /^(building\s*no|building\s*number|building|bldg\s*no|bldg|block|block\s*no)$/i,
+    ],
+  },
+  {
+    target: "zoneNumber",
+    patterns: [
+      /^(الزون|المرحلة|القطاع|المجموعة\s*السكنية|الحي\s*السكني)$/i,
+      /^(zone|phase|sector|cluster)$/i,
+    ],
+  },
+  {
+    target: "floor",
+    patterns: [
+      /^(الدور|الطابق|رقم\s*الدور)$/i,
+      /^(floor|level|floor\s*no)$/i,
+    ],
+  },
+  {
+    target: "area",
+    patterns: [
+      /^(المنطقة|الحي|الموقع|المدينة|المحافظة)$/i,
+      /^(area|district|location|neighborhood|city)$/i,
+    ],
+  },
+  {
+    target: "propertyType",
+    patterns: [
+      /^(نوع\s*العقار|نوع\s*الوحدة|تصنيف\s*الوحدة|نوع\s*العقار\s*المطلوب)$/i,
+      /^(property\s*type|unit\s*type|type\s*of\s*property)$/i,
+    ],
+  },
+  {
+    target: "unitSize",
+    patterns: [
+      /^(المساحة|مساحة\s*الوحدة|المساحة\s*بالمتر|المتر|المساحة\s*م٢|المساحة\s*م2)$/i,
+      /^(unit\s*size|size|area\s*sqm|bua|area\s*m2)$/i,
+    ],
+  },
+  {
+    target: "bedrooms",
+    patterns: [
+      /^(عدد\s*الغرف|الغرف|غرف\s*النوم|عدد\s*غرف\s*النوم)$/i,
+      /^(bedrooms|beds|rooms|bedroom\s*count)$/i,
+    ],
+  },
+  {
+    target: "bathrooms",
+    patterns: [
+      /^(عدد\s*الحمامات|الحمامات|حمامات)$/i,
+      /^(bathrooms|baths|bathroom\s*count)$/i,
+    ],
+  },
+  {
+    target: "finishing",
+    patterns: [
+      /^(التشطيب|حالة\s*التشطيب|نوع\s*التشطيب)$/i,
+      /^(finishing|finishing\s*status|fit\s*out)$/i,
+    ],
+  },
+  {
+    target: "askingPrice",
+    patterns: [
+      /^(السعر|السعر\s*المطلوب|السعر\s*الإجمالي|السعر\s*الجمالي|المبلغ|إجمالي\s*السعر|سعر\s*الوحدة|القيمة)$/i,
+      /^(price|asking\s*price|total\s*price|cost|amount)$/i,
+    ],
+  },
+  {
+    target: "installmentAmount",
+    patterns: [
+      /^(قيمة\s*القسط|مبلغ\s*القسط|القسط|القسط\s*الشهري|القسط\s*الربع\s*سنوي)$/i,
+      /^(installment\s*amount|installment|monthly\s*installment)$/i,
+    ],
+  },
+  {
+    target: "installmentRemaining",
+    patterns: [
+      /^(الأقساط\s*المتبقية|الاقساط\s*المتبقية|عدد\s*الأقساط\s*المتبقية|المتبقي\s*أقساط)$/i,
+      /^(remaining\s*installments|installments\s*left)$/i,
+    ],
+  },
+  {
+    target: "installmentDetails",
+    patterns: [
+      /^(نظام\s*السداد|تفاصيل\s*الأقساط|تفاصيل\s*السداد|طريقة\s*الدفع|تسهيلات)$/i,
+      /^(payment\s*plan|installment\s*details|payment\s*terms)$/i,
+    ],
+  },
+  {
+    target: "deliveryDate",
+    patterns: [
+      /^(تاريخ\s*الاستلام|ميعاد\s*التسليم|تاريخ\s*التسليم|الاستلام|تاريخ\s*التعاقد)$/i,
+      /^(delivery\s*date|handover\s*date|delivery|handover)$/i,
+    ],
+  },
+  {
+    target: "executingCompany",
+    patterns: [
+      /^(الشركة\s*المنفذة|الشركة\s*المطورة|المطور|اسم\s*الشركة|الشركة)$/i,
+      /^(developer|company|executing\s*company)$/i,
+    ],
+  },
+  {
+    target: "paperworkStatus",
+    patterns: [
+      /^(حالة\s*الأوراق|موقف\s*الأوراق|حالة\s*العقد|المستندات|التسجيل\s*العقاري)$/i,
+      /^(paperwork\s*status|legal\s*status|documents)$/i,
+    ],
+  },
+  {
+    target: "source",
+    patterns: [
+      /^(المصدر|مصدر\s*العميل|قناة\s*الوصول|حملة\s*إعلانية)$/i,
+      /^(source|lead\s*source|channel)$/i,
+    ],
+  },
+];
+
+/**
+ * الكشف التلقائي الذكي عن مطابقة الأعمدة بناءً على العناوين
+ */
+export function autoDetectColumnMapping(headers: string[]): Record<string, string> {
+  const mapping: Record<string, string> = {};
+  const usedTargets = new Set<string>();
+
+  for (const rawHeader of headers) {
+    const cleanHeader = String(rawHeader || "").trim();
+    if (!cleanHeader) continue;
+
+    let matchedTarget: string | null = null;
+    for (const { target, patterns } of COLUMN_ALIAS_PATTERNS) {
+      if (usedTargets.has(target)) continue; // لا نربط عمودين بنفس الحقل تلقائياً
+      const isMatch = patterns.some((p) => p.test(cleanHeader));
+      if (isMatch) {
+        matchedTarget = target;
+        break;
+      }
+    }
+
+    if (matchedTarget) {
+      mapping[rawHeader] = matchedTarget;
+      usedTargets.add(matchedTarget);
+    } else {
+      mapping[rawHeader] = "__CUSTOM__";
+    }
+  }
+
+  return mapping;
+}
+
+/**
+ * تصدير القوالب المخصصة بصيغة JSON آمنة ومطهرة
+ */
+export function exportTemplatesAsJson(customStorage?: Storage): string {
+  const templates = getSavedTemplates(customStorage).filter((t) => t.scope === "LOCAL");
+  return JSON.stringify(
+    {
+      version: "1.0",
+      system: "Dark CRM",
+      exportedAt: new Date().toISOString(),
+      templates,
+    },
+    null,
+    2
+  );
+}
+
+/**
+ * استيراد قوالب مخصصة من ملف JSON مع التطهير والتحقق
+ */
+export function importTemplatesFromJson(
+  jsonString: string,
+  customStorage?: Storage
+): { success: boolean; count: number; error?: string } {
+  try {
+    const parsed = JSON.parse(jsonString);
+    const rawTemplates = Array.isArray(parsed)
+      ? parsed
+      : Array.isArray(parsed?.templates)
+        ? parsed.templates
+        : null;
+
+    if (!rawTemplates || !rawTemplates.length) {
+      return { success: false, count: 0, error: "الملف لا يحتوي على قوالب صالحة" };
+    }
+
+    let importedCount = 0;
+    for (const raw of rawTemplates) {
+      try {
+        const sanitized = sanitizeTemplate(raw);
+        if (sanitized && sanitized.name) {
+          saveCustomTemplate(
+            {
+              name: sanitized.name,
+              description: sanitized.description,
+              defaultType: sanitized.defaultType,
+              defaultStatus: sanitized.defaultStatus,
+              matchHeaders: sanitized.matchHeaders,
+              mapping: sanitized.mapping,
+            },
+            customStorage
+          );
+          importedCount++;
+        }
+      } catch {
+        // Continue with next template
+      }
+    }
+
+    return { success: true, count: importedCount };
+  } catch (err: any) {
+    return { success: false, count: 0, error: err?.message || "تعذر قراءة ملف JSON" };
+  }
+}

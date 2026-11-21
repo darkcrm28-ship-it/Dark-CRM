@@ -8,17 +8,40 @@ export interface PreviewRow {
   name: string;
   phone: string;
   nationalId?: string;
+  email?: string;
+  type?: string;
+  status?: string;
+  source?: string;
+  projectId?: string;
+  projectName?: string;
   unitNumber?: string;
   buildingNumber?: string;
-  projectName?: string;
-  area?: string;
+  zoneNumber?: string;
   floor?: string;
-  deliveryDate?: string;
+  area?: string;
+  governorate?: string;
+  city?: string;
   propertyType?: string;
-  askingPrice?: string;
+  unitSize?: string | number;
+  bedrooms?: string | number;
+  bathrooms?: string | number;
+  finishing?: string;
+  unitStatus?: string;
+  deliveryDate?: string;
+  executingCompany?: string;
+  paperworkStatus?: string;
+  askingPrice?: string | number;
+  installmentAmount?: string | number;
+  installmentRemaining?: string | number;
+  installmentDetails?: string;
+  budgetMin?: string | number;
+  budgetMax?: string | number;
+  customerType?: string;
+  leadScore?: string | number;
   customData?: Record<string, any>;
   _errors: string[];
   _warnings?: string[];
+  _suspectPrecision?: boolean;
 }
 
 interface PreviewStepProps {
@@ -174,7 +197,7 @@ export default function PreviewStep({
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
           <thead>
             <tr style={{ background: "rgba(255,255,255,0.06)", position: "sticky", top: 0, zIndex: 1 }}>
-              {["# صف", "حالة الفحص", "الاسم", "رقم الهاتف", "الرقم القومي", "الوحدة", "العمارة", "المشروع", "المساحة", "تاريخ الاستلام"].map(h => (
+              {["# صف", "حالة الفحص", "الاسم", "رقم الهاتف", "الرقم القومي", "الوحدة", "العمارة", "المشروع", "السعر", "المساحة", "النوع / الحالة", "تاريخ الاستلام"].map(h => (
                 <th key={h} style={{ padding: "10px 10px", textAlign: "right", fontWeight: 800, whiteSpace: "nowrap" }}>
                   {h}
                 </th>
@@ -184,7 +207,7 @@ export default function PreviewStep({
           <tbody>
             {displayedRows.length === 0 ? (
               <tr>
-                <td colSpan={10} style={{ padding: 40, textAlign: "center", color: "var(--text-muted)" }}>
+                <td colSpan={12} style={{ padding: 40, textAlign: "center", color: "var(--text-muted)" }}>
                   لا توجد صفوف تطابق عامل التصفية المحدد
                 </td>
               </tr>
@@ -239,6 +262,14 @@ export default function PreviewStep({
                     </td>
                     <td style={{ padding: "8px 10px" }}>
                       {row.askingPrice || "—"}
+                    </td>
+                    <td style={{ padding: "8px 10px" }}>
+                      {row.unitSize || row.area || "—"}
+                    </td>
+                    <td style={{ padding: "8px 10px" }}>
+                      <span className="badge badge-gray" style={{ fontSize: 10 }}>
+                        {row.type || "SELLER"} - {row.status || "POTENTIAL_SELLER"}
+                      </span>
                     </td>
                     <td style={{ padding: "8px 10px" }}>
                       {row.deliveryDate || "—"}

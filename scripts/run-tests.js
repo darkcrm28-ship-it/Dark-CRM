@@ -1,6 +1,6 @@
 /**
  * Dark CRM — Integration Tests (Node.js, no HTTP server needed)
- * Run: node scripts/run-tests.js
+ * Run: npm test (requires .env.test connected to an isolated test branch)
  *
  * Tests:
  *  1. DB Connectivity (Neon via poolQueryViaFetch)
@@ -10,32 +10,10 @@
  *  5. Cloudflare build readiness
  */
 
-// ─── Load env ─────────────────────────────────────────────────────────────────
+// Refuse to run against the developer's default or production database.
+require("./load-test-env");
 const path = require("path");
 const fs = require("fs");
-
-// Load .env manually (no dotenv package assumed)
-const envPath = path.join(__dirname, "..", ".env");
-if (fs.existsSync(envPath)) {
-  const lines = fs.readFileSync(envPath, "utf-8").split("\n");
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) continue;
-    const eqIdx = trimmed.indexOf("=");
-    if (eqIdx < 0) continue;
-    const key = trimmed.slice(0, eqIdx).trim();
-    let val = trimmed.slice(eqIdx + 1).trim();
-    // Strip surrounding quotes
-    if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
-      val = val.slice(1, -1).trim();
-    }
-    if (!process.env[key]) process.env[key] = val;
-  }
-  console.log("✅ .env loaded\n");
-} else {
-  console.error("❌ .env not found at", envPath);
-  process.exit(1);
-}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 let passed = 0;
@@ -96,7 +74,7 @@ const { randomUUID } = require("crypto");
 // ─── MAIN ──────────────────────────────────────────────────────────────────────
 async function main() {
   console.log("🚀 Dark CRM Integration Tests\n");
-  console.log(`   DB URL: ${dbUrl.replace(/:[^:@]+@/, ":***@")}`);
+  console.log("   DB URL: [masked test database]");
 
   // ══════════════════════════════════════════════════════════════════════════════
   // TEST 1: DB Connectivity

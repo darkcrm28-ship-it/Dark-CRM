@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import kb from "@/lib/chatbot-kb.json";
-import { getSession } from "@/lib/auth";
+import { requireRole, ROLE, SALES_ROLES } from "@/lib/auth";
 
 export async function POST(req: Request) {
   try {
-    const session = await getSession();
-    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const session = await requireRole(SALES_ROLES);
+    if (session instanceof NextResponse) return session;
 
     const { message } = await req.json();
     if (typeof message !== "string" || !message.trim()) {
@@ -51,9 +51,9 @@ export async function POST(req: Request) {
       const customers = await prisma.customer.findMany({
         where: {
           AND: [
-            session.role === "GENERAL_MANAGER" || session.role === "SALES_MANAGER"
+            session.role === ROLE.GENERAL_MANAGER || session.role === ROLE.SALES_MANAGER
               ? {}
-              : session.role === "SALES_EMPLOYEE"
+              : session.role === ROLE.SALES_EMPLOYEE
                 ? { assignedToId: session.id }
                 : { id: "__forbidden__" },
             {

@@ -1,16 +1,12 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+import { requireRole, FINANCE_ROLES } from "@/lib/auth";
 
 const ACCOUNTING_LOCK_ID = 74839210;
-const ALLOWED_ROLES = ["GENERAL_MANAGER", "ACCOUNTING_MANAGER"];
-
 export async function POST() {
   try {
-    const session = await getSession();
-    if (!session || !ALLOWED_ROLES.includes(session.role)) {
-      return NextResponse.json({ error: "Unauthorized. Financial managers only." }, { status: 403 });
-    }
+    const session = await requireRole(FINANCE_ROLES);
+    if (session instanceof NextResponse) return session;
 
     const syncResult = await prisma.$transaction(
       async (tx) => {
