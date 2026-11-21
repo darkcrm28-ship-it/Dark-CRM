@@ -21,7 +21,14 @@ export async function middleware(request: NextRequest) {
     publicExactRoutes.includes(pathname) ||
     pathname === "/properties" ||
     pathname.startsWith("/properties/") ||
-    pathname.startsWith("/api/public/")
+    pathname === "/portfolio" ||
+    pathname === "/contact" ||
+    pathname === "/sell" ||
+    pathname.startsWith("/portfolio/") ||
+    pathname.startsWith("/contact/") ||
+    pathname.startsWith("/sell/") ||
+    pathname.startsWith("/api/public/") ||
+    pathname.startsWith("/images/")
   ) {
     return NextResponse.next();
   }
