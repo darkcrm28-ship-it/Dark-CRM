@@ -14,8 +14,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const user = await prisma.user.findUnique({
-      where: { email },
+    const cleanInput = String(email).trim().toLowerCase();
+
+    // Support entering email or shorthand username (e.g., 'admin' -> 'admin@darak.com')
+    const user = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { email: { equals: cleanInput, mode: "insensitive" } },
+          { email: { equals: `${cleanInput}@darak.com`, mode: "insensitive" } },
+          { email: { equals: `${cleanInput}@dark.com`, mode: "insensitive" } },
+          { email: { equals: cleanInput.replace("@dark.com", "@darak.com"), mode: "insensitive" } },
+        ],
+      },
     });
 
     if (!user || !user.isActive) {
