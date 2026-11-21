@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/db";
+import { getApprovedPublicListings } from "@/lib/public-listings";
 import PublicPropertiesClient from "./PublicPropertiesClient";
 
 export const dynamic = "force-dynamic";
@@ -9,32 +9,7 @@ export const metadata = {
 };
 
 export default async function PropertiesPublicCatalogPage() {
-  const properties = await prisma.property.findMany({
-    where: {
-      status: "AVAILABLE",
-    },
-    orderBy: {
-      createdAt: "desc",
-    },
-    select: {
-      id: true,
-      title: true,
-      projectName: true,
-      zone: true,
-      unitType: true,
-      finishing: true,
-      size: true,
-      price: true,
-      bedrooms: true,
-      bathrooms: true,
-      floor: true,
-      images: true,
-      monthlyInstallment: true,
-      remainingMonths: true,
-      status: true,
-      description: true,
-    },
-  });
+  const properties = await getApprovedPublicListings();
 
   return <PublicPropertiesClient initialProperties={properties} />;
 }

@@ -72,6 +72,9 @@ const KNOWN_CUSTOMER_FIELDS = new Set([
   "_errors",
   "_warnings",
   "_suspectPrecision",
+  "_defaultType",
+  "_defaultStatus",
+  "_defaultProjectId",
 ]);
 
 export async function POST(request: NextRequest) {
@@ -133,6 +136,16 @@ export async function POST(request: NextRequest) {
       }
       verifiedProjectName = project.name;
     }
+    const sheetProjectIds = [...new Set<string>(customers
+      .flatMap((item: any) => [asText(item?._defaultProjectId), asText(item?.projectId)])
+      .filter(Boolean))];
+    const sheetProjects = sheetProjectIds.length
+      ? await prisma.project.findMany({ where: { id: { in: sheetProjectIds } }, select: { id: true, name: true } })
+      : [];
+    if (sheetProjects.length !== sheetProjectIds.length) {
+      return NextResponse.json({ error: "أحد المشاريع المحددة للأوراق غير موجود" }, { status: 400 });
+    }
+    const sheetProjectNames = new Map(sheetProjects.map((project) => [project.id, project.name]));
 
     // 1. تنظيف وتطبيع البيانات وفحص الهواتف وتوليد بدائل مستقرة للسجلات الخالية من الهاتف
     interface ValidatedCustomerRow {
@@ -170,7 +183,10 @@ export async function POST(request: NextRequest) {
       const nationalIdNorm = normalizeNationalId(item?.nationalId);
       const dateNorm = normalizeDate(item?.deliveryDate);
 
-      const targetProjectName = verifiedProjectName || asText(item?.projectName) || null;
+      const rowProjectId = asText(item?._defaultProjectId) || asText(item?.projectId) || projectId;
+      const targetProjectName = (rowProjectId
+        ? sheetProjectNames.get(rowProjectId) || (rowProjectId === projectId ? verifiedProjectName : null)
+        : null) || asText(item?.projectName) || null;
       const targetBuildingNumber = asText(item?.buildingNumber) || null;
       const targetUnitNumber = asText(item?.unitNumber) || null;
       const targetSheetName = asText(item?._sheetName) || null;
@@ -612,9 +628,9 @@ export async function POST(request: NextRequest) {
                 name: row.name,
                 phone: row.phone,
                 email: asText(row.raw.email) || null,
-                type: asText(row.raw.type) || defaultType,
-                status: asText(row.raw.status) || defaultStatus,
-                projectId: asText(row.raw.projectId) || projectId,
+                type: asText(row.raw.type) || (typeof row.raw._defaultType === "string" && ["SELLER", "BUYER", "LEAD"].includes(row.raw._defaultType) ? row.raw._defaultType : defaultType),
+                status: asText(row.raw.status) || (typeof row.raw._defaultStatus === "string" && row.raw._defaultStatus.trim() ? row.raw._defaultStatus.trim() : defaultStatus),
+                projectId: asText(row.raw._defaultProjectId) || asText(row.raw.projectId) || projectId || null,
                 projectName: row.projectName,
                 unitNumber: row.unitNumber,
                 buildingNumber: row.buildingNumber,

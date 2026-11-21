@@ -1,19 +1,18 @@
 import { prisma } from "@/lib/db";
 import { notFound, redirect } from "next/navigation";
-import { getSession } from "@/lib/auth";
+import { NextResponse } from "next/server";
+import { requireCustomerAccess } from "@/lib/auth";
 
 export default async function UnitBrochurePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  // Privacy guard: unit brochures expose internal customer details (askingPrice,
-  // building/unit numbers, paperwork status, installment terms). Until an
-  // approved publish/share mechanism exists, require an authenticated session.
-  const session = await getSession();
-  if (!session) {
-    redirect("/login");
+  const access = await requireCustomerAccess(id);
+  if (access instanceof NextResponse) {
+    if (access.status === 401) redirect("/login");
+    notFound();
   }
 
-  const customer = await prisma.customer.findUnique({
-    where: { id },
+  const customer = await prisma.customer.findFirst({
+    where: access.where,
     include: { project: true }
   });
 

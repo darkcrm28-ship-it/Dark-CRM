@@ -34,10 +34,14 @@ export default function ImportWizardModal({
 
   // File & Sheet State
   const [file, setFile] = useState<File | null>(null);
+  const [importId, setImportId] = useState<string>("");
   const [workbook, setWorkbook] = useState<XLSX.WorkBook | null>(null);
   const [sheetConfigs, setSheetConfigs] = useState<Record<string, SheetConfig>>({});
   const [activeSheetName, setActiveSheetName] = useState<string>("");
   const [sampleRows, setSampleRows] = useState<Record<string, Record<string, any>>>({});
+
+  // File size warnings
+  const [fileSizeWarning, setFileSizeWarning] = useState<string | null>(null);
 
   // Execution State
   const [isExecuting, setIsExecuting] = useState(false);
@@ -46,13 +50,22 @@ export default function ImportWizardModal({
   const [executionResults, setExecutionResults] = useState<{
     inserted: number;
     duplicates: number;
+    coOwners: number;
+    review: number;
     failed: number;
-  }>({ inserted: 0, duplicates: 0, failed: 0 });
+  }>({ inserted: 0, duplicates: 0, coOwners: 0, review: 0, failed: 0 });
 
   // ─── Step 1: Handle File Upload ───────────────────────────────────────────
   const handleFile = useCallback((uploadedFile: File) => {
     setFile(uploadedFile);
+    setImportId(crypto.randomUUID());
     setCurrentStep(1);
+    setFileSizeWarning(null);
+
+    // ⚠️ تحذير حجم الملف
+    if (uploadedFile.size > 10 * 1024 * 1024) {
+      setFileSizeWarning(`⚠️ حجم الملف كبير (${(uploadedFile.size / 1024 / 1024).toFixed(1)} ميجابايت). قد تستغرق المعالجة وقتاً أطول.`);
+    }
 
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -102,6 +115,14 @@ export default function ImportWizardModal({
           };
 
           samples[sheetName] = rawRows[0] || {};
+        }
+
+        // ⚠️ تحذير عدد الصفوف الكلي
+        const totalRows = Object.values(configs).reduce((s, c) => s + c.rowCount, 0);
+        if (totalRows > 10000) {
+          setFileSizeWarning(prev => (prev ? prev + " " : "") + `⚠️ الملف يحتوي على ${totalRows.toLocaleString("ar-EG")} صف. الاستيراد الضخم يُنصح بتقسيمه على دفعات.`);
+        } else if (totalRows > 5000) {
+          setFileSizeWarning(prev => (prev ? prev + " " : "") + `⚠️ ${totalRows.toLocaleString("ar-EG")} صف سيتم معالجتها. تأكد من اختيار الأوراق المطلوبة فقط.`);
         }
 
         setSheetConfigs(configs);
@@ -202,69 +223,140 @@ export default function ImportWizardModal({
       const ws = workbook.Sheets[sCfg.sheetName];
       if (!ws) continue;
 
-      const rawRows: any[] = XLSX.utils.sheet_to_json(ws, { defval: "", raw: false });
+      const rawRows: any[] = XLSX.utils.sheet_to_json(ws, { defval: '', raw: false });
       const mapping = sCfg.columnMapping;
 
+      // دالة مساعدة: استخراج قيمة خلية حسب اسم الحقل المستهدف
+      const cell = (row: any, field: string): string => {
+        for (const [col, tgt] of Object.entries(mapping)) {
+          if (tgt === field) return String(row[col] ?? '').trim();
+        }
+        return '';
+      };
+
       rawRows.forEach((row, index) => {
-        let nameVal = "";
-        let phoneVal = "";
-        let natIdVal = "";
-        let unitVal = "";
-        let bldVal = "";
-        let projVal = "";
-        let dateVal = "";
-        let priceVal = "";
-        let areaVal = "";
-        let floorVal = "";
+        // ── بيانات العميل الأساسية ──
+        const nameVal      = cell(row, 'name');
+        const phoneVal     = cell(row, 'phone');
+        const natIdVal     = cell(row, 'nationalId');
+        const emailVal     = cell(row, 'email');
+        const typeVal      = cell(row, 'type')   || sCfg.defaultType;
+        const statusVal    = cell(row, 'status') || sCfg.defaultStatus;
+        const sourceVal    = cell(row, 'source');
+        const custTypeVal  = cell(row, 'customerType');
+        const leadScoreVal = cell(row, 'leadScore');
+
+        // ── بيانات الوحدة العقارية ──
+        const projNameVal    = cell(row, 'projectName');
+        const unitVal        = cell(row, 'unitNumber');
+        const bldVal         = cell(row, 'buildingNumber');
+        const zoneVal        = cell(row, 'zoneNumber');
+        const floorVal       = cell(row, 'floor');
+        const areaVal        = cell(row, 'area');
+        const govVal         = cell(row, 'governorate');
+        const cityVal        = cell(row, 'city');
+        const propTypeVal    = cell(row, 'propertyType');
+        const unitSizeVal    = cell(row, 'unitSize');
+        const bedroomsVal    = cell(row, 'bedrooms');
+        const bathroomsVal   = cell(row, 'bathrooms');
+        const finishingVal   = cell(row, 'finishing');
+        const unitStatusVal  = cell(row, 'unitStatus');
+        const dateVal        = cell(row, 'deliveryDate');
+        const execCoVal      = cell(row, 'executingCompany');
+        const paperworkVal   = cell(row, 'paperworkStatus');
+
+        // ── الأسعار والسداد ──
+        const priceVal    = cell(row, 'askingPrice');
+        const instAmtVal  = cell(row, 'installmentAmount');
+        const instRemVal  = cell(row, 'installmentRemaining');
+        const instDetVal  = cell(row, 'installmentDetails');
+        const budMinVal   = cell(row, 'budgetMin');
+        const budMaxVal   = cell(row, 'budgetMax');
+
+        // ── البيانات المخصصة (الحقول غير المربوطة) ──
         const customData: Record<string, any> = {};
-
         for (const [colName, targetField] of Object.entries(mapping)) {
-          const cellVal = String(row[colName] ?? "").trim();
-          if (!cellVal) continue;
-
-          if (targetField === "name") nameVal = cellVal;
-          else if (targetField === "phone") phoneVal = cellVal;
-          else if (targetField === "nationalId") natIdVal = cellVal;
-          else if (targetField === "unitNumber") unitVal = cellVal;
-          else if (targetField === "buildingNumber") bldVal = cellVal;
-          else if (targetField === "projectName") projVal = cellVal;
-          else if (targetField === "deliveryDate") dateVal = cellVal;
-          else if (targetField === "askingPrice") priceVal = cellVal;
-          else if (targetField === "area") areaVal = cellVal;
-          else if (targetField === "floor") floorVal = cellVal;
-          else if (targetField === "__CUSTOM__") {
-            if (sCfg.unmappedAction === "CUSTOM_DATA") customData[colName] = cellVal;
+          if (targetField === '__CUSTOM__' && sCfg.unmappedAction === 'CUSTOM_DATA') {
+            const v = String(row[colName] ?? '').trim();
+            if (v) customData[colName] = v;
           }
         }
 
+        // ── تطبيع البيانات ──
         const phoneNorm = normalizeEgyptianPhone(phoneVal);
         const natIdNorm = natIdVal ? normalizeNationalId(natIdVal) : null;
-        const dateNorm = dateVal ? normalizeDate(dateVal) : null;
+        const dateNorm  = dateVal  ? normalizeDate(dateVal)        : null;
 
-        const errors: string[] = [];
+        // ── التحقق من الصحة ──
+        const errors: string[]   = [];
         const warnings: string[] = [];
 
-        if (!nameVal) errors.push("الاسم مطلوب");
-        if (!phoneNorm.isValid) errors.push(phoneNorm.error || "رقم الهاتف غير صالح");
-        if (natIdNorm && !natIdNorm.isValid) errors.push(natIdNorm.error || "الرقم القومي غير صالح");
-        if (dateNorm && !dateNorm.isValid) errors.push(dateNorm.error || "تاريخ غير صالح");
+        if (!nameVal)                        errors.push('الاسم مطلوب');
+        if (!phoneNorm.isValid)              errors.push(phoneNorm.error || 'رقم الهاتف غير صالح');
+        if (natIdNorm && !natIdNorm.isValid) errors.push(natIdNorm.error || 'الرقم القومي غير صالح');
+        if (dateNorm  && !dateNorm.isValid)  warnings.push(dateNorm.error || 'تاريخ التسليم غير واضح');
+
+        // تحذير: دقة الرقم القومي المخزن كرقم في Excel
+        let suspectPrecision = false;
+        if (natIdVal && /^[\d.]+$/.test(natIdVal)) {
+          const rawNum = natIdVal.replace(/\..*/, '');
+          if (rawNum.length !== 14) {
+            warnings.push('قد يكون الرقم القومي فقد دقته بسبب تخزينه كرقم في Excel — تحقق منه');
+            suspectPrecision = true;
+          }
+        }
+
+        const resolvedProjectName =
+          projNameVal ||
+          (sCfg.defaultProjectId ? (projects.find(p => p.id === sCfg.defaultProjectId)?.name ?? '') : '');
 
         allPreviewRows.push({
-          _rowNumber: index + 2,
-          _sheetName: sCfg.sheetName,
-          name: nameVal ? normalizeArabicText(nameVal) : "",
-          phone: phoneNorm.isValid ? phoneNorm.phone : phoneVal,
-          nationalId: natIdNorm?.isValid ? natIdNorm.nationalId : natIdVal,
-          unitNumber: unitVal,
-          buildingNumber: bldVal,
-          projectName: projVal || (sCfg.defaultProjectId ? projects.find(p => p.id === sCfg.defaultProjectId)?.name : ""),
-          deliveryDate: dateNorm?.isValid ? (dateNorm.isoDate || dateVal) : dateVal,
-          askingPrice: priceVal,
-          area: areaVal,
-          floor: floorVal,
-          customData,
-          _errors: errors,
-          _warnings: warnings
+          _rowNumber:        index + 2,
+          _sheetName:        sCfg.sheetName,
+          _errors:           errors,
+          _warnings:         warnings.length ? warnings : undefined,
+          _suspectPrecision: suspectPrecision || undefined,
+
+          // بيانات العميل
+          name:         nameVal ? normalizeArabicText(nameVal) : '',
+          phone:        phoneNorm.isValid ? (phoneNorm.phone ?? phoneVal) : phoneVal,
+          nationalId:   natIdNorm?.isValid ? natIdNorm.nationalId : (natIdVal || undefined),
+          email:        emailVal || undefined,
+          type:         typeVal   || undefined,
+          status:       statusVal || undefined,
+          source:       sourceVal || undefined,
+          customerType: custTypeVal  || undefined,
+          leadScore:    leadScoreVal || undefined,
+          projectId:    sCfg.defaultProjectId || undefined,
+
+          // بيانات الوحدة
+          projectName:      resolvedProjectName || undefined,
+          unitNumber:       unitVal    || undefined,
+          buildingNumber:   bldVal     || undefined,
+          zoneNumber:       zoneVal    || undefined,
+          floor:            floorVal   || undefined,
+          area:             areaVal    || undefined,
+          governorate:      govVal     || undefined,
+          city:             cityVal    || undefined,
+          propertyType:     propTypeVal   || undefined,
+          unitSize:         unitSizeVal   || undefined,
+          bedrooms:         bedroomsVal   || undefined,
+          bathrooms:        bathroomsVal  || undefined,
+          finishing:        finishingVal  || undefined,
+          unitStatus:       unitStatusVal || undefined,
+          deliveryDate:     dateNorm?.isValid ? (dateNorm.isoDate || dateVal) : (dateVal || undefined),
+          executingCompany: execCoVal   || undefined,
+          paperworkStatus:  paperworkVal || undefined,
+
+          // أسعار وسداد
+          askingPrice:          priceVal   || undefined,
+          installmentAmount:    instAmtVal || undefined,
+          installmentRemaining: instRemVal || undefined,
+          installmentDetails:   instDetVal || undefined,
+          budgetMin:            budMinVal  || undefined,
+          budgetMax:            budMaxVal  || undefined,
+
+          customData: Object.keys(customData).length ? customData : undefined,
         });
       });
     }
@@ -285,12 +377,22 @@ export default function ImportWizardModal({
     setCurrentStep(5);
     setExecutionProgress(0);
 
-    let totalInserted = 0;
+    let totalInserted  = 0;
     let totalDuplicates = 0;
-    let totalFailed = 0;
+    let totalCoOwners  = 0;
+    let totalReview    = 0;
+    // Include rejected preview rows in the final execution summary; only valid
+    // rows are sent to the save endpoint.
+    let totalFailed    = previewData.length - totalValidRows.length;
+
+    // بناء مُعرِّف ثابت للاستيراد الحالي (اسم الملف + حجمه + تاريخ اليوم)
+    const fileTag = importId || crypto.randomUUID();
 
     const batchSize = 200;
     const batchesCount = Math.ceil(totalValidRows.length / batchSize);
+
+    // تجميع الصفوف حسب الورقة للحصول على إعدادات كل ورقة
+    const sheetConfigMap = new Map(Object.values(sheetConfigs).map(s => [s.sheetName, s]));
 
     try {
       for (let bIdx = 0; bIdx < batchesCount; bIdx++) {
@@ -300,48 +402,88 @@ export default function ImportWizardModal({
         setExecutionStatusText(`⏳ جاري إرسال الدفعة ${bIdx + 1} من ${batchesCount} (${start + 1} إلى ${Math.min(start + batchSize, totalValidRows.length)})...`);
         setExecutionProgress(Math.round(((bIdx) / batchesCount) * 100));
 
+        // مُعرِّف فريد لهذه الدفعة (ثابت عند إعادة الإرسال)
+        const batchId = `${fileTag}_batch${bIdx + 1}_of${batchesCount}`;
+
+        // استخراج projectId الخاص بالورقة الأولى في الدفعة (أو null)
+        const firstRow = currentBatch[0];
+        const sheetCfg = firstRow ? sheetConfigMap.get(firstRow._sheetName) : undefined;
+        const batchProjectId = sheetCfg?.defaultProjectId || null;
+
         let retryCount = 0;
         let success = false;
 
         while (!success && retryCount < 3) {
           try {
-            const res = await fetch("/api/customers/import", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
+            const res = await fetch('/api/customers/import', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
+                batchId,
+                projectId: batchProjectId,
                 customers: currentBatch.map((row) => ({
-                  name: row.name,
-                  phone: row.phone,
-                  nationalId: row.nationalId,
-                  unitNumber: row.unitNumber,
-                  buildingNumber: row.buildingNumber,
-                  projectName: row.projectName,
-                  deliveryDate: row.deliveryDate,
-                  askingPrice: row.askingPrice,
-                  area: row.area,
-                  floor: row.floor,
-                  customData: row.customData
+                  // ── بيانات العميل الأساسية ──
+                  name:         row.name,
+                  phone:        row.phone,
+                  nationalId:   row.nationalId,
+                  email:        row.email,
+                  type:         row.type,
+                  status:       row.status,
+                  source:       row.source,
+                  customerType: row.customerType,
+                  leadScore:    row.leadScore ? Number(row.leadScore) : undefined,
+
+                  // ── بيانات الوحدة العقارية ──
+                  projectName:      row.projectName,
+                  projectId:        row.projectId || batchProjectId,
+                  unitNumber:       row.unitNumber,
+                  buildingNumber:   row.buildingNumber,
+                  zoneNumber:       row.zoneNumber,
+                  floor:            row.floor,
+                  area:             row.area,
+                  governorate:      row.governorate,
+                  city:             row.city,
+                  propertyType:     row.propertyType,
+                  unitSize:         row.unitSize    ? Number(row.unitSize)    : undefined,
+                  bedrooms:         row.bedrooms    ? Number(row.bedrooms)    : undefined,
+                  bathrooms:        row.bathrooms   ? Number(row.bathrooms)   : undefined,
+                  finishing:        row.finishing,
+                  unitStatus:       row.unitStatus,
+                  deliveryDate:     row.deliveryDate,
+                  executingCompany: row.executingCompany,
+                  paperworkStatus:  row.paperworkStatus,
+
+                  // ── الأسعار والسداد ──
+                  askingPrice:          row.askingPrice          ? Number(row.askingPrice)          : undefined,
+                  installmentAmount:    row.installmentAmount    ? Number(row.installmentAmount)    : undefined,
+                  installmentRemaining: row.installmentRemaining ? Number(row.installmentRemaining) : undefined,
+                  installmentDetails:   row.installmentDetails,
+                  budgetMin:            row.budgetMin ? Number(row.budgetMin) : undefined,
+                  budgetMax:            row.budgetMax ? Number(row.budgetMax) : undefined,
+
+                  // ── بيانات مخصصة ──
+                  customData: row.customData,
                 })),
-                projectId: null // Handled per row
-              })
+              }),
             });
 
             const data = await res.json().catch(() => ({}));
 
             if (res.ok) {
-              totalInserted += Number(data.count || 0);
+              totalInserted   += Number(data.count      || 0);
               totalDuplicates += Number(data.duplicates || 0);
-              totalFailed += Number(data.failed || 0);
+              totalCoOwners   += Number(data.coOwners   || 0);
+              totalReview     += Number(data.review     || 0);
+              totalFailed     += Number(data.failed     || 0);
               success = true;
             } else if (res.status === 409) {
-              // Advisory Lock conflict - wait and retry
               retryCount++;
               setExecutionStatusText(`⏳ هناك عملية استيراد أخرى قيد التنفيذ، جاري إعادة المحاولة تلقائياً بعد ثانيتين (محاولة ${retryCount} من 3)...`);
               await new Promise(r => setTimeout(r, 2000));
             } else {
               totalFailed += currentBatch.length;
-              console.error("Batch error:", data);
-              success = true; // Move to next
+              console.error('Batch error:', data);
+              success = true; // انتقل إلى الدفعة التالية
             }
           } catch {
             retryCount++;
@@ -349,19 +491,25 @@ export default function ImportWizardModal({
             await new Promise(r => setTimeout(r, 2000));
           }
         }
+
+        if (!success) {
+          totalFailed += currentBatch.length;
+        }
       }
 
       setExecutionProgress(100);
-      setExecutionStatusText("✅ اكتمل الاستيراد بنجاح!");
+      setExecutionStatusText(totalFailed ? 'اكتمل التنفيذ مع وجود سجلات أو دفعات فاشلة؛ راجع الملخص.' : '✅ اكتمل حفظ الدفعات بنجاح.');
       setExecutionResults({
-        inserted: totalInserted,
+        inserted:   totalInserted,
         duplicates: totalDuplicates,
-        failed: totalFailed
+        coOwners:   totalCoOwners,
+        review:     totalReview,
+        failed:     totalFailed,
       });
       router.refresh();
     } catch (err) {
-      console.error("Import execution fatal error:", err);
-      setExecutionStatusText("❌ حدث خطأ غير متوقع أثناء الاستيراد.");
+      console.error('Import execution fatal error:', err);
+      setExecutionStatusText('❌ حدث خطأ غير متوقع أثناء الاستيراد.');
     } finally {
       setIsExecuting(false);
     }
@@ -480,6 +628,15 @@ export default function ImportWizardModal({
                   style={{ display: "none" }}
                 />
               </div>
+              {fileSizeWarning && (
+                <div style={{
+                  marginTop: 16, padding: "12px 16px", borderRadius: 10,
+                  background: "rgba(234,179,8,0.1)", border: "1px solid rgba(234,179,8,0.4)",
+                  color: "var(--gold-primary)", fontSize: 13, textAlign: "right", lineHeight: 1.6
+                }}>
+                  {fileSizeWarning}
+                </div>
+              )}
             </div>
           )}
 
@@ -527,6 +684,9 @@ export default function ImportWizardModal({
                 customFieldDefs={customFieldDefs}
                 onUpdateMapping={handleUpdateMapping}
                 onApplyTemplate={handleApplyTemplate}
+              onResetAutoMapping={(newMapping) =>
+                handleUpdateSheetConfig(activeSheetName, { columnMapping: newMapping })
+              }
               />
             </div>
           )}
@@ -578,6 +738,20 @@ export default function ImportWizardModal({
                     {executionResults.duplicates.toLocaleString("ar-EG")}
                   </div>
                   <div style={{ fontSize: 12, color: "var(--text-muted)" }}>تكرار تم تجاوزه بأمان</div>
+                </div>
+
+                <div style={{ padding: "12px 20px", borderRadius: 10, background: "rgba(59,130,246,0.1)", border: "1px solid rgba(59,130,246,0.3)" }}>
+                  <div style={{ fontSize: 22, fontWeight: 900, color: "#60a5fa" }}>
+                    {executionResults.coOwners.toLocaleString("ar-EG")}
+                  </div>
+                  <div style={{ fontSize: 12, color: "var(--text-muted)" }}>ملكية مشتركة</div>
+                </div>
+
+                <div style={{ padding: "12px 20px", borderRadius: 10, background: "rgba(168,85,247,0.1)", border: "1px solid rgba(168,85,247,0.3)" }}>
+                  <div style={{ fontSize: 22, fontWeight: 900, color: "#c084fc" }}>
+                    {executionResults.review.toLocaleString("ar-EG")}
+                  </div>
+                  <div style={{ fontSize: 12, color: "var(--text-muted)" }}>يحتاج مراجعة</div>
                 </div>
 
                 <div style={{ padding: "12px 20px", borderRadius: 10, background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)" }}>

@@ -42,7 +42,7 @@ export async function GET() {
   return NextResponse.json(allNotifications.slice(0, 30));
 }
 
-export async function PATCH(request: NextRequest) {
+export async function PATCH(_request: NextRequest) {
   const session = await requireSession();
   if (session instanceof NextResponse) return session;
   // Mark all as read

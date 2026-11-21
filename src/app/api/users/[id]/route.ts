@@ -40,12 +40,22 @@ export async function PUT(
     const user = await prisma.user.update({
       where: { id },
       data: updateData,
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        createdAt: true,
+        phone: true,
+        nationalId: true,
+        address: true,
+        dateJoined: true,
+        salaryBase: true,
+        isActive: true,
+        expertAreas: true,
+      },
     });
-
-    // Don't return password
-    const { password: _password, ...userWithoutPassword } = user;
-
-    return NextResponse.json({ success: true, user: userWithoutPassword });
+    return NextResponse.json({ success: true, user });
   } catch (error) {
     console.error("Update User Error:", error);
     return NextResponse.json({ error: "Failed to update user" }, { status: 500 });

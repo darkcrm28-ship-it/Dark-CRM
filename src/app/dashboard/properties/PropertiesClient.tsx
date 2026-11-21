@@ -223,6 +223,45 @@ export default function PropertiesClient({
     }
   };
 
+  const updatePublication = async (property: any) => {
+    const current = property.customData?.publicListing || {};
+    const isGeneralManager = session?.role === "GENERAL_MANAGER";
+    let status: "PENDING" | "APPROVED" | "REJECTED";
+    let fields: string[] = Array.isArray(current.fields) ? current.fields : [];
+
+    if (current.status === "PENDING" && isGeneralManager) {
+      status = confirm("اعتماد نشر هذه الوحدة بالحقول المحددة؟") ? "APPROVED" : "REJECTED";
+    } else if (current.status === "APPROVED") {
+      if (!isGeneralManager) return;
+      status = "PENDING";
+    } else {
+      const selection = prompt(
+        "اختر الحقول العامة المسموح بنشرها، مفصولة بفواصل. الحقول: title, projectName, zone, unitType, finishing, size, bedrooms, bathrooms, images, description",
+        "projectName, zone, unitType, size, bedrooms, bathrooms, images"
+      );
+      if (selection === null) return;
+      fields = selection.split(",").map((field) => field.trim()).filter(Boolean);
+      status = "PENDING";
+    }
+
+    try {
+      const response = await fetch(`/api/properties/${property.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status, fields }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "تعذر تحديث حالة النشر");
+      setList((items) => items.map((item) => item.id === property.id ? {
+        ...item,
+        customData: { ...(item.customData || {}), publicListing: { status, fields } },
+      } : item));
+      router.refresh();
+    } catch (error: any) {
+      alert(error.message || "تعذر تحديث حالة النشر");
+    }
+  };
+
   const startEdit = (p: any) => {
     let parsedImages: string[] = [];
     if (p.images) {
@@ -663,6 +702,17 @@ export default function PropertiesClient({
                   <div className="flex items-center gap-1.5">
                     {isManager && (
                       <>
+                        <button
+                          onClick={() => updatePublication(p)}
+                          className="btn btn-secondary btn-sm text-xs"
+                          title="إدارة موافقة نشر الحقول العامة"
+                        >
+                          {p.customData?.publicListing?.status === "APPROVED"
+                            ? "إلغاء النشر"
+                            : p.customData?.publicListing?.status === "PENDING"
+                              ? session?.role === "GENERAL_MANAGER" ? "مراجعة النشر" : "قيد المراجعة"
+                              : "طلب نشر"}
+                        </button>
                         <button
                           onClick={() => startEdit(p)}
                           className="btn btn-ghost btn-sm p-1.5"

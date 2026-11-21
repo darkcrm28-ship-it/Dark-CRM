@@ -6,5 +6,5 @@ export default async function PropertiesPage() {
   const session = await requirePageRole(SALES_ROLES);
   const properties = await prisma.property.findMany({ orderBy: { createdAt: "desc" } });
   const isManager = session.role === ROLE.GENERAL_MANAGER || session.role === ROLE.SALES_MANAGER;
-  return <PropertiesClient properties={properties} isManager={isManager} />;
+  return <PropertiesClient properties={properties} isManager={isManager} session={session} />;
 }

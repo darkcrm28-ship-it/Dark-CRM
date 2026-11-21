@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
-import { notFound, redirect } from "next/navigation";
-import { getSession } from "@/lib/auth";
+import { notFound } from "next/navigation";
+import { requirePageRole, SALES_ROLES } from "@/lib/auth";
 import PropertyShowcaseClient from "./PropertyShowcaseClient";
 
 export default async function PublicPropertyShowcasePage({
@@ -9,12 +9,8 @@ export default async function PublicPropertyShowcasePage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  // Privacy guard: property pages expose internal records. Until an approved
-  // publish/share mechanism exists, require an authenticated session.
-  const session = await getSession();
-  if (!session) {
-    redirect("/login");
-  }
+  // This is an internal sales share view, not a public listing.
+  await requirePageRole(SALES_ROLES);
 
   const property = await prisma.property.findUnique({
     where: { id },

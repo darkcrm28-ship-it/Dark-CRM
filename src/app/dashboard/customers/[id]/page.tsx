@@ -1,6 +1,5 @@
 import { prisma } from "@/lib/db";
 import { requirePageRole, ROLE, SALES_ROLES } from "@/lib/auth";
-import { redirect } from "next/navigation";
 import CustomerDetailsClient from "./CustomerDetailsClient";
 
 export default async function CustomerPage({ params }: { params: Promise<{ id: string }> }) {

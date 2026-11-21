@@ -6,27 +6,26 @@ import {
   Building2,
   Calendar,
   Eye,
-  Home,
   MessageCircle,
   PhoneCall,
   ShieldCheck,
   Sparkles,
   MapPin,
-  Clock,
-  ArrowLeft,
-  CheckCircle2,
-  AlertCircle,
-  X,
   Maximize2,
   BedDouble,
   Bath,
   Search,
   SlidersHorizontal,
   RotateCcw,
-  Layers,
+  Camera,
+  ArrowUpRight,
   ChevronRight,
-  ImageIcon,
+  X,
+  CheckCircle2,
+  AlertCircle,
 } from "lucide-react";
+import PublicHeader from "@/components/public/PublicHeader";
+import PublicFooter from "@/components/public/PublicFooter";
 
 interface PropertyItem {
   id: string;
@@ -47,7 +46,7 @@ interface PropertyItem {
   description?: string | null;
 }
 
-const UNIT_TYPES = ["الكل", "شقة", "فيلا", "ستوديو", "دوبلكس", "بنتهاوس", "محل تجاري", "مكتب إداري"];
+const UNIT_TYPES = ["الكل", "شقة", "فيلا", "توين هاوس", "تاون هاوس", "دوبلكس", "بنتهاوس", "محل تجاري", "مكتب إداري"];
 const BEDROOMS_OPTIONS = ["الكل", "1", "2", "3", "4", "5+"];
 
 export default function PublicPropertiesClient({
@@ -63,48 +62,45 @@ export default function PublicPropertiesClient({
   const [minPrice, setMinPrice] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
   const [onlyInstallments, setOnlyInstallments] = useState(false);
-  const [showFiltersMobile, setShowFiltersMobile] = useState(false);
 
-  // Modal State for Viewing / Consultation
+  // Quick Viewing Modal
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedUnit, setSelectedUnit] = useState<PropertyItem | null>(null);
-  const [modalType, setModalType] = useState<"VIEWING" | "CONSULTATION">("VIEWING");
-
   const [inquiryName, setInquiryName] = useState("");
   const [inquiryPhone, setInquiryPhone] = useState("");
-  const [inquiryNotes, setInquiryNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [submitError, setSubmitError] = useState("");
 
-  // Extract unique zones for filter dropdown
+  // Extract unique zones
   const uniqueZones = useMemo(() => {
-    const set = new Set<string>();
+    const zones = new Set<string>();
     initialProperties.forEach((p) => {
-      if (p.zone && p.zone.trim()) set.add(p.zone.trim());
+      if (p.zone && p.zone.trim()) zones.add(p.zone.trim());
     });
-    return ["الكل", ...Array.from(set)];
+    return ["الكل", ...Array.from(zones)];
   }, [initialProperties]);
 
   // Filtered Properties
   const filteredProperties = useMemo(() => {
     return initialProperties.filter((p) => {
-      // Text Search
+      // 1. Search Query
       if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        const matchTitle = p.title?.toLowerCase().includes(q);
-        const matchProject = p.projectName?.toLowerCase().includes(q);
-        const matchZone = p.zone?.toLowerCase().includes(q);
-        const matchDesc = p.description?.toLowerCase().includes(q);
-        if (!matchTitle && !matchProject && !matchZone && !matchDesc) return false;
+        const q = searchQuery.toLowerCase().trim();
+        const titleMatch = (p.title || "").toLowerCase().includes(q);
+        const projectMatch = (p.projectName || "").toLowerCase().includes(q);
+        const zoneMatch = (p.zone || "").toLowerCase().includes(q);
+        if (!titleMatch && !projectMatch && !zoneMatch) return false;
       }
 
-      // Unit Type
-      if (selectedUnitType !== "الكل" && p.unitType !== selectedUnitType) {
-        return false;
+      // 2. Unit Type
+      if (selectedUnitType !== "الكل") {
+        if (!p.unitType || !p.unitType.toLowerCase().includes(selectedUnitType.toLowerCase())) {
+          return false;
+        }
       }
 
-      // Bedrooms
+      // 3. Bedrooms
       if (selectedBedrooms !== "الكل") {
         if (selectedBedrooms === "5+") {
           if (!p.bedrooms || p.bedrooms < 5) return false;
@@ -113,22 +109,24 @@ export default function PublicPropertiesClient({
         }
       }
 
-      // Zone
-      if (selectedZone !== "الكل" && p.zone?.trim() !== selectedZone) {
-        return false;
+      // 4. Zone
+      if (selectedZone !== "الكل") {
+        if (!p.zone || p.zone.trim() !== selectedZone.trim()) return false;
       }
 
-      // Price Range
-      if (minPrice && p.price && p.price < parseFloat(minPrice)) {
-        return false;
-      }
-      if (maxPrice && p.price && p.price > parseFloat(maxPrice)) {
-        return false;
+      // 5. Price Min
+      if (minPrice && !isNaN(Number(minPrice))) {
+        if (!p.price || p.price < Number(minPrice)) return false;
       }
 
-      // Installments Only
-      if (onlyInstallments && (!p.monthlyInstallment || p.monthlyInstallment <= 0)) {
-        return false;
+      // 6. Price Max
+      if (maxPrice && !isNaN(Number(maxPrice))) {
+        if (!p.price || p.price > Number(maxPrice)) return false;
+      }
+
+      // 7. Only Installments
+      if (onlyInstallments) {
+        if (!p.monthlyInstallment || p.monthlyInstallment <= 0) return false;
       }
 
       return true;
@@ -156,45 +154,30 @@ export default function PublicPropertiesClient({
 
   const openViewingModal = (unit: PropertyItem) => {
     setSelectedUnit(unit);
-    setModalType("VIEWING");
     setInquiryName("");
     setInquiryPhone("");
-    setInquiryNotes(`طلب معاينة للوحدة في مشروع: ${unit.projectName || ""}`);
     setSubmitSuccess(false);
     setSubmitError("");
     setModalOpen(true);
   };
 
-  const openGeneralConsultation = () => {
-    setSelectedUnit(null);
-    setModalType("CONSULTATION");
-    setInquiryName("");
-    setInquiryPhone("");
-    setInquiryNotes("طلب استشارة عامة بخصوص الوحدات المعروضة للبيع");
-    setSubmitSuccess(false);
-    setSubmitError("");
-    setModalOpen(true);
-  };
-
-  const handleSubmitModal = async (e: React.FormEvent) => {
+  const handleInquirySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
     setSubmitError("");
 
     try {
-      const payload = {
-        inquiryType: modalType,
-        name: inquiryName.trim(),
-        phone: inquiryPhone.trim(),
-        notes: inquiryNotes.trim(),
-        propertyId: selectedUnit?.id,
-        preferredZone: selectedUnit?.zone,
-      };
-
       const res = await fetch("/api/public/inquiry", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          inquiryType: "VIEWING",
+          name: inquiryName.trim(),
+          phone: inquiryPhone.trim(),
+          propertyId: selectedUnit?.id,
+          preferredZone: selectedUnit?.zone,
+          notes: `طلب معاينة لوحدة: ${selectedUnit?.projectName || ""} (كود: DK-${selectedUnit?.id?.substring(0, 6)?.toUpperCase()})`,
+        }),
       });
 
       const data = await res.json();
@@ -234,90 +217,48 @@ export default function PublicPropertiesClient({
 
   return (
     <div dir="rtl" className="public-portal-root">
-      {/* Background Glow */}
-      <div className="portal-ambient-glow orb-gold" />
-      <div className="portal-ambient-glow orb-blue" />
+      <PublicHeader />
 
-      {/* ─── 1. TOP NAVBAR (NO LOGIN LINKS) ─── */}
-      <header className="portal-navbar">
-        <div className="portal-container nav-container">
-          <Link href="/" className="portal-brand">
-            <div className="portal-brand-logo">
-              <Building2 size={24} className="text-gold" />
-            </div>
-            <div>
-              <div className="portal-brand-title">
-                <span className="gold-gradient-text">دارك</span> للاستثمار العقاري
-              </div>
-              <div className="portal-brand-tagline">Darek Real Estate Portal</div>
-            </div>
-          </Link>
-
-          <nav className="portal-nav-links">
-            <Link href="/" className="portal-link">الرئيسية</Link>
-            <Link href="/properties" className="portal-link active font-bold text-gold">عقارات للبيع</Link>
-            <Link href="/#sell-section" className="portal-link">اعرض وحدتك للبيع</Link>
-            <Link href="/#contact-section" className="portal-link">تواصل معنا</Link>
-          </nav>
-
-          <div className="portal-nav-actions">
-            <button onClick={openGeneralConsultation} className="portal-consult-btn">
-              <Calendar size={15} />
-              <span>استشارة مجانية</span>
-            </button>
-
-            <a
-              href="https://wa.me/?text=مرحباً شركة دارك العقارية، أود الاستفسار عن الوحدات والعقارات المعروضة للبيع."
-              target="_blank"
-              rel="noopener noreferrer"
-              className="portal-whatsapp-pill"
-            >
-              <MessageCircle size={17} />
-              <span>واتساب</span>
-            </a>
-          </div>
-        </div>
-      </header>
-
-      {/* ─── 2. BREADCRUMB & HEADER BANNER ─── */}
-      <div className="properties-page-header">
+      {/* Header Banner */}
+      <section className="catalog-hero-header">
         <div className="portal-container">
-          <div className="breadcrumb-row">
-            <Link href="/" className="text-muted hover:text-gold">الرئيسية</Link>
+          <div className="breadcrumb-nav-row">
+            <Link href="/" className="hover:text-gold text-muted">الرئيسية</Link>
             <ChevronRight size={14} className="text-muted" />
-            <span className="text-gold font-bold">عقارات للبيع</span>
+            <span className="text-gold font-bold">الكتالوج العقاري للوحدات</span>
           </div>
 
-          <div className="header-flex-row">
+          <div className="catalog-title-wrap">
             <div>
-              <h1 className="properties-page-title">
-                عقارات ووحدات متميزة <span className="gold-gradient-text">للبيع</span>
+              <div className="section-tag mb-2">معرض الوحدات الحصرية</div>
+              <h1 className="catalog-main-title">
+                كتالوج الوحدات العقارية <span className="gold-shimmer-text">المتاحة للبيع</span>
               </h1>
-              <p className="properties-page-sub">
-                تصفح أفضل الفرص السكنية والتجارية المفحوصة والمحدثة دورياً مع كبرى شركات التطوير العقاري في مصر
+              <p className="catalog-sub-desc">
+                تصفح أفضل الفرص السكنية والاستثمارية المفحوصة والمطابقة لمعايير الجودة، مع الحفاظ التام على خصوصية الملاك والعناوين.
               </p>
             </div>
 
-            <div className="verified-badge-pill">
+            <div className="catalog-verified-chip">
               <ShieldCheck size={16} className="text-gold" />
-              <span>بيانات موثوقة &bull; حفظ سرية العناوين</span>
+              <span>فحص عقاري وقانوني معتمد</span>
             </div>
           </div>
         </div>
-      </div>
+      </section>
 
-      {/* ─── 3. ADVANCED SEARCH & FILTER BAR ─── */}
-      <div className="portal-container mb-8">
-        <div className="properties-filter-panel">
+      {/* Filter Bar */}
+      <section className="portal-container mb-10">
+        <div className="catalog-filter-card">
           {/* Top Search Input */}
-          <div className="filter-search-box">
-            <Search size={18} className="search-icon" />
+          <div className="catalog-search-field">
+            <Search size={18} className="catalog-search-icon" />
             <input
               type="text"
-              placeholder="ابحث باسم المشروع، الكومباوند، أو المنطقة (مثل: التجمع، زايد، العاصمة...)"
+              placeholder="ابحث باسم المشروع، الكومباوند، أو المنطقة (مثل: مدينتي، ميفيدا، التجمع، زايد...)"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="filter-search-input"
+              className="catalog-search-input"
             />
             {searchQuery && (
               <button onClick={() => setSearchQuery("")} className="clear-search-btn">
@@ -326,15 +267,14 @@ export default function PublicPropertiesClient({
             )}
           </div>
 
-          {/* Filters Row */}
-          <div className="filter-controls-row">
-            {/* Unit Type */}
-            <div className="filter-item">
+          {/* Quick Filter Selects Grid */}
+          <div className="catalog-filter-grid">
+            <div className="filter-select-wrap">
               <label>نوع الوحدة</label>
               <select
                 value={selectedUnitType}
                 onChange={(e) => setSelectedUnitType(e.target.value)}
-                className="filter-select"
+                className="catalog-select"
               >
                 {UNIT_TYPES.map((t) => (
                   <option key={t} value={t}>{t}</option>
@@ -342,13 +282,12 @@ export default function PublicPropertiesClient({
               </select>
             </div>
 
-            {/* Zone */}
-            <div className="filter-item">
+            <div className="filter-select-wrap">
               <label>المنطقة / الكومباوند</label>
               <select
                 value={selectedZone}
                 onChange={(e) => setSelectedZone(e.target.value)}
-                className="filter-select"
+                className="catalog-select"
               >
                 {uniqueZones.map((z) => (
                   <option key={z} value={z}>{z}</option>
@@ -356,13 +295,12 @@ export default function PublicPropertiesClient({
               </select>
             </div>
 
-            {/* Bedrooms */}
-            <div className="filter-item">
-              <label>غرف النوم</label>
+            <div className="filter-select-wrap">
+              <label>عدد الغرف</label>
               <select
                 value={selectedBedrooms}
                 onChange={(e) => setSelectedBedrooms(e.target.value)}
-                className="filter-select"
+                className="catalog-select"
               >
                 {BEDROOMS_OPTIONS.map((b) => (
                   <option key={b} value={b}>{b === "الكل" ? "الكل" : `${b} غرف`}</option>
@@ -370,315 +308,277 @@ export default function PublicPropertiesClient({
               </select>
             </div>
 
-            {/* Min Price */}
-            <div className="filter-item">
+            <div className="filter-select-wrap">
               <label>السعر من (ج.م)</label>
               <input
                 type="number"
                 placeholder="الحد الأدنى"
                 value={minPrice}
                 onChange={(e) => setMinPrice(e.target.value)}
-                className="filter-input"
+                className="catalog-select"
               />
             </div>
 
-            {/* Max Price */}
-            <div className="filter-item">
+            <div className="filter-select-wrap">
               <label>السعر إلى (ج.م)</label>
               <input
                 type="number"
                 placeholder="الحد الأقصى"
                 value={maxPrice}
                 onChange={(e) => setMaxPrice(e.target.value)}
-                className="filter-input"
+                className="catalog-select"
               />
             </div>
           </div>
 
-          {/* Bottom Filter Badges & Reset */}
-          <div className="filter-bottom-bar">
-            <div className="flex items-center gap-3">
-              <label className="checkbox-filter-label">
-                <input
-                  type="checkbox"
-                  checked={onlyInstallments}
-                  onChange={(e) => setOnlyInstallments(e.target.checked)}
-                  className="accent-gold"
-                />
-                <span>وحدات بتسهيلات سداد وأقساط فقط</span>
-              </label>
+          {/* Bottom Bar: Checkbox + Reset + Count */}
+          <div className="catalog-filter-footer">
+            <label className="checkbox-filter-label">
+              <input
+                type="checkbox"
+                checked={onlyInstallments}
+                onChange={(e) => setOnlyInstallments(e.target.checked)}
+                className="accent-gold"
+              />
+              <span>عرض الوحدات ذات التسهيلات والأقساط فقط</span>
+            </label>
 
-              <button onClick={resetFilters} className="reset-filter-btn">
+            <div className="flex items-center gap-4">
+              <button onClick={resetFilters} className="btn-reset-filters">
                 <RotateCcw size={13} />
-                <span>إعادة ضبط الفلاتر</span>
+                <span>إعادة ضبط</span>
               </button>
-            </div>
-
-            <div className="results-counter-pill">
-              عرض <strong>{filteredProperties.length}</strong> من أصل {initialProperties.length} وحدة
+              <div className="catalog-counter-pill">
+                عرض <strong>{filteredProperties.length}</strong> من أصل {initialProperties.length} وحدة
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      </section>
 
-      {/* ─── 4. PROPERTIES GRID ─── */}
-      <div className="portal-container mb-16">
-        <div className="properties-portal-grid">
+      {/* ═══════════ SQUARES CATALOG GRID WITH DISTINCTIVE EDGE GLOWS ═══════════ */}
+      <section className="portal-container mb-24">
+        <div className="squares-catalog-grid">
           {filteredProperties.map((p) => {
             const cover = parseCover(p.images);
             const photosCount = countImages(p.images);
+            const unitCode = `DK-${p.id.substring(0, 6).toUpperCase()}`;
 
             const whatsappUnitMsg = encodeURIComponent(
-              `مرحباً شركة دارك العقارية،\nأود الاستفسار عن الوحدة المعروضة للبيع:\n*${p.projectName || p.title}* في منطقة ${p.zone || ""}\nكود الوحدة: DK-${p.id.substring(0, 6).toUpperCase()}\nالرابط: ${typeof window !== "undefined" ? `${window.location.origin}/share/property/${p.id}` : ""}`
+              `مرحباً شركة دارك العقارية،\nأود الاستفسار عن الوحدة المعروضة بالكتالوج:\n*${p.projectName || p.title}* في ${p.zone || ""}\nكود الوحدة: ${unitCode}`
             );
 
             return (
-              <div key={p.id} className="portal-property-card">
-                {/* Image Cover */}
-                <div className="portal-property-cover">
+              <div key={p.id} className="square-property-box group">
+                {/* Visual Glow Aura Border */}
+                <div className="box-glowing-rim" />
+
+                {/* Top Image Box */}
+                <div className="square-cover-container">
                   {cover ? (
-                    <img src={cover} alt={p.projectName || "وحدة للبيع"} />
+                    <img
+                      src={cover}
+                      alt={p.projectName || "وحدة عقارية"}
+                      className="square-cover-img"
+                    />
                   ) : (
-                    <div className="portal-property-no-img">
-                      <Building2 size={40} className="text-gold opacity-40 mb-2" />
+                    <div className="square-no-img-box">
+                      <Building2 size={38} className="text-gold opacity-50 mb-2" />
                       <span>معاينة حصرية لدى المستشار</span>
                     </div>
                   )}
 
-                  {/* Badges */}
-                  <div className="portal-property-badge">
-                    <span>{p.unitType || "شقة سكنية"}</span>
+                  {/* Badges Overlays */}
+                  <div className="square-badges-top-row">
+                    <span className="badge-unit-type">{p.unitType || "شقة سكنية"}</span>
+                    {photosCount > 1 && (
+                      <span className="badge-photos-count">
+                        <Camera size={12} /> {photosCount} صور
+                      </span>
+                    )}
                   </div>
 
-                  {photosCount > 0 && (
-                    <div className="property-card-photos-count">
-                      <ImageIcon size={12} />
-                      <span>{photosCount} صور</span>
-                    </div>
-                  )}
+                  <div className="square-code-pill">{unitCode}</div>
                 </div>
 
-                {/* Body */}
-                <div className="portal-property-body">
-                  <h3 className="portal-property-title">{p.projectName || "مشروع عقاري متميز"}</h3>
-                  <p className="portal-property-location">
-                    <MapPin size={13} className="text-gold" />
-                    <span>المنطقة: <strong>{p.zone || "القاهرة الكبرى"}</strong></span>
-                  </p>
+                {/* Body Details */}
+                <div className="square-card-body">
+                  <div className="square-header-line">
+                    <h3 className="square-project-title" title={p.projectName || p.title || "مشروع متميز"}>
+                      {p.projectName || p.title || "مشروع عقاري متميز"}
+                    </h3>
+                  </div>
 
-                  <div className="portal-property-specs">
+                  <div className="square-location-row">
+                    <MapPin size={13} className="text-gold shrink-0" />
+                    <span className="truncate">{p.zone || "القاهرة الكبرى"}</span>
+                  </div>
+
+                  {/* Specs Grid */}
+                  <div className="square-specs-strip">
                     {p.size && (
-                      <span><Maximize2 size={13} /> {p.size} م²</span>
+                      <div className="spec-badge">
+                        <Maximize2 size={12} className="text-gold" />
+                        <span>{p.size} م²</span>
+                      </div>
                     )}
                     {p.bedrooms && (
-                      <span><BedDouble size={13} /> {p.bedrooms} غرف</span>
+                      <div className="spec-badge">
+                        <BedDouble size={12} className="text-gold" />
+                        <span>{p.bedrooms} غرف</span>
+                      </div>
                     )}
                     {p.bathrooms && (
-                      <span><Bath size={13} /> {p.bathrooms} حمام</span>
-                    )}
-                    {p.floor && (
-                      <span><Layers size={13} /> دور {p.floor}</span>
+                      <div className="spec-badge">
+                        <Bath size={12} className="text-gold" />
+                        <span>{p.bathrooms} حمام</span>
+                      </div>
                     )}
                   </div>
 
-                  {/* Price Row */}
-                  <div className="portal-property-price-row">
+                  {/* Price & Installment */}
+                  <div className="square-financials-row">
                     <div>
-                      <span className="price-label">السعر المطلوب</span>
-                      <div className="price-val">
+                      <span className="financial-label">السعر المطلوب</span>
+                      <div className="financial-price">
                         {p.price ? `${p.price.toLocaleString()} ج.م` : "عند التواصل"}
                       </div>
                     </div>
 
-                    {p.monthlyInstallment && p.monthlyInstallment > 0 ? (
-                      <div className="installment-pill">
-                        قسط: {p.monthlyInstallment.toLocaleString()} ج.م
+                    {p.monthlyInstallment && (
+                      <div className="financial-installment-tag">
+                        قسط: {p.monthlyInstallment.toLocaleString()} ج.م/ش
                       </div>
-                    ) : null}
+                    )}
                   </div>
 
-                  {/* Action Buttons */}
-                  <div className="portal-property-actions">
-                    <Link
+                  {/* Actions Row */}
+                  <div className="square-actions-row">
+                    <a
                       href={`/share/property/${p.id}`}
                       target="_blank"
-                      className="btn-view-storefront"
+                      rel="noopener noreferrer"
+                      className="btn-square-details"
                     >
-                      <Eye size={15} />
-                      <span>معاينة الكتالوج</span>
-                    </Link>
+                      <Eye size={14} />
+                      <span>التفاصيل</span>
+                    </a>
 
                     <button
                       onClick={() => openViewingModal(p)}
-                      className="btn-request-viewing"
+                      className="btn-square-viewing"
                     >
-                      <span>طلب معاينة</span>
+                      <Calendar size={14} />
+                      <span>معاينة</span>
                     </button>
 
                     <a
                       href={`https://wa.me/?text=${whatsappUnitMsg}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="btn-whatsapp-icon"
-                      title="استفسار فوري عبر واتساب"
+                      className="btn-square-whatsapp"
+                      title="واتساب للوحدة"
                     >
-                      <MessageCircle size={16} />
+                      <MessageCircle size={15} />
                     </a>
                   </div>
                 </div>
               </div>
             );
           })}
-
-          {filteredProperties.length === 0 && (
-            <div className="empty-properties-box col-span-full">
-              <Building2 size={54} className="text-gold opacity-40 mx-auto mb-3" />
-              <h4 className="text-lg font-bold text-slate-200">لا توجد وحدات تطابق معايير الفلترة الحالية</h4>
-              <p className="text-xs text-slate-400 mt-2 max-w-md mx-auto">
-                يمكنك إعادة ضبط الفلاتر أو التواصل مع مستشارينا لتوفير طلبك المخصص مباشرة من شبكة المطورين المعتمدة لدينا.
-              </p>
-              <div className="flex justify-center gap-3 mt-5">
-                <button onClick={resetFilters} className="portal-consult-btn">
-                  إعادة ضبط جميع الفلاتر
-                </button>
-                <button onClick={openGeneralConsultation} className="sell-submit-action-btn">
-                  حجز استشارة مخصصة
-                </button>
-              </div>
-            </div>
-          )}
         </div>
-      </div>
 
-      {/* ─── 5. INTERACTIVE VIEWING / CONSULTATION MODAL ─── */}
-      {modalOpen && (
+        {/* Empty State */}
+        {filteredProperties.length === 0 && (
+          <div className="catalog-empty-card">
+            <Building2 size={48} className="text-gold opacity-40 mx-auto mb-3" />
+            <h3 className="text-lg font-bold text-white mb-2">لا توجد وحدات مطابقة للبحث حالياً</h3>
+            <p className="text-xs text-muted max-w-md mx-auto mb-6">
+              جرّب تغيير خيارات البحث أو قم بإعادة ضبط الفلاتر للاطلاع على كافة الوحدات المتاحة.
+            </p>
+            <button onClick={resetFilters} className="btn-consultation-gold inline-flex">
+              إعادة ضبط الفلاتر وعرض الكل
+            </button>
+          </div>
+        )}
+      </section>
+
+      {/* Quick Viewing Modal */}
+      {modalOpen && selectedUnit && (
         <div className="portal-modal-backdrop" onClick={() => setModalOpen(false)}>
-          <div className="portal-modal-container" onClick={(e) => e.stopPropagation()}>
+          <div className="portal-modal-container max-w-md" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header-row">
               <div className="flex items-center gap-2">
-                <Sparkles size={18} className="text-gold" />
-                <h3 className="modal-heading">
-                  {modalType === "VIEWING"
-                    ? `طلب معاينة: ${selectedUnit?.projectName || "الوحدة العقارية"}`
-                    : "حجز استشارة عقارية مجانية"}
-                </h3>
+                <Calendar size={18} className="text-gold" />
+                <h3 className="modal-heading">طلب معاينة وحدة ميدانياً</h3>
               </div>
-              <button onClick={() => setModalOpen(false)} className="modal-close-icon-btn">
-                <X size={20} />
+              <button onClick={() => setModalOpen(false)} className="modal-close-icon">
+                <X size={16} />
               </button>
             </div>
 
-            {submitSuccess ? (
-              <div className="modal-success-screen">
-                <CheckCircle2 size={54} className="text-emerald-400 mb-3" />
-                <h4 className="text-lg font-bold text-white mb-2">تم تسجيل طلبكم بنجاح!</h4>
-                <p className="text-sm text-slate-300 max-w-md mx-auto leading-relaxed">
-                  شكراً لاهتمامكم. تم تحويل طلبكم مباشرة إلى مستشارينا المعتمدين وسيقوم الفريق بالتواصل معكم هاتفياً لترتيب الموعد والتفاصيل.
-                </p>
-                <button onClick={() => setModalOpen(false)} className="portal-consult-btn mt-6">
-                  إغلاق النافذة
-                </button>
+            <div className="selected-unit-preview-strip mb-4">
+              <div className="font-extrabold text-white text-sm">
+                {selectedUnit.projectName || selectedUnit.title}
               </div>
-            ) : (
-              <form onSubmit={handleSubmitModal} className="modal-form-body">
-                {submitError && (
-                  <div className="form-alert-error mb-4">
-                    <AlertCircle size={15} />
-                    <span>{submitError}</span>
-                  </div>
-                )}
+              <div className="text-xs text-gold">
+                المنطقة: {selectedUnit.zone || "القاهرة الكبرى"} &bull; كود: DK-{selectedUnit.id.substring(0, 6).toUpperCase()}
+              </div>
+            </div>
 
-                <div className="modal-form-grid">
-                  <div className="form-field">
-                    <label>الاسم بالكامل *</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="الاسم الثلاثي"
-                      value={inquiryName}
-                      onChange={(e) => setInquiryName(e.target.value)}
-                      className="portal-input"
-                    />
-                  </div>
-
-                  <div className="form-field">
-                    <label>رقم الهاتف / الواتساب *</label>
-                    <input
-                      type="tel"
-                      required
-                      dir="ltr"
-                      placeholder="01xxxxxxxxx"
-                      value={inquiryPhone}
-                      onChange={(e) => setInquiryPhone(e.target.value)}
-                      className="portal-input"
-                    />
-                  </div>
-                </div>
-
-                <div className="form-field mt-3">
-                  <label>ملاحظات إضافية أو الموعد المفضل للمعاينة</label>
-                  <textarea
-                    rows={3}
-                    placeholder="حدد اليوم أو الوقت المناسب للمعاينة أو أي استفسار محدد..."
-                    value={inquiryNotes}
-                    onChange={(e) => setInquiryNotes(e.target.value)}
-                    className="portal-input"
-                  />
-                </div>
-
-                <div className="modal-footer-actions mt-5">
-                  <button type="submit" disabled={submitting} className="portal-submit-btn">
-                    {submitting ? "جاري الإرسال..." : "تأكيد طلب المعاينة"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setModalOpen(false)}
-                    className="portal-cancel-btn"
-                  >
-                    إلغاء
-                  </button>
-                </div>
-              </form>
+            {submitSuccess && (
+              <div className="form-alert-success mb-4 p-3">
+                <CheckCircle2 size={18} className="shrink-0" />
+                <div className="text-xs">تم تسجيل طلب المعاينة بنجاح! سيتواصل معك منسق المعاينات لتحديد الموعد.</div>
+              </div>
             )}
+
+            {submitError && (
+              <div className="form-alert-error mb-4 p-3">
+                <AlertCircle size={18} className="shrink-0" />
+                <div className="text-xs">{submitError}</div>
+              </div>
+            )}
+
+            <form onSubmit={handleInquirySubmit} className="portal-quick-form">
+              <div className="form-field">
+                <label>الاسم بالكامل *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="اسمك الكريم..."
+                  value={inquiryName}
+                  onChange={(e) => setInquiryName(e.target.value)}
+                  className="portal-input"
+                />
+              </div>
+
+              <div className="form-field">
+                <label>رقم الهاتف / الواتساب *</label>
+                <input
+                  type="tel"
+                  required
+                  dir="ltr"
+                  placeholder="01xxxxxxxxx"
+                  value={inquiryPhone}
+                  onChange={(e) => setInquiryPhone(e.target.value)}
+                  className="portal-input"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={submitting}
+                className="btn-consultation-gold w-full justify-center py-3 text-sm mt-3"
+              >
+                {submitting ? "جاري الإرسال..." : "تأكيد طلب موعد المعاينة"}
+              </button>
+            </form>
           </div>
         </div>
       )}
 
-      {/* ─── 6. FOOTER ─── */}
-      <footer className="portal-footer">
-        <div className="portal-container footer-flex">
-          <div className="footer-brand-side">
-            <div className="flex items-center gap-2 mb-2">
-              <Building2 className="text-gold" size={22} />
-              <span className="font-extrabold text-base text-white">دارك للاستثمار والتسويق العقاري</span>
-            </div>
-            <p className="text-xs text-slate-400 max-w-sm leading-relaxed">
-              بوابتك الموثوقة لأفضل الوحدات السكنية والاستثمارية في مصر. استشارات دقيقة، وسرية تامة لمعلومات الملاك والمشترين.
-            </p>
-          </div>
-
-          <div className="footer-links-side">
-            <div className="footer-col">
-              <div className="footer-col-title">روابط سريعة</div>
-              <Link href="/">الرئيسية</Link>
-              <Link href="/properties">عقارات للبيع</Link>
-              <Link href="/#sell-section">عرض وحدة للبيع</Link>
-              <Link href="/#contact-section">تواصل معنا</Link>
-            </div>
-
-            <div className="footer-col">
-              <div className="footer-col-title">الخدمات السريعة</div>
-              <button onClick={openGeneralConsultation} className="footer-link-btn">حجز استشارة مجانية</button>
-              <Link href="/#sell-section" className="footer-link-btn">تسجيل وحدة مالك</Link>
-            </div>
-          </div>
-        </div>
-
-        <div className="portal-container copyright-row">
-          <div>دارك للاستثمار العقاري &copy; 2026 &bull; كافة الحقوق محفوظة</div>
-          <div className="text-[11px] text-slate-500">Darek Real Estate Properties Showcase</div>
-        </div>
-      </footer>
+      <PublicFooter />
     </div>
   );
 }

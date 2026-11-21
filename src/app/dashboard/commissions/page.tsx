@@ -13,7 +13,10 @@ export default async function CommissionsPage() {
   // Get all users who are sales employees or sales managers, along with their commissions
   const employees = await prisma.user.findMany({
     where: { role: { in: ["SALES_EMPLOYEE", "SALES_MANAGER"] } },
-    include: {
+    select: {
+      id: true,
+      name: true,
+      role: true,
       commissions: {
         orderBy: { createdAt: "desc" }
       }

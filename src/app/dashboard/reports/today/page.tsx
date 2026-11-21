@@ -33,6 +33,7 @@ export default async function TodayReportPage({ searchParams }: { searchParams: 
   const whereBase = {
     createdAt: { gte: startOfToday, lt: endExclusive },
     ...(scopedEmployeeId ? { userId: scopedEmployeeId } : {}),
+    ...(!isManager ? { customer: { assignedToId: session.id } } : {}),
     ...(interactionType ? { type: interactionType } : {}),
   };
 

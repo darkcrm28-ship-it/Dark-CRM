@@ -31,6 +31,10 @@ export async function POST(request: NextRequest) {
     const data: any = Object.fromEntries(
       Object.entries(body).filter(([key]) => allowedFields.includes(key))
     );
+    if (data.customData && typeof data.customData === "object" && !Array.isArray(data.customData)) {
+      const { publicListing: _ignored, ...safeCustomData } = data.customData;
+      data.customData = safeCustomData;
+    }
 
     if (data.price !== undefined) data.price = parseFloat(data.price) || 0;
     if (data.size !== undefined) data.size = parseFloat(data.size) || null;

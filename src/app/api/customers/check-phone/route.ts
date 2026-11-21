@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
     });
 
     return NextResponse.json({ exists: !!customer, customer });
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: "Failed to check phone" }, { status: 500 });
   }
 }
