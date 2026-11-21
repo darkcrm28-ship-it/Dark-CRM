@@ -4,66 +4,60 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Building2,
   Calendar,
   MessageCircle,
   Menu,
   X,
-  ShieldCheck,
-  Compass,
-  Briefcase,
-  Home,
-  PhoneCall,
 } from "lucide-react";
+import DarakLogo from "./DarakLogo";
 
 export default function PublicHeader() {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  const navLinks = [
+  // Equal-weight concise nav tabs
+  const navTabs = [
     { label: "الرئيسية", href: "/" },
     { label: "الكتالوج العقاري", href: "/properties" },
-    { label: "بورتفوليو وإنجازات الشركة", href: "/portfolio" },
-    { label: "اعرض وحدتك للبيع", href: "/sell" },
+    { label: "بورتفوليو الشركة", href: "/portfolio" },
+    { label: "اعرض وحدتك", href: "/sell" },
     { label: "تواصل معنا", href: "/contact" },
   ];
 
   return (
     <header className="public-header-navbar">
       <div className="portal-container nav-inner-wrap">
-        {/* Brand */}
+        {/* Brand with Transparent Custom Logo */}
         <Link href="/" className="public-brand-link">
-          <div className="brand-logo-gem">
-            <Building2 size={24} className="text-gold" />
-          </div>
+          <DarakLogo size={38} />
           <div className="brand-titles">
             <div className="brand-primary-name">
-              <span className="gold-shimmer-text">دارك</span> للاستثمار والتسويق العقاري
+              <span className="gold-shimmer-text">دارك</span> للاستثمار العقاري
             </div>
-            <div className="brand-sub-tag">Darek Real Estate Consultancy</div>
+            <div className="brand-sub-tag">Darak Real Estate</div>
           </div>
         </Link>
 
-        {/* Desktop Navigation Links */}
-        <nav className="public-desktop-nav">
-          {navLinks.map((item) => {
-            const isActive = pathname === item.href;
+        {/* Desktop Harmonious Navigation Tabs */}
+        <nav className="public-desktop-nav-tabs">
+          {navTabs.map((tab) => {
+            const isActive = pathname === tab.href;
             return (
               <Link
-                key={item.href}
-                href={item.href}
-                className={`public-nav-item ${isActive ? "active-gold" : ""}`}
+                key={tab.href}
+                href={tab.href}
+                className={`unified-nav-tab ${isActive ? "active-tab" : ""}`}
               >
-                {item.label}
+                <span>{tab.label}</span>
               </Link>
             );
           })}
         </nav>
 
-        {/* Actions CTA */}
+        {/* Actions CTA: Sized identically to tabs */}
         <div className="public-header-actions">
-          <Link href="/contact" className="btn-consultation-gold">
-            <Calendar size={15} />
+          <Link href="/contact" className="btn-header-consultation">
+            <Calendar size={14} />
             <span>حجز استشارة</span>
           </Link>
 
@@ -71,10 +65,10 @@ export default function PublicHeader() {
             href="https://wa.me/?text=مرحباً شركة دارك العقارية، أود الاستفسار عن الوحدات المتاحة وخدماتكم."
             target="_blank"
             rel="noopener noreferrer"
-            className="btn-whatsapp-compact"
+            className="btn-header-whatsapp"
             title="محادثة واتساب مباشرة"
           >
-            <MessageCircle size={17} />
+            <MessageCircle size={15} />
             <span>واتساب</span>
           </a>
 
@@ -93,16 +87,16 @@ export default function PublicHeader() {
       {mobileMenuOpen && (
         <div className="mobile-nav-drawer animate-in">
           <div className="portal-container mobile-drawer-inner">
-            {navLinks.map((item) => {
-              const isActive = pathname === item.href;
+            {navTabs.map((tab) => {
+              const isActive = pathname === tab.href;
               return (
                 <Link
-                  key={item.href}
-                  href={item.href}
+                  key={tab.href}
+                  href={tab.href}
                   onClick={() => setMobileMenuOpen(false)}
                   className={`mobile-nav-link ${isActive ? "active-mobile" : ""}`}
                 >
-                  <span>{item.label}</span>
+                  <span>{tab.label}</span>
                 </Link>
               );
             })}
@@ -110,7 +104,7 @@ export default function PublicHeader() {
               <Link
                 href="/contact"
                 onClick={() => setMobileMenuOpen(false)}
-                className="btn-consultation-gold w-full text-center"
+                className="btn-header-consultation w-full text-center justify-center py-3"
               >
                 حجز استشارة مجانية
               </Link>

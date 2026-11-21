@@ -83,7 +83,7 @@ export default function PropertyShowcaseClient({ unit }: { unit: UnitProps }) {
               <div className="brand-logo-title">
                 <span className="gold-gradient-text">دارك</span> للاستثمار العقاري
               </div>
-              <div className="brand-logo-sub">Darek Real Estate Showcase</div>
+              <div className="brand-logo-sub">Darak Real Estate Showcase</div>
             </div>
           </div>
 

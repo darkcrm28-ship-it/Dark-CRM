@@ -63,7 +63,7 @@ export default function PublicFooter() {
       {/* Copyright Bar */}
       <div className="portal-container footer-bottom-subbar">
         <div>دارك للاستثمار والتسويق العقاري &copy; 2026 &bull; كافة الحقوق محفوظة</div>
-        <div className="text-xs text-slate-500">Darek Real Estate Portal</div>
+        <div className="text-xs text-slate-500">Darak Real Estate Portal</div>
       </div>
     </footer>
   );

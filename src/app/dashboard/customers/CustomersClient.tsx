@@ -562,7 +562,7 @@ export default function CustomersClient({
     const ws = XLSX.utils.json_to_sheet(dataToExport);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "بيانات العملاء التفصيلية");
-    XLSX.writeFile(wb, `Darek_CRM_Full_Export_${new Date().toLocaleDateString()}.xlsx`);
+    XLSX.writeFile(wb, `Darak_CRM_Full_Export_${new Date().toLocaleDateString()}.xlsx`);
   };
 
   const exportToPDF = async () => {
@@ -590,7 +590,7 @@ export default function CustomersClient({
         <div style="font-family: 'Cairo', sans-serif; padding: 20px; color: #111827;">
           <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #111827; padding-bottom: 20px; margin-bottom: 30px;">
             <div>
-              <h1 style="font-size: 26px; color: #111827; margin: 0; font-weight: 800;">دارك العقارية - Darek CRM</h1>
+              <h1 style="font-size: 26px; color: #111827; margin: 0; font-weight: 800;">دارك العقارية - Darak CRM</h1>
               <p style="font-size: 14px; color: #4b5563; margin: 5px 0 0 0;">تقرير الوحدات المعروضة (بيع وإيجار)</p>
             </div>
             <div style="text-align: left;">
@@ -718,7 +718,7 @@ export default function CustomersClient({
         heightLeft -= pageHeight;
       }
 
-      pdf.save(`Darek_CRM_Units_${new Date().toLocaleDateString()}.pdf`);
+      pdf.save(`Darak_CRM_Units_${new Date().toLocaleDateString()}.pdf`);
     } catch (error) {
       console.error(error);
       alert("حدث خطأ أثناء التصدير.");

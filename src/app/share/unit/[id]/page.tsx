@@ -31,7 +31,7 @@ export default async function UnitBrochurePage({ params }: { params: Promise<{ i
         <header className="flex justify-between items-center mb-12 animate-in">
           <div>
             <h1 className="text-4xl md:text-6xl font-black text-[#d4af37] mb-2 tracking-tighter">دارك</h1>
-            <p className="text-gray-400 text-sm uppercase tracking-widest">Darek Real Estate • Exclusive Unit</p>
+            <p className="text-gray-400 text-sm uppercase tracking-widest">Darak Real Estate • Exclusive Unit</p>
           </div>
           <div className="text-left">
             <span className="px-4 py-1 rounded-full border border-[#d4af37] text-[#d4af37] text-xs font-bold uppercase">PREMIUM LISTING</span>
@@ -120,7 +120,7 @@ export default async function UnitBrochurePage({ params }: { params: Promise<{ i
 
             <div className="mt-10 pt-10 border-top border-white/10 text-center">
               <div className="w-12 h-12 bg-[#d4af37] rounded-full mx-auto mb-4 flex items-center justify-center text-black font-bold text-xl">D</div>
-              <p className="text-gray-500 text-xs uppercase tracking-widest">Powered by Darek CRM</p>
+              <p className="text-gray-500 text-xs uppercase tracking-widest">Powered by Darak CRM</p>
             </div>
           </div>
         </div>
