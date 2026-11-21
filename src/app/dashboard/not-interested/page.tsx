@@ -48,6 +48,7 @@ export default async function NotInterestedPage() {
       projects={projects}
       isManager={isManager} 
       view="NOT_INTERESTED"
+      session={session}
     />
   );
 }

@@ -49,6 +49,7 @@ export default async function AvailableForSalePage() {
       projects={projects}
       isManager={isManager} 
       view="AVAILABLE_FOR_SALE"
+      session={session}
     />
   );
 }

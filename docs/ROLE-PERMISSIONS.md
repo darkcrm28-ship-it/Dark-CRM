@@ -18,7 +18,11 @@ not an accepted role; user creation rejects it until its permissions are decided
   request; token role claims are not trusted.
 - Customer APIs use `requireCustomerAccess`; sales employees are scoped by
   `assignedToId`. Customer update rechecks assignment inside its transaction.
-- Import, assignment, bulk actions, and customer deletion are manager-only.
+- Import, assignment, and bulk actions are manager-only; customer deletion and
+  user/account changes are General Manager-only. Property deletion is available
+  to both sales manager roles.
+- Sales Employees can close deals only for customers currently assigned to
+  themselves; the assignment is checked again inside the deal transaction.
 - HR and accounting routes are separate role groups. Commission reads are shared
   with HR and accounting; commission writes require General Manager or Accounting.
 - Page navigation visibility is not authorization. Each page/API must keep its

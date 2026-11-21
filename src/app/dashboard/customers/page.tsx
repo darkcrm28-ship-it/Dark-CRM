@@ -37,5 +37,5 @@ export default async function CustomersPage() {
     select: { id: true, name: true }
   });
 
-  return <CustomersClient initialCustomers={customers} initialTotal={total} users={users} projects={projects} isManager={isManager} view="ALL" />;
+  return <CustomersClient initialCustomers={customers} initialTotal={total} users={users} projects={projects} isManager={isManager} view="ALL" session={session} />;
 }

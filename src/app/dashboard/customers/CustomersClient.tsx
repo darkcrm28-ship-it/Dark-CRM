@@ -166,6 +166,73 @@ export default function CustomersClient({
   const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
   const [customFieldDefs, setCustomFieldDefs] = useState<any[]>([]);
   const [newCustomData, setNewCustomData] = useState<any>({});
+  const draftHydratedRef = useRef(false);
+  const customerDraftKey = session?.id ? `dark_crm_customer_draft_v1_${session.id}` : null;
+
+  useEffect(() => {
+    if (!customerDraftKey || typeof window === "undefined") {
+      draftHydratedRef.current = true;
+      return;
+    }
+    try {
+      const raw = window.sessionStorage.getItem(customerDraftKey);
+      if (raw) {
+        const saved = JSON.parse(raw);
+        const isRecent = typeof saved?.savedAt === "number" && Date.now() - saved.savedAt < 7 * 24 * 60 * 60 * 1000;
+        if (saved?.version === 1 && isRecent && saved.values && typeof saved.values === "object") {
+          const v = saved.values;
+          setNewName(v.name || ""); setNewPhone(v.phone || ""); setNewProject(v.project || "");
+          setNewUnitNumber(v.unitNumber || ""); setNewBuildingNumber(v.buildingNumber || "");
+          setNewArea(v.area || ""); setNewFloor(v.floor || ""); setNewPropType(v.propType || "");
+          setNewStatus(v.status || "BUYER"); setNewFollowUpDate(v.followUpDate || "");
+          setNewGeneralNotes(v.generalNotes || ""); setNewBedrooms(v.bedrooms || "");
+          setNewBathrooms(v.bathrooms || ""); setNewUnitSize(v.unitSize || "");
+          setNewAskingPrice(v.askingPrice || ""); setNewInstallmentAmt(v.installmentAmt || "");
+          setNewInstallmentRem(v.installmentRem || ""); setNewInstallmentDet(v.installmentDet || "");
+          setNewFinishing(v.finishing || ""); setNewPreferencesSummary(v.preferencesSummary || "");
+          setNewPaperworkStatus(v.paperworkStatus || ""); setNewPaymentMethod(v.paymentMethod || "");
+          setNewLeaseDuration(v.leaseDuration || ""); setNewDesiredAreas(v.desiredAreas || "");
+          setNewCustomData(v.customData && typeof v.customData === "object" ? v.customData : {});
+          setModalStep([1, 2, 3].includes(v.modalStep) ? v.modalStep : 1);
+        } else {
+          window.sessionStorage.removeItem(customerDraftKey);
+        }
+      }
+    } catch {
+      window.sessionStorage.removeItem(customerDraftKey);
+    } finally {
+      draftHydratedRef.current = true;
+    }
+  }, [customerDraftKey]);
+
+  useEffect(() => {
+    if (!customerDraftKey || !draftHydratedRef.current || typeof window === "undefined") return;
+    const values = {
+      name: newName, phone: newPhone, project: newProject, unitNumber: newUnitNumber,
+      buildingNumber: newBuildingNumber, area: newArea, floor: newFloor, propType: newPropType,
+      status: newStatus, followUpDate: newFollowUpDate, generalNotes: newGeneralNotes,
+      bedrooms: newBedrooms, bathrooms: newBathrooms, unitSize: newUnitSize,
+      askingPrice: newAskingPrice, installmentAmt: newInstallmentAmt,
+      installmentRem: newInstallmentRem, installmentDet: newInstallmentDet,
+      finishing: newFinishing, preferencesSummary: newPreferencesSummary,
+      paperworkStatus: newPaperworkStatus, paymentMethod: newPaymentMethod,
+      leaseDuration: newLeaseDuration, desiredAreas: newDesiredAreas,
+      customData: newCustomData, modalStep,
+    };
+    if (!Object.values(values).some((value) => typeof value === "string" ? value.trim() : Object.keys(value || {}).length > 0)) {
+      window.sessionStorage.removeItem(customerDraftKey);
+      return;
+    }
+    try {
+      window.sessionStorage.setItem(customerDraftKey, JSON.stringify({ version: 1, savedAt: Date.now(), values }));
+    } catch (error) {
+      console.warn("Could not save the customer draft in this browser session.", error);
+    }
+  }, [customerDraftKey, newName, newPhone, newProject, newUnitNumber, newBuildingNumber, newArea,
+    newFloor, newPropType, newStatus, newFollowUpDate, newGeneralNotes, newBedrooms, newBathrooms,
+    newUnitSize, newAskingPrice, newInstallmentAmt, newInstallmentRem, newInstallmentDet,
+    newFinishing, newPreferencesSummary, newPaperworkStatus, newPaymentMethod, newLeaseDuration,
+    newDesiredAreas, newCustomData, modalStep]);
 
   // ─── Toast System ────────────────────────────────────────────────────────────
   const [toasts, setToasts] = useState<Toast[]>([]);

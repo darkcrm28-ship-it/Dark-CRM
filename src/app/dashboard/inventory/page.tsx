@@ -49,6 +49,7 @@ export default async function InventoryPage() {
       projects={projects}
       isManager={isManager} 
       view="INVENTORY"
+      session={session}
     />
   );
 }

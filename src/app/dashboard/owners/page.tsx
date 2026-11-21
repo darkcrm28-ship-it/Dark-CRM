@@ -50,6 +50,7 @@ export default async function OwnersPage() {
       projects={projects}
       isManager={isManager} 
       view="OWNERS"
+      session={session}
     />
   );
 }

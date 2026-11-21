@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { requireManager, requireRole, ROLE, SALES_ROLES } from "@/lib/auth";
+import { requireRole, ROLE, SALES_ROLES } from "@/lib/auth";
 
 export async function GET() {
   const session = await requireRole(SALES_ROLES);
@@ -20,7 +20,7 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await requireManager();
+    const session = await requireRole(SALES_ROLES);
     if (session instanceof NextResponse) return session;
 
     const body = await request.json();
@@ -49,6 +49,9 @@ export async function POST(request: NextRequest) {
     if (!customer) {
       return NextResponse.json({ error: "العميل غير موجود" }, { status: 404 });
     }
+    if (session.role === ROLE.SALES_EMPLOYEE && customer.assignedToId !== session.id) {
+      return NextResponse.json({ error: "العميل غير موجود" }, { status: 404 });
+    }
 
     // Verify Property exists if provided
     if (propertyId) {
@@ -65,21 +68,26 @@ export async function POST(request: NextRequest) {
     // 1. Explicit valid salesRepId from body
     // 2. Customer's assigned sales agent
     // 3. Fallback to creator's session id
-    let targetSalesRepId = session.id;
-    if (requestedSalesRepId) {
-      const repExists = await prisma.user.findUnique({
-        where: { id: requestedSalesRepId },
-        select: { id: true, isActive: true },
+    let targetSalesRepId = session.role === ROLE.SALES_EMPLOYEE ? session.id : (customer.assignedToId || session.id);
+    if (requestedSalesRepId && session.role !== ROLE.SALES_EMPLOYEE) {
+      const repExists = await prisma.user.findFirst({
+        where: { id: requestedSalesRepId, role: { in: [ROLE.SALES_EMPLOYEE, ROLE.SALES_MANAGER] }, isActive: true },
+        select: { id: true },
       });
-      if (repExists && repExists.isActive) {
-        targetSalesRepId = repExists.id;
-      }
-    } else if (customer.assignedToId) {
-      targetSalesRepId = customer.assignedToId;
+      if (!repExists) return NextResponse.json({ error: "مندوب المبيعات المحدد غير صالح" }, { status: 400 });
+      targetSalesRepId = repExists.id;
     }
 
     // Atomic Transaction: Duplicate check + Deal creation + Customer update + Commission + AuditLog
     const result = await prisma.$transaction(async (tx) => {
+      const currentCustomer = await tx.customer.findFirst({
+        where: session.role === ROLE.SALES_EMPLOYEE
+          ? { id: customerId, assignedToId: session.id }
+          : { id: customerId },
+        select: { id: true, name: true },
+      });
+      if (!currentCustomer) throw new Error("DEAL_CUSTOMER_ACCESS_DENIED");
+
       // 1. Check for duplicate deal submission within the last 30 seconds for the same customer
       const recentDuplicate = await tx.deal.findFirst({
         where: {
@@ -125,7 +133,7 @@ export async function POST(request: NextRequest) {
           data: {
             userId: targetSalesRepId,
             amount: commissionAmt,
-            notes: `عمولة صفقة العميل ${customer.name} (قيمة الصفقة: ${finalPrice.toLocaleString()} ج.م)`,
+            notes: `عمولة صفقة العميل ${currentCustomer.name} (قيمة الصفقة: ${finalPrice.toLocaleString()} ج.م)`,
             status: "PENDING",
           },
         });
@@ -138,7 +146,7 @@ export async function POST(request: NextRequest) {
           action: "CREATE",
           entity: "DEAL",
           entityId: deal.id,
-          details: `إتمام صفقة بقيمة ${finalPrice.toLocaleString()} ج.م للعميل ${customer.name} - عمولة المندوب: ${commissionAmt.toLocaleString()} ج.م (المندوب: ${deal.salesRep?.name || targetSalesRepId})`,
+          details: `إتمام صفقة بقيمة ${finalPrice.toLocaleString()} ج.م للعميل ${currentCustomer.name} - عمولة المندوب: ${commissionAmt.toLocaleString()} ج.م (المندوب: ${deal.salesRep?.name || targetSalesRepId})`,
         },
       });
 
@@ -171,6 +179,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, deal: result });
   } catch (error: any) {
+    if (error?.message === "DEAL_CUSTOMER_ACCESS_DENIED") {
+      return NextResponse.json({ error: "العميل غير موجود" }, { status: 404 });
+    }
     if (error?.message === "DUPLICATE_DEAL_DETECTED") {
       return NextResponse.json({ error: "تم إرسال هذه الصفقة مسبقاً، منعاً للتكرار يرجى عدم إعادة الإرسال سريعاً." }, { status: 409 });
     }

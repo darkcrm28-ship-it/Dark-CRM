@@ -49,6 +49,7 @@ export default async function BuyersPage() {
       projects={projects}
       isManager={isManager} 
       view="BUYERS"
+      session={session}
     />
   );
 }

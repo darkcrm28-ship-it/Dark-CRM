@@ -5,6 +5,11 @@
 **Date:** November 2026  
 **Auditor:** Senior CRM Systems Engineer & Core Architecture Team  
 
+> **Verification note (21 November 2026):** The checked boxes below are historical
+> review assertions, not proof of current runtime behavior. See
+> `DATA-ARCHITECTURE-REVIEW.md` and `ROLE-PERMISSIONS.md` for code-checked scope;
+> database-backed allow/deny tests remain pending an isolated test database.
+
 ---
 
 ## 1. Executive Summary & Verification Gates
@@ -76,16 +81,16 @@ During this comprehensive hardening phase, the core CRM engine was audited and r
 | **View Customers (Own assigned)** | ✅ | ✅ | ✅ | ❌ | ❌ |
 | **View Customers (All team)** | ✅ | ✅ | ❌ | ❌ | ❌ |
 | **Create / Edit Customer** | ✅ | ✅ | ✅ | ❌ | ❌ |
-| **Delete Customer** | ✅ | ✅ | ❌ | ❌ | ❌ |
+| **Delete Customer** | ✅ | ❌ | ❌ | ❌ | ❌ |
 | **Bulk Customer Reassignment** | ✅ | ✅ | ❌ | ❌ | ❌ |
 | **Import Customers (Excel)** | ✅ | ✅ | ❌ | ❌ | ❌ |
 | **View Inventory / Properties** | ✅ | ✅ | ✅ | ❌ | ❌ |
 | **Create / Edit Property** | ✅ | ✅ | ❌ | ❌ | ❌ |
-| **Delete Property** | ✅ | ❌ | ❌ | ❌ | ❌ |
-| **Create Deal & Close** | ✅ | ✅ | ✅ (Own) | ❌ | ❌ |
+| **Delete Property** | ✅ | ✅ | ❌ | ❌ | ❌ |
+| **Create Deal & Close** | ✅ | ✅ | ✅ (Assigned customers) | ❌ | ❌ |
 | **View Financial Ledger** | ✅ | ❌ | ❌ | ❌ | ✅ |
 | **Trigger Accounting Sync** | ✅ | ❌ | ❌ | ❌ | ✅ |
-| **Manage Employee Accounts** | ✅ | ❌ | ❌ | ✅ | ❌ |
+| **Manage Employee Accounts** | ✅ | ❌ | ❌ | ❌ (Read-only list) | ❌ |
 | **View Audit Logs** | ✅ | ❌ | ❌ | ❌ | ❌ |
 | **Full Database Backup / Export** | ✅ | ❌ | ❌ | ❌ | ❌ |
 

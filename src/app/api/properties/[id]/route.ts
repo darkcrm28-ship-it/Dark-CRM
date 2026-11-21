@@ -73,6 +73,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const publication = current.publicListing && typeof current.publicListing === "object" && !Array.isArray(current.publicListing)
       ? current.publicListing as Record<string, unknown>
       : null;
+    const wasApproved = publication?.status === "APPROVED";
     data.customData = {
       ...current,
       ...safeCustomData,
@@ -80,7 +81,19 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         ? { publicListing: { ...publication, status: "PENDING", reviewedBy: null, reviewedAt: null } }
         : publication ? { publicListing: publication } : {}),
     } as Prisma.InputJsonValue;
-    const property = await prisma.property.update({ where: { id }, data });
+    const property = await prisma.$transaction(async (tx) => {
+      const updated = await tx.property.update({ where: { id }, data });
+      if (wasApproved) {
+        await tx.auditLog.create({ data: {
+          userId: session.id,
+          action: "PUBLIC_LISTING_INVALIDATED",
+          entity: "PROPERTY",
+          entityId: id,
+          details: "تغيرت بيانات العقار؛ أعيدت القائمة العامة إلى انتظار المراجعة.",
+        } });
+      }
+      return updated;
+    });
     return NextResponse.json({ success: true, property });
   } catch (error) {
     console.error("Update Property Error:", error);
