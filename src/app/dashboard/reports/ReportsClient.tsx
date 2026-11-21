@@ -1,291 +1,158 @@
 "use client";
+
 import * as XLSX from "xlsx";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import styles from "./Reports.module.css";
+
+type Employee = {
+  id: string; name: string; email: string; customerCount: number;
+  completedCount: number; callsCount: number; viewingsCount: number; commissionTotal: number;
+};
+type Group = { status?: string | null; source?: string | null; _count: { _all: number } };
+type ReportLog = { id?: string; createdAt: string; type: string; details?: string | null; notes?: string | null };
 
 const STATUS_LABELS: Record<string, string> = {
-  NEW: "جديد", NO_ANSWER: "لا يرد", INTERESTED: "مهتم",
-  NOT_INTERESTED: "غير مهتم", WANTS_TO_SELL: "يرغب بالبيع",
-  DO_NOT_SELL: "لا يرغب بالبيع", MEETING_SCHEDULED: "موعد معاينة", COMPLETED: "مكتمل",
+  NEW: "جديد", NO_ANSWER: "لا يرد", INTERESTED: "مهتم", NOT_INTERESTED: "غير مهتم",
+  WANTS_TO_SELL: "يرغب في البيع", DO_NOT_SELL: "لا يرغب في البيع", MEETING_SCHEDULED: "معاينة مجدولة", COMPLETED: "مكتمل",
 };
-
 const STATUS_COLORS: Record<string, string> = {
-  NEW: "#64748b", NO_ANSWER: "#f59e0b", INTERESTED: "#10b981",
-  NOT_INTERESTED: "#ef4444", WANTS_TO_SELL: "#3b82f6",
-  DO_NOT_SELL: "#ef4444", MEETING_SCHEDULED: "#d4af37", COMPLETED: "#10b981",
+  NEW: "#7aa9bd", NO_ANSWER: "#ffad01", INTERESTED: "#57bd9b", NOT_INTERESTED: "#d76c6c",
+  WANTS_TO_SELL: "#3988a4", DO_NOT_SELL: "#d76c6c", MEETING_SCHEDULED: "#ffad01", COMPLETED: "#57bd9b",
 };
+const number = (value: number) => new Intl.NumberFormat("ar-EG").format(value || 0);
+const dateInCairo = (date: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Cairo", year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
+const today = () => dateInCairo(new Date());
 
-export default function ReportsClient({ 
-  employees, 
-  statusGroups, 
-  recentCustomers, 
-  sourceGroups,
-  session
-}: { 
-  employees: any[]; 
-  statusGroups: any[]; 
-  recentCustomers: any[];
-  sourceGroups: any[];
-  session?: any;
+export default function ReportsClient({ employees = [], statusGroups = [], recentCustomers = [], sourceGroups = [], session }: {
+  employees: Employee[]; statusGroups: Group[]; recentCustomers: { createdAt: string | Date }[]; sourceGroups: Group[]; session?: { role?: string } | null;
 }) {
   const [selectedEmpId, setSelectedEmpId] = useState("");
-  const [startDate, setStartDate] = useState(new Date().toISOString().split("T")[0]);
-  const [endDate, setEndDate] = useState(new Date().toISOString().split("T")[0]);
-  const [detailedStats, setDetailedStats] = useState<any>(null);
+  const [startDate, setStartDate] = useState(today);
+  const [endDate, setEndDate] = useState(today);
+  const [detailedStats, setDetailedStats] = useState<{ callsCount: number; additionsCount: number; updatesCount: number; viewingsCount: number; logs: ReportLog[] } | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  const totalCustomers = statusGroups.reduce((acc, g) => acc + g._count._all, 0);
+  const totalCustomers = statusGroups.reduce((sum, group) => sum + (group._count?._all || 0), 0);
+  const completedCustomers = statusGroups.find((group) => group.status === "COMPLETED")?._count?._all || 0;
+  const activeEmployees = employees.length;
+  const newCustomers = recentCustomers.length;
+  const days = useMemo(() => Array.from({ length: 14 }, (_, index) => {
+    const day = new Date();
+    day.setDate(day.getDate() - (13 - index));
+    const key = dateInCairo(day);
+    const count = recentCustomers.reduce((sum, row) => sum + (dateInCairo(new Date(row.createdAt)) === key ? 1 : 0), 0);
+    return { key, label: new Intl.DateTimeFormat("ar-EG", { timeZone: "Africa/Cairo", day: "numeric", month: "short" }).format(day), count };
+  }), [recentCustomers]);
+  const maxCount = Math.max(1, ...days.map((day) => day.count));
 
   const handleSearchDetailed = async () => {
-    if (!selectedEmpId) return;
-    setLoading(true);
+    if (!selectedEmpId || !startDate || !endDate) return;
+    setLoading(true); setError(""); setDetailedStats(null);
     try {
-      const res = await fetch(`/api/reports/employee?id=${selectedEmpId}&start=${startDate}&end=${endDate}`);
-      const data = await res.json();
-      setDetailedStats(data);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
+      const query = new URLSearchParams({ id: selectedEmpId, start: startDate, end: endDate });
+      const response = await fetch(`/api/reports/employee?${query}`);
+      const data = await response.json();
+      if (!response.ok) throw new Error(data?.error || "تعذر تحميل التقرير. تحقق من الفترة وحاول مجددًا.");
+      setDetailedStats({ ...data, logs: Array.isArray(data.logs) ? data.logs : [] });
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "حدث خطأ أثناء تحميل التقرير.");
+    } finally { setLoading(false); }
   };
-
-  // Build last 14 days timeline
-  const days: { label: string; count: number }[] = [];
-  for (let i = 13; i >= 0; i--) {
-    const d = new Date(); d.setDate(d.getDate() - i); d.setHours(0,0,0,0);
-    const next = new Date(d); next.setDate(next.getDate() + 1);
-    const count = recentCustomers.filter((c) => { const cd = new Date(c.createdAt); return cd >= d && cd < next; }).length;
-    days.push({ label: `${d.getDate()}/${d.getMonth()+1}`, count });
-  }
-
-  const maxCount = Math.max(...days.map((d) => d.count), 1);
 
   const exportEmployees = () => {
-    const data = employees.map((emp) => ({
-      "الموظف": emp.name,
-      "البريد": emp.email,
-      "عدد العملاء": emp.customers.length,
-      "العملاء المكتملة": emp.customers.filter((c: any) => c.status === "COMPLETED").length,
-      "عدد المكالمات": emp.interactions.filter((i: any) => i.type === "CALL").length,
-      "عدد المعاينات": emp.interactions.filter((i: any) => i.type === "VIEWING").length,
-      "إجمالي العمولات": emp.commissions.reduce((a: number, c: any) => a + c.amount, 0),
+    const rows = employees.map((employee) => ({
+      "الموظف": employee.name || "—", "البريد الإلكتروني": employee.email || "—",
+      "العملاء": employee.customerCount || 0, "العملاء المكتملون": employee.completedCount || 0,
+      "المكالمات": employee.callsCount || 0, "المعاينات": employee.viewingsCount || 0,
+      "إجمالي العمولات": employee.commissionTotal || 0,
     }));
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "أداء الموظفين");
-    XLSX.writeFile(wb, "تقرير_أداء_الموظفين.xlsx");
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(rows), "أداء الموظفين");
+    XLSX.writeFile(workbook, "تقرير_أداء_الموظفين.xlsx");
   };
 
-  return (
-    <div>
-      <div className="page-header animate-in">
-        <div>
-          <div className="page-title">التقارير والتحليلات</div>
-          <div className="page-subtitle">إجمالي العملاء: {totalCustomers}</div>
-        </div>
-        {session?.role === "GENERAL_MANAGER" && (
-          <button onClick={exportEmployees} className="btn btn-secondary">⬇ تصدير Excel</button>
-        )}
+  const exportLogs = () => {
+    if (!detailedStats) return;
+    const rows = detailedStats.logs.map((log) => ({
+      "التاريخ": new Date(log.createdAt).toLocaleString("ar-EG", { timeZone: "Africa/Cairo" }),
+      "النوع": log.type, "التفاصيل": log.details || log.notes || "—",
+    }));
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(rows), "سجل الموظف");
+    XLSX.writeFile(workbook, `تقرير_الموظف_${startDate}_${endDate}.xlsx`);
+  };
+
+  const sortedStatus = [...statusGroups].sort((a, b) => (b._count?._all || 0) - (a._count?._all || 0));
+  const sortedSources = [...sourceGroups].sort((a, b) => (b._count?._all || 0) - (a._count?._all || 0));
+
+  return <main className={styles.report} dir="rtl">
+    <header className={styles.hero}>
+      <div><p className={styles.eyebrow}>مركز المتابعة</p><h1>التقارير والتحليلات</h1><p>صورة واضحة لأداء فريق المبيعات وحركة العملاء.</p></div>
+      {session?.role === "GENERAL_MANAGER" && <button onClick={exportEmployees} className={styles.exportButton}>تنزيل تقرير Excel <span aria-hidden>↓</span></button>}
+    </header>
+
+    <section className={styles.kpis} aria-label="مؤشرات التقرير">
+      <article className={`${styles.kpi} ${styles.kpiPrimary}`}><span>إجمالي العملاء</span><strong>{number(totalCustomers)}</strong><small>في قاعدة العملاء</small></article>
+      <article className={styles.kpi}><span>عملاء مكتملون</span><strong>{number(completedCustomers)}</strong><small>{totalCustomers ? `${Math.round(completedCustomers / totalCustomers * 100)}٪ من الإجمالي` : "لا توجد سجلات بعد"}</small></article>
+      <article className={styles.kpi}><span>عملاء جدد</span><strong>{number(newCustomers)}</strong><small>خلال آخر 14 يومًا</small></article>
+      <article className={styles.kpi}><span>فريق المبيعات</span><strong>{number(activeEmployees)}</strong><small>موظفًا ومديرًا</small></article>
+    </section>
+
+    <section className={styles.chartPanel}>
+      <div className={styles.sectionHeading}><div><h2>إضافة العملاء</h2><p>الحركة اليومية خلال آخر أسبوعين</p></div><span className={styles.sectionMark}>14 يومًا</span></div>
+      <div className={styles.chart} role="img" aria-label="عدد العملاء المضافين يوميًا خلال آخر 14 يومًا">
+        {days.map((day) => <div className={styles.barColumn} key={day.key} title={`${day.label}: ${number(day.count)}`}>
+          <span>{day.count ? number(day.count) : ""}</span><div className={styles.barTrack}><i style={{ height: `${Math.max(day.count ? 8 : 2, day.count / maxCount * 100)}%` }} /></div><small>{day.label}</small>
+        </div>)}
       </div>
+    </section>
 
-      {/* Status & Source Distribution */}
-      <div className="grid-3 animate-in" style={{ marginBottom: 24 }}>
-        <div className="card">
-          <div style={{ fontWeight: 800, marginBottom: 16 }}>📊 توزيع العملاء حسب الحالة</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {statusGroups.sort((a, b) => b._count._all - a._count._all).map((g) => {
-              const pct = totalCustomers > 0 ? Math.round((g._count._all / totalCustomers) * 100) : 0;
-              const color = STATUS_COLORS[g.status] || "#64748b";
-              return (
-                <div key={g.status}>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
-                    <span style={{ color: "var(--text-secondary)" }}>{STATUS_LABELS[g.status] || g.status}</span>
-                    <span style={{ fontWeight: 700 }}>{g._count._all} <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>({pct}%)</span></span>
-                  </div>
-                  <div style={{ background: "var(--bg-elevated)", borderRadius: 4, height: 8, overflow: "hidden" }}>
-                    <div style={{ width: `${pct}%`, height: "100%", background: color, borderRadius: 4, transition: "width 0.5s ease" }} />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+    <section className={styles.distributions}>
+      <article className={styles.panel}>
+        <div className={styles.sectionHeading}><div><h2>حالات العملاء</h2><p>توزيع العملاء حسب الحالة الحالية</p></div></div>
+        {sortedStatus.length ? <div className={styles.breakdown}>{sortedStatus.map((group) => {
+          const count = group._count?._all || 0; const percent = totalCustomers ? Math.round(count / totalCustomers * 100) : 0;
+          return <div className={styles.breakdownItem} key={group.status || "unknown"}><div><span>{STATUS_LABELS[group.status || ""] || group.status || "غير محدد"}</span><b>{number(count)} <small>{percent}٪</small></b></div><div className={styles.progress}><i style={{ width: `${percent}%`, background: STATUS_COLORS[group.status || ""] || "#3988a4" }} /></div></div>;
+        })}</div> : <div className={styles.empty}>لا توجد بيانات حالات لعرضها.</div>}
+      </article>
+      <article className={styles.panel}>
+        <div className={styles.sectionHeading}><div><h2>مصادر العملاء</h2><p>القنوات التي وصلت منها الطلبات</p></div></div>
+        {sortedSources.length ? <div className={styles.breakdown}>{sortedSources.map((group, index) => {
+          const count = group._count?._all || 0; const percent = totalCustomers ? Math.round(count / totalCustomers * 100) : 0;
+          return <div className={styles.breakdownItem} key={group.source || "unknown"}><div><span><i className={styles.sourceDot} data-tone={index % 4} />{group.source || "غير محدد"}</span><b>{number(count)} <small>{percent}٪</small></b></div><div className={styles.progress}><i style={{ width: `${percent}%` }} /></div></div>;
+        })}</div> : <div className={styles.empty}>لا توجد بيانات مصادر لعرضها.</div>}
+      </article>
+    </section>
 
-        <div className="card">
-          <div style={{ fontWeight: 800, marginBottom: 16 }}>🎯 تحليل مصادر العملاء (Sources)</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {(sourceGroups || []).sort((a, b) => b._count._all - a._count._all).map((g) => {
-              const pct = totalCustomers > 0 ? Math.round((g._count._all / totalCustomers) * 100) : 0;
-              const sourceName = g.source || "غير محدد";
-              const colors: any = { "Facebook": "#1877F2", "Referral": "#F59E0B", "Website": "#10B981", "Call": "#3B82F6" };
-              return (
-                <div key={sourceName}>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
-                    <span style={{ color: "var(--text-secondary)" }}>{sourceName}</span>
-                    <span style={{ fontWeight: 700 }}>{g._count._all} <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>({pct}%)</span></span>
-                  </div>
-                  <div style={{ background: "var(--bg-elevated)", borderRadius: 4, height: 8, overflow: "hidden" }}>
-                    <div style={{ width: `${pct}%`, height: "100%", background: colors[sourceName] || "var(--gold-primary)", borderRadius: 4 }} />
-                  </div>
-                </div>
-              );
-            })}
-            {(sourceGroups?.length || 0) === 0 && <div className="empty-state">لا توجد بيانات مصادر</div>}
-          </div>
-        </div>
-
-        </div>
-
-      {/* Detailed Employee Search */}
-      <div className="card animate-in-1" style={{ marginBottom: 24, border: "1px solid var(--gold-primary)" }}>
-        <div style={{ fontWeight: 800, marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
-          <span>🔍 بحث تفصيلي عن أداء الموظف</span>
-          <span className="badge badge-gold">إصدار تقارير</span>
-        </div>
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "end" }}>
-          <div className="form-group" style={{ flex: 1, minWidth: 200 }}>
-            <label className="form-label">الموظف</label>
-            <select value={selectedEmpId} onChange={(e) => setSelectedEmpId(e.target.value)} className="input">
-              <option value="">اختر الموظف...</option>
-              {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
-            </select>
-          </div>
-          <div className="form-group">
-            <label className="form-label">من تاريخ</label>
-            <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="input" />
-          </div>
-          <div className="form-group">
-            <label className="form-label">إلى تاريخ</label>
-            <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="input" />
-          </div>
-          <button onClick={handleSearchDetailed} disabled={loading || !selectedEmpId} className="btn btn-primary" style={{ padding: "10px 30px" }}>
-            {loading ? "جاري البحث..." : "توليد التقرير"}
-          </button>
-        </div>
-
-        {detailedStats && (
-          <div className="animate-in" style={{ marginTop: 24, padding: 20, background: "rgba(255,255,255,0.02)", borderRadius: 12, border: "1px solid var(--border-subtle)" }}>
-            <div className="grid-4" style={{ marginBottom: 20 }}>
-              <div className="stat-card" style={{ padding: 15 }}>
-                <div className="stat-label">📞 مكالمات منجزة</div>
-                <div className="stat-value" style={{ fontSize: 24 }}>{detailedStats.callsCount}</div>
-              </div>
-              <div className="stat-card" style={{ padding: 15 }}>
-                <div className="stat-label">🆕 عملاء مضافين</div>
-                <div className="stat-value" style={{ fontSize: 24 }}>{detailedStats.additionsCount}</div>
-              </div>
-              <div className="stat-card" style={{ padding: 15 }}>
-                <div className="stat-label">✏️ تحديثات البيانات</div>
-                <div className="stat-value" style={{ fontSize: 24 }}>{detailedStats.updatesCount}</div>
-              </div>
-              <div className="stat-card" style={{ padding: 15 }}>
-                <div className="stat-label">🏠 معاينات مجدولة</div>
-                <div className="stat-value" style={{ fontSize: 24 }}>{detailedStats.viewingsCount}</div>
-              </div>
-            </div>
-
-            <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 12, color: "var(--text-secondary)" }}>📜 سجل الحركات التفصيلي بالفترة المختارة:</div>
-            <div style={{ maxHeight: 300, overflowY: "auto", border: "1px solid var(--border-subtle)", borderRadius: 8 }}>
-              <table className="table" style={{ fontSize: 12 }}>
-                <thead>
-                  <tr>
-                    <th>التاريخ</th>
-                    <th>النوع</th>
-                    <th>التفاصيل</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {detailedStats.logs.map((log: any, idx: number) => (
-                    <tr key={idx}>
-                      <td>{new Date(log.createdAt).toLocaleString("ar-EG")}</td>
-                      <td><span className="badge badge-gray">{log.type}</span></td>
-                      <td>{log.details || log.notes || "—"}</td>
-                    </tr>
-                  ))}
-                  {detailedStats.logs.length === 0 && (
-                    <tr><td colSpan={3} className="empty-state">لا توجد حركات مسجلة لهذه الفترة</td></tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-            <button 
-              onClick={() => {
-                const data = detailedStats.logs.map((l: any) => ({
-                  "التاريخ": new Date(l.createdAt).toLocaleString("ar-EG"),
-                  "النوع": l.type,
-                  "التفاصيل": l.details || l.notes || ""
-                }));
-                const ws = XLSX.utils.json_to_sheet(data);
-                const wb = XLSX.utils.book_new();
-                XLSX.utils.book_append_sheet(wb, ws, "تقرير حركات الموظف");
-                XLSX.writeFile(wb, `Report_${employees.find(e=>e.id===selectedEmpId)?.name}_${startDate}.xlsx`);
-              }} 
-              className="btn btn-ghost btn-sm" 
-              style={{ marginTop: 12 }}
-            >
-              📥 تصدير سجل الحركات لـ Excel
-            </button>
-          </div>
-        )}
+    <section className={styles.panel}>
+      <div className={styles.sectionHeading}><div><h2>تقرير أداء موظف</h2><p>اختر الموظف والفترة لمراجعة النشاط المسجل.</p></div></div>
+      <div className={styles.filters}>
+        <label>الموظف<select value={selectedEmpId} onChange={(event) => setSelectedEmpId(event.target.value)}><option value="">اختر موظفًا</option>{employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.name}</option>)}</select></label>
+        <label>من تاريخ<input type="date" value={startDate} max={endDate} onChange={(event) => setStartDate(event.target.value)} /></label>
+        <label>إلى تاريخ<input type="date" value={endDate} min={startDate} onChange={(event) => setEndDate(event.target.value)} /></label>
+        <button onClick={handleSearchDetailed} disabled={loading || !selectedEmpId || !startDate || !endDate}>{loading ? "جارٍ إعداد التقرير…" : "عرض التقرير"}</button>
       </div>
+      {error && <div className={styles.error} role="alert">{error}</div>}
+      {loading && <div className={styles.loading} role="status">جارٍ تحميل بيانات الفترة…</div>}
+      {detailedStats && <div className={styles.detail}>
+        <div className={styles.detailKpis}>{[["مكالمات", detailedStats.callsCount], ["عملاء جدد", detailedStats.additionsCount], ["تحديثات", detailedStats.updatesCount], ["معاينات", detailedStats.viewingsCount]].map(([label, value]) => <div key={label}><span>{label}</span><strong>{number(Number(value))}</strong></div>)}</div>
+        <div className={styles.tableHead}><h3>سجل النشاط</h3><button onClick={exportLogs} disabled={!detailedStats.logs.length}>تصدير السجل</button></div>
+        <div className={styles.tableScroll}><table><thead><tr><th>التاريخ والوقت</th><th>النوع</th><th>التفاصيل</th></tr></thead><tbody>
+          {detailedStats.logs.map((log, index) => <tr key={log.id || `${log.createdAt}-${index}`}><td>{new Date(log.createdAt).toLocaleString("ar-EG", { timeZone: "Africa/Cairo" })}</td><td><span className={styles.pill}>{log.type}</span></td><td>{log.details || log.notes || "—"}</td></tr>)}
+          {!detailedStats.logs.length && <tr><td colSpan={3}><div className={styles.empty}>لا توجد أنشطة مسجلة في هذه الفترة.</div></td></tr>}
+        </tbody></table></div>
+      </div>}
+    </section>
 
-      {/* Employee Performance Table */}
-      <div className="card animate-in-2" style={{ padding: 0 }}>
-        <div style={{ padding: "14px 20px", borderBottom: "1px solid var(--border-subtle)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <div style={{ fontWeight: 800 }}>👥 أداء فريق المبيعات</div>
-        </div>
-        <div className="table-wrapper">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>الموظف</th>
-                <th>العملاء</th>
-                <th>صفقات مكتملة</th>
-                <th>مكالمات</th>
-                <th>معاينات</th>
-                <th>إجمالي العمولات</th>
-                <th>نسبة النجاح</th>
-              </tr>
-            </thead>
-            <tbody>
-              {employees.map((emp) => {
-                const totalC = emp.customers.length;
-                const completed = emp.customers.filter((c: any) => c.status === "COMPLETED").length;
-                const calls = emp.interactions.filter((i: any) => i.type === "CALL").length;
-                const viewings = emp.interactions.filter((i: any) => i.type === "VIEWING").length;
-                const totalComm = emp.commissions.reduce((a: number, c: any) => a + c.amount, 0);
-                const rate = totalC > 0 ? Math.round((completed / totalC) * 100) : 0;
-                return (
-                  <tr key={emp.id}>
-                    <td>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <div style={{ width: 30, height: 30, borderRadius: "50%", background: "linear-gradient(135deg, var(--gold-primary), var(--gold-dark))", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 12, color: "#000" }}>{emp.name?.charAt(0)}</div>
-                        {emp.name}
-                      </div>
-                    </td>
-                    <td>{totalC}</td>
-                    <td><span className="badge badge-green">{completed}</span></td>
-                    <td>📞 {calls}</td>
-                    <td>🏠 {viewings}</td>
-                    <td style={{ color: "var(--accent-green)", fontWeight: 700 }}>{totalComm.toLocaleString()} جنيه</td>
-                    <td>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <div style={{ flex: 1, background: "var(--bg-elevated)", borderRadius: 4, height: 6 }}>
-                          <div style={{ width: `${rate}%`, height: "100%", background: "var(--accent-green)", borderRadius: 4 }} />
-                        </div>
-                        <span style={{ fontSize: 11, fontWeight: 700 }}>{rate}%</span>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-              {employees.length === 0 && (
-                <tr><td colSpan={7}><div className="empty-state">لا يوجد موظفو مبيعات بعد</div></td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  );
+    <section className={styles.panel}>
+      <div className={styles.sectionHeading}><div><h2>أداء فريق المبيعات</h2><p>مؤشرات النشاط والنتائج المسجلة لكل عضو.</p></div></div>
+      <div className={styles.tableScroll}><table><thead><tr><th>الموظف</th><th>العملاء</th><th>مكتمل</th><th>مكالمات</th><th>معاينات</th><th>العمولات</th><th>معدل الإكمال</th></tr></thead><tbody>
+        {employees.map((employee) => { const total = employee.customerCount || 0; const completed = employee.completedCount || 0; const rate = total ? Math.round(completed / total * 100) : 0;
+          return <tr key={employee.id}><td><div className={styles.person}><i>{employee.name?.charAt(0) || "؟"}</i><span>{employee.name || "موظف غير معروف"}</span></div></td><td>{number(total)}</td><td>{number(completed)}</td><td>{number(employee.callsCount)}</td><td>{number(employee.viewingsCount)}</td><td>{number(employee.commissionTotal)} ج.م</td><td><div className={styles.rate}><div><i style={{ width: `${rate}%` }} /></div><b>{number(rate)}٪</b></div></td></tr>;
+        })}
+        {!employees.length && <tr><td colSpan={7}><div className={styles.empty}>لا يوجد موظفون لعرض أدائهم.</div></td></tr>}
+      </tbody></table></div>
+    </section>
+  </main>;
 }

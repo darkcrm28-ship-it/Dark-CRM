@@ -2,210 +2,75 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import styles from "../Reports.module.css";
 
-const TYPE_LABELS: Record<string, string> = {
-  calls: "📞 المكالمات",
-  viewings: "👀 المعاينات",
-  notes: "📝 الملاحظات",
-  new_customers: "🆕 العملاء الجدد",
-};
+const TYPE_LABELS: Record<string, string> = { calls: "المكالمات", viewings: "المعاينات", notes: "الملاحظات", new_customers: "العملاء الجدد" };
+const TYPE_ICONS: Record<string, string> = { CALL: "☎", VIEWING: "⌂", NOTE: "▤" };
 
-const INTERACTION_ICONS: Record<string, string> = {
-  CALL: "📞",
-  VIEWING: "👀",
-  NOTE: "📝",
-};
+type Interaction = { id: string; userId: string; customerId: string; type: string; notes?: string | null; createdAt: string | Date; user?: { id: string; name: string } | null; customer?: { id: string; name: string; phone?: string | null } | null };
+type Customer = { id: string; name: string; phone?: string | null; createdAt: string | Date; assignedTo?: { name: string } | null };
 
-export default function TodayReportClient({
-  interactions,
-  newCustomers,
-  employees,
-  session,
-  isManager,
-  activeType,
-  activeEmpId,
-}: any) {
+export default function TodayReportClient({ interactions = [], newCustomers = [], employees = [], isManager, activeType, activeEmpId }: {
+  interactions: Interaction[]; newCustomers: Customer[]; employees: { id: string; name: string }[]; isManager: boolean; activeType: string; activeEmpId: string;
+}) {
   const router = useRouter();
-  const today = new Date().toLocaleDateString("ar-EG", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
-
-  const handleFilter = (type: string, empId: string) => {
+  const today = new Intl.DateTimeFormat("ar-EG", { timeZone: "Africa/Cairo", weekday: "long", year: "numeric", month: "long", day: "numeric" }).format(new Date());
+  const calls = interactions.filter((item) => item.type === "CALL").length;
+  const viewings = interactions.filter((item) => item.type === "VIEWING").length;
+  const notes = interactions.filter((item) => item.type === "NOTE").length;
+  const filter = (type: string, empId: string) => {
     const params = new URLSearchParams({ type, ...(empId ? { empId } : {}) });
     router.push(`/dashboard/reports/today?${params.toString()}`);
   };
-
-  // Group interactions by employee for manager view
-  const byEmployee: Record<string, any[]> = {};
-  interactions.forEach((i: any) => {
-    const name = i.user?.name || "غير معروف";
-    if (!byEmployee[name]) byEmployee[name] = [];
-    byEmployee[name].push(i);
+  const time = (value: string | Date) => new Date(value).toLocaleTimeString("ar-EG", { timeZone: "Africa/Cairo", hour: "2-digit", minute: "2-digit" });
+  const grouped = new Map<string, { name: string; rows: Interaction[] }>();
+  interactions.forEach((item) => {
+    const id = item.user?.id || item.userId || "unknown";
+    const entry = grouped.get(id) || { name: item.user?.name || "موظف غير معروف", rows: [] };
+    entry.rows.push(item); grouped.set(id, entry);
   });
 
-  return (
-    <div>
-      <div className="page-header animate-in">
-        <div>
-          <div className="page-title">📅 تقرير اليوم</div>
-          <div className="page-subtitle">{today}</div>
-        </div>
-        <Link href="/dashboard" className="btn btn-ghost">← العودة للوحة القيادة</Link>
+  return <main className={styles.report} dir="rtl">
+    <header className={styles.hero}>
+      <div><p className={styles.eyebrow}>ملخص يومي · {today}</p><h1>تقرير اليوم</h1><p>الأنشطة والعملاء الجدد المسجلون خلال اليوم.</p></div>
+      <Link href="/dashboard" className={styles.exportButton}>العودة إلى لوحة المتابعة</Link>
+    </header>
+
+    <section className={styles.kpis} aria-label="ملخص اليوم">
+      <article className={`${styles.kpi} ${styles.kpiPrimary}`}><span>المكالمات</span><strong>{new Intl.NumberFormat("ar-EG").format(calls)}</strong><small>نشاط مسجل اليوم</small></article>
+      <article className={styles.kpi}><span>المعاينات</span><strong>{new Intl.NumberFormat("ar-EG").format(viewings)}</strong><small>مواعيد مسجلة اليوم</small></article>
+      <article className={styles.kpi}><span>الملاحظات</span><strong>{new Intl.NumberFormat("ar-EG").format(notes)}</strong><small>تحديثات مسجلة اليوم</small></article>
+      <article className={styles.kpi}><span>عملاء جدد</span><strong>{new Intl.NumberFormat("ar-EG").format(newCustomers.length)}</strong><small>أضيفوا خلال اليوم</small></article>
+    </section>
+
+    <nav className={styles.todayFilters} aria-label="تصفية نوع النشاط">
+      {Object.entries(TYPE_LABELS).map(([key, label]) => <button key={key} onClick={() => filter(key, activeEmpId)} className={activeType === key ? styles.activeFilter : ""} aria-pressed={activeType === key}>{label}</button>)}
+    </nav>
+
+    {isManager && <section className={`${styles.panel} ${styles.employeeFilter}`}>
+      <div className={styles.sectionHeading}><div><h2>عرض حسب الموظف</h2><p>التصفية متاحة للمديرين.</p></div></div>
+      <div className={styles.employeeChips}><button onClick={() => filter(activeType, "")} className={!activeEmpId ? styles.activeFilter : ""}>الفريق كله <b>{interactions.length}</b></button>
+        {employees.map((employee) => <button key={employee.id} onClick={() => filter(activeType, employee.id)} className={activeEmpId === employee.id ? styles.activeFilter : ""}>{employee.name}<b>{interactions.filter((item) => item.userId === employee.id).length}</b></button>)}
       </div>
+    </section>}
 
-      {/* Type Tabs */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
-        {Object.entries(TYPE_LABELS).map(([key, label]) => (
-          <button
-            key={key}
-            onClick={() => handleFilter(key, activeEmpId)}
-            className={`btn ${activeType === key ? "btn-primary" : "btn-ghost"}`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
-      {/* Employee Filter (managers only) */}
-      {isManager && (
-        <div className="card animate-in-1" style={{ marginBottom: 20, padding: "14px 20px" }}>
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-            <span style={{ fontWeight: 700, fontSize: 13 }}>تصفية حسب الموظف:</span>
-            <button
-              onClick={() => handleFilter(activeType, "")}
-              className={`btn btn-sm ${!activeEmpId ? "btn-primary" : "btn-ghost"}`}
-            >
-              👥 الكل ({interactions.length})
-            </button>
-            {employees.map((emp: any) => {
-              const count = interactions.filter((i: any) => i.userId === emp.id).length;
-              return (
-                <button
-                  key={emp.id}
-                  onClick={() => handleFilter(activeType, emp.id)}
-                  className={`btn btn-sm ${activeEmpId === emp.id ? "btn-primary" : "btn-ghost"}`}
-                >
-                  {emp.name} ({count})
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {activeType === "new_customers" ? (
-        /* New Customers View */
-        <div className="card animate-in-1" style={{ padding: 0 }}>
-          <div style={{ padding: "14px 20px", borderBottom: "1px solid var(--border-subtle)", fontWeight: 800 }}>
-            🆕 العملاء المضافون اليوم ({newCustomers.length})
-          </div>
-          <div className="table-wrapper">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>الاسم</th>
-                  <th>رقم الهاتف</th>
-                  <th>الموظف المسؤول</th>
-                  <th>وقت الإضافة</th>
-                  <th>إجراء</th>
-                </tr>
-              </thead>
-              <tbody>
-                {newCustomers.map((c: any) => (
-                  <tr key={c.id}>
-                    <td style={{ fontWeight: 700 }}>{c.name}</td>
-                    <td>{c.phone}</td>
-                    <td>{c.assignedTo?.name || "—"}</td>
-                    <td style={{ fontSize: 12, color: "var(--text-muted)" }}>{new Date(c.createdAt).toLocaleTimeString("ar-EG")}</td>
-                    <td>
-                      <Link href={`/dashboard/customers/${c.id}`} className="btn btn-ghost btn-sm">عرض</Link>
-                    </td>
-                  </tr>
-                ))}
-                {newCustomers.length === 0 && (
-                  <tr><td colSpan={5}><div className="empty-state">لا يوجد عملاء جدد اليوم</div></td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      ) : (
-        /* Interactions View */
-        isManager && !activeEmpId ? (
-          /* Manager: grouped by employee */
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            {Object.keys(byEmployee).length === 0 ? (
-              <div className="card"><div className="empty-state">لا توجد نشاطات مسجلة اليوم</div></div>
-            ) : Object.entries(byEmployee).map(([empName, items]) => (
-              <div key={empName} className="card animate-in" style={{ padding: 0 }}>
-                <div style={{ padding: "12px 20px", borderBottom: "1px solid var(--border-subtle)", display: "flex", justifyContent: "space-between", alignItems: "center", background: "rgba(212,175,55,0.05)" }}>
-                  <div style={{ fontWeight: 800 }}>👤 {empName}</div>
-                  <span className="badge badge-gold">{items.length} نشاط</span>
-                </div>
-                <div className="table-wrapper">
-                  <table className="table" style={{ fontSize: 13 }}>
-                    <tbody>
-                      {items.map((i: any) => (
-                        <tr key={i.id}>
-                          <td style={{ width: 40 }}>{INTERACTION_ICONS[i.type] || "📌"}</td>
-                          <td>
-                            <Link href={`/dashboard/customers/${i.customerId}`} style={{ fontWeight: 700 }}>
-                              {i.customer?.name}
-                            </Link>
-                          </td>
-                          <td style={{ color: "var(--text-muted)", fontSize: 12 }}>{i.notes || "—"}</td>
-                          <td style={{ fontSize: 11, color: "var(--text-muted)", whiteSpace: "nowrap" }}>
-                            {new Date(i.createdAt).toLocaleTimeString("ar-EG")}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          /* Single employee or employee view */
-          <div className="card animate-in-1" style={{ padding: 0 }}>
-            <div style={{ padding: "14px 20px", borderBottom: "1px solid var(--border-subtle)", fontWeight: 800 }}>
-              {TYPE_LABELS[activeType]} ({interactions.length})
-            </div>
-            <div className="table-wrapper">
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>النوع</th>
-                    <th>العميل</th>
-                    {isManager && <th>الموظف</th>}
-                    <th>الملاحظات</th>
-                    <th>الوقت</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {interactions.map((i: any) => (
-                    <tr key={i.id}>
-                      <td>{INTERACTION_ICONS[i.type] || "📌"}</td>
-                      <td>
-                        <Link href={`/dashboard/customers/${i.customerId}`} style={{ fontWeight: 700 }}>
-                          {i.customer?.name}
-                        </Link>
-                        <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{i.customer?.phone}</div>
-                      </td>
-                      {isManager && <td>{i.user?.name}</td>}
-                      <td style={{ maxWidth: 250, fontSize: 12 }}>{i.notes || "—"}</td>
-                      <td style={{ fontSize: 11, color: "var(--text-muted)", whiteSpace: "nowrap" }}>
-                        {new Date(i.createdAt).toLocaleTimeString("ar-EG")}
-                      </td>
-                    </tr>
-                  ))}
-                  {interactions.length === 0 && (
-                    <tr><td colSpan={5}><div className="empty-state">لا توجد نشاطات في هذه الفئة اليوم</div></td></tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )
-      )}
-    </div>
-  );
+    {activeType === "new_customers" ? <section className={styles.panel}>
+      <div className={styles.sectionHeading}><div><h2>العملاء المضافون اليوم</h2><p>سجلات العملاء الجديدة وتوقيت إضافتها.</p></div><span className={styles.sectionMark}>{newCustomers.length} عميل</span></div>
+      <div className={styles.tableScroll}><table><thead><tr><th>العميل</th><th>رقم الهاتف</th><th>المسؤول</th><th>وقت الإضافة</th><th>التفاصيل</th></tr></thead><tbody>
+        {newCustomers.map((customer) => <tr key={customer.id}><td>{customer.name}</td><td dir="ltr">{customer.phone || "—"}</td><td>{customer.assignedTo?.name || "—"}</td><td>{time(customer.createdAt)}</td><td><Link href={`/dashboard/customers/${customer.id}`} className={styles.textLink}>عرض الملف</Link></td></tr>)}
+        {!newCustomers.length && <tr><td colSpan={5}><div className={styles.empty}>لا يوجد عملاء جدد في هذا اليوم.</div></td></tr>}
+      </tbody></table></div>
+    </section> : isManager && !activeEmpId ? <section className={styles.teamActivity}>
+      {!grouped.size ? <div className={styles.panel}><div className={styles.empty}>لا توجد أنشطة مسجلة اليوم.</div></div> : [...grouped.entries()].map(([id, group]) => <article className={styles.panel} key={id}>
+        <div className={styles.sectionHeading}><div><h2>{group.name}</h2><p>سجل أنشطة الموظف</p></div><span className={styles.sectionMark}>{group.rows.length} نشاط</span></div>
+        <div className={styles.activityList}>{group.rows.map((item) => <div className={styles.activityRow} key={item.id}><i>{TYPE_ICONS[item.type] || "•"}</i><div><Link href={`/dashboard/customers/${item.customerId}`} className={styles.textLink}>{item.customer?.name || "عميل غير معروف"}</Link><small>{item.notes || "لا توجد ملاحظات"}</small></div><time>{time(item.createdAt)}</time></div>)}</div>
+      </article>)}
+    </section> : <section className={styles.panel}>
+      <div className={styles.sectionHeading}><div><h2>{TYPE_LABELS[activeType] || "أنشطة اليوم"}</h2><p>التفاصيل المسجلة خلال اليوم.</p></div><span className={styles.sectionMark}>{interactions.length} نشاط</span></div>
+      <div className={styles.tableScroll}><table><thead><tr><th>النوع</th><th>العميل</th>{isManager && <th>الموظف</th>}<th>ملاحظات</th><th>الوقت</th></tr></thead><tbody>
+        {interactions.map((item) => <tr key={item.id}><td><span className={styles.pill}>{TYPE_LABELS[item.type.toLowerCase()] || item.type}</span></td><td><Link href={`/dashboard/customers/${item.customerId}`} className={styles.textLink}>{item.customer?.name || "عميل غير معروف"}</Link><small className={styles.subCell} dir="ltr">{item.customer?.phone || "—"}</small></td>{isManager && <td>{item.user?.name || "—"}</td>}<td>{item.notes || "—"}</td><td>{time(item.createdAt)}</td></tr>)}
+        {!interactions.length && <tr><td colSpan={isManager ? 5 : 4}><div className={styles.empty}>لا توجد أنشطة من هذا النوع اليوم.</div></td></tr>}
+      </tbody></table></div>
+    </section>}
+  </main>;
 }

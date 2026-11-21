@@ -1,17 +1,19 @@
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import TodayReportClient from "@/app/dashboard/reports/today/TodayReportClient";
+import { redirect } from "next/navigation";
+import { cairoDayRange, reportEmployeeScope } from "@/lib/report-time";
 
 export default async function TodayReportPage({ searchParams }: { searchParams: Promise<{ type?: string; empId?: string }> }) {
   const resolvedSearchParams = await searchParams;
   const session = await getSession();
-  const isManager = session?.role === "GENERAL_MANAGER" || session?.role === "SALES_MANAGER";
+  if (!session) redirect("/login");
+  const { isManager, employeeId } = reportEmployeeScope(session.role, session.id, resolvedSearchParams.empId);
+  const allowed = ["GENERAL_MANAGER", "SALES_MANAGER", "SALES_EMPLOYEE"];
+  if (!allowed.includes(session.role)) redirect("/dashboard");
   
   const type = resolvedSearchParams.type || "calls";
-  const empId = resolvedSearchParams.empId;
-
-  const startOfToday = new Date();
-  startOfToday.setHours(0, 0, 0, 0);
+  const { start: startOfToday, endExclusive } = cairoDayRange();
 
   const interactionTypeMap: Record<string, string> = {
     calls: "CALL",
@@ -20,10 +22,17 @@ export default async function TodayReportPage({ searchParams }: { searchParams: 
   };
 
   const interactionType = interactionTypeMap[type];
+  const selectedEmployee = isManager && employeeId
+    ? await prisma.user.findFirst({
+        where: { id: employeeId, role: { in: ["SALES_EMPLOYEE", "SALES_MANAGER"] } },
+        select: { id: true },
+      })
+    : null;
+  const scopedEmployeeId = isManager && employeeId && !selectedEmployee ? "__invalid_employee__" : employeeId;
 
   const whereBase = {
-    createdAt: { gte: startOfToday },
-    ...(empId ? { userId: empId } : isManager ? {} : { userId: session?.id }),
+    createdAt: { gte: startOfToday, lt: endExclusive },
+    ...(scopedEmployeeId ? { userId: scopedEmployeeId } : {}),
     ...(interactionType ? { type: interactionType } : {}),
   };
 
@@ -40,8 +49,8 @@ export default async function TodayReportPage({ searchParams }: { searchParams: 
     // New customers today
     prisma.customer.findMany({
       where: {
-        createdAt: { gte: startOfToday },
-        ...(empId ? { assignedToId: empId } : isManager ? {} : { assignedToId: session?.id }),
+        createdAt: { gte: startOfToday, lt: endExclusive },
+        ...(scopedEmployeeId ? { assignedToId: scopedEmployeeId } : {}),
       },
       include: { assignedTo: { select: { name: true } } },
       orderBy: { createdAt: "desc" },
@@ -58,10 +67,9 @@ export default async function TodayReportPage({ searchParams }: { searchParams: 
       interactions={interactions}
       newCustomers={newCustomers}
       employees={employees}
-      session={session}
       isManager={isManager}
       activeType={type}
-      activeEmpId={empId || ""}
+      activeEmpId={scopedEmployeeId || ""}
     />
   );
 }

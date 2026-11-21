@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { NextResponse } from "next/server";
+import { cairoDateRange } from "@/lib/report-time";
 
 export async function GET(req: Request) {
   const session = await getSession();
@@ -9,6 +10,11 @@ export async function GET(req: Request) {
   }
 
   const { searchParams } = new URL(req.url);
+  const allowedParams = new Set(["id", "start", "end"]);
+  if ([...searchParams.keys()].some((key) => !allowedParams.has(key)) ||
+      [...allowedParams].some((key) => searchParams.getAll(key).length !== 1)) {
+    return NextResponse.json({ error: "Unexpected or duplicate query parameters" }, { status: 400 });
+  }
   const employeeId = searchParams.get("id");
   const startStr = searchParams.get("start");
   const endStr = searchParams.get("end");
@@ -17,30 +23,34 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Missing parameters" }, { status: 400 });
   }
 
-  const startDate = new Date(startStr);
-  startDate.setHours(0, 0, 0, 0);
-  const endDate = new Date(endStr);
-  endDate.setHours(23, 59, 59, 999);
+  const range = cairoDateRange(startStr, endStr);
+  if ("error" in range) return NextResponse.json({ error: range.error }, { status: 400 });
+  const employee = await prisma.user.findFirst({
+    where: { id: employeeId, role: { in: ["SALES_EMPLOYEE", "SALES_MANAGER"] } },
+    select: { id: true },
+  });
+  if (!employee) return NextResponse.json({ error: "Sales employee not found" }, { status: 404 });
+  const createdAt = { gte: range.start, lt: range.endExclusive };
 
   const [calls, viewings, additions, updates] = await Promise.all([
     // Calls
     prisma.interaction.findMany({
-      where: { userId: employeeId, type: "CALL", createdAt: { gte: startDate, lte: endDate } },
+      where: { userId: employeeId, type: "CALL", createdAt },
       orderBy: { createdAt: "desc" }
     }),
     // Viewings
     prisma.interaction.findMany({
-      where: { userId: employeeId, type: "VIEWING", createdAt: { gte: startDate, lte: endDate } },
+      where: { userId: employeeId, type: "VIEWING", createdAt },
       orderBy: { createdAt: "desc" }
     }),
     // Additions (New Customers)
     prisma.customer.findMany({
-      where: { assignedToId: employeeId, createdAt: { gte: startDate, lte: endDate } },
+      where: { assignedToId: employeeId, createdAt },
       orderBy: { createdAt: "desc" }
     }),
     // Updates (Audit Logs)
     prisma.auditLog.findMany({
-      where: { userId: employeeId, createdAt: { gte: startDate, lte: endDate } },
+      where: { userId: employeeId, createdAt },
       orderBy: { createdAt: "desc" }
     })
   ]);
