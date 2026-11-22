@@ -59,9 +59,6 @@ export default function PublicPropertiesClient({
   const [selectedUnitType, setSelectedUnitType] = useState("الكل");
   const [selectedBedrooms, setSelectedBedrooms] = useState("الكل");
   const [selectedZone, setSelectedZone] = useState("الكل");
-  const [minPrice, setMinPrice] = useState("");
-  const [maxPrice, setMaxPrice] = useState("");
-  const [onlyInstallments, setOnlyInstallments] = useState(false);
 
   // Quick Viewing Modal
   const [modalOpen, setModalOpen] = useState(false);
@@ -114,21 +111,6 @@ export default function PublicPropertiesClient({
         if (!p.zone || p.zone.trim() !== selectedZone.trim()) return false;
       }
 
-      // 5. Price Min
-      if (minPrice && !isNaN(Number(minPrice))) {
-        if (!p.price || p.price < Number(minPrice)) return false;
-      }
-
-      // 6. Price Max
-      if (maxPrice && !isNaN(Number(maxPrice))) {
-        if (!p.price || p.price > Number(maxPrice)) return false;
-      }
-
-      // 7. Only Installments
-      if (onlyInstallments) {
-        if (!p.monthlyInstallment || p.monthlyInstallment <= 0) return false;
-      }
-
       return true;
     });
   }, [
@@ -137,9 +119,6 @@ export default function PublicPropertiesClient({
     selectedUnitType,
     selectedBedrooms,
     selectedZone,
-    minPrice,
-    maxPrice,
-    onlyInstallments,
   ]);
 
   const resetFilters = () => {
@@ -147,9 +126,6 @@ export default function PublicPropertiesClient({
     setSelectedUnitType("الكل");
     setSelectedBedrooms("الكل");
     setSelectedZone("الكل");
-    setMinPrice("");
-    setMaxPrice("");
-    setOnlyInstallments(false);
   };
 
   const openViewingModal = (unit: PropertyItem) => {
@@ -307,42 +283,10 @@ export default function PublicPropertiesClient({
                 ))}
               </select>
             </div>
-
-            <div className="filter-select-wrap">
-              <label>السعر من (ج.م)</label>
-              <input
-                type="number"
-                placeholder="الحد الأدنى"
-                value={minPrice}
-                onChange={(e) => setMinPrice(e.target.value)}
-                className="catalog-select"
-              />
-            </div>
-
-            <div className="filter-select-wrap">
-              <label>السعر إلى (ج.م)</label>
-              <input
-                type="number"
-                placeholder="الحد الأقصى"
-                value={maxPrice}
-                onChange={(e) => setMaxPrice(e.target.value)}
-                className="catalog-select"
-              />
-            </div>
           </div>
 
-          {/* Bottom Bar: Checkbox + Reset + Count */}
+          {/* Bottom Bar: Reset + Count */}
           <div className="catalog-filter-footer">
-            <label className="checkbox-filter-label">
-              <input
-                type="checkbox"
-                checked={onlyInstallments}
-                onChange={(e) => setOnlyInstallments(e.target.checked)}
-                className="accent-gold"
-              />
-              <span>عرض الوحدات ذات التسهيلات والأقساط فقط</span>
-            </label>
-
             <div className="flex items-center gap-4">
               <button onClick={resetFilters} className="btn-reset-filters">
                 <RotateCcw size={13} />
