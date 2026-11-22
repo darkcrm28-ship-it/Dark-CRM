@@ -153,28 +153,26 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Name and phone are required" }, { status: 400 });
     }
 
-    // توليد كود العميل الآمن عبر أعلى رقم تسلسلي مسجل مع قفل موحد لمنع التزامن
-    const CUSTOMER_SEQUENCE_LOCK = 74839205;
+    async function resolveNextCode(): Promise<string> {
+      const maxCodeRes = await prisma.$queryRaw<Array<{ max_seq: string | null }>>`
+        SELECT COALESCE(
+          MAX(NULLIF(REGEXP_REPLACE(code, '^CUST-0*', ''), '')::bigint), 0
+        )::text AS max_seq
+        FROM "Customer"
+        WHERE code ~ '^CUST-[0-9]+$';
+      `;
+      const nextSeq = Number(maxCodeRes[0]?.max_seq ?? 0) + 1;
+      return "CUST-" + nextSeq.toString().padStart(4, "0");
+    }
+
     let customer: any = null;
     const maxRetries = 3;
 
     for (let attempt = 0; attempt < maxRetries; attempt++) {
+      const code = await resolveNextCode();
       try {
         customer = await prisma.$transaction(
           async (tx) => {
-            // حجز قفل المعاملة لتوليد الأكواد بالتسلسل منعاً للتزامن مع الاستيراد أو إضافة أخرى
-            await tx.$queryRaw`SELECT pg_advisory_xact_lock(${CUSTOMER_SEQUENCE_LOCK});`;
-
-            const maxCodeRes = await tx.$queryRaw<Array<{ max_seq: number | null }>>`
-              SELECT MAX(
-                NULLIF(REGEXP_REPLACE(code, '^CUST-0*', ''), '')::integer
-              ) AS max_seq
-              FROM "Customer"
-              WHERE code ~ '^CUST-[0-9]+$';
-            `;
-            const nextSeq = (maxCodeRes[0]?.max_seq || 0) + 1;
-            const code = "CUST-" + nextSeq.toString().padStart(4, "0");
-
             const createdCustomer = await tx.customer.create({
               data: {
                 code,
@@ -209,7 +207,6 @@ export async function POST(request: NextRequest) {
               },
             });
 
-            // Create initial note inside transaction
             if (generalNotes?.trim()) {
               await tx.interaction.create({
                 data: {
@@ -221,7 +218,6 @@ export async function POST(request: NextRequest) {
               });
             }
 
-            // Create reminder if CALL_LATER and date provided inside transaction
             if (status === "CALL_LATER" && followUpDate) {
               const followUp = new Date(followUpDate);
               if (!Number.isNaN(followUp.getTime())) {
@@ -237,7 +233,6 @@ export async function POST(request: NextRequest) {
               }
             }
 
-            // Create AuditLog for customer creation
             await tx.auditLog.create({
               data: {
                 userId: session.id,
@@ -255,10 +250,10 @@ export async function POST(request: NextRequest) {
             timeout: 10000,
           }
         );
-        break; // نجاح الإنشاء
+        break;
       } catch (err: any) {
         if (err?.code === "P2002" && attempt < maxRetries - 1) {
-          console.warn(`Customer.code conflict on single add (P2002). Retrying in fresh transaction attempt ${attempt + 1}...`);
+          console.warn(`Customer.code conflict on single add (P2002). Retrying attempt ${attempt + 1}...`);
           await new Promise((res) => setTimeout(res, 50 * (attempt + 1)));
           continue;
         }
@@ -323,8 +318,13 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json(customer);
-  } catch (error) {
-    console.error("Create Customer Error:", error);
+  } catch (error: any) {
+    console.error("Create Customer Error:", {
+      message: error?.message,
+      code: error?.code,
+      meta: error?.meta,
+      stack: error?.stack,
+    });
     return NextResponse.json({ error: "Failed to create customer" }, { status: 500 });
   }
 }
