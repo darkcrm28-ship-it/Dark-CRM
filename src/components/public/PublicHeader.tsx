@@ -10,6 +10,7 @@ import {
   X,
 } from "lucide-react";
 import DarakLogo from "./DarakLogo";
+import MobileBottomNav from "./MobileBottomNav";
 
 export default function PublicHeader() {
   const pathname = usePathname();
@@ -112,6 +113,9 @@ export default function PublicHeader() {
           </div>
         </div>
       )}
+
+      {/* Modern Fixed Bottom Navigation Bar for Mobile */}
+      <MobileBottomNav />
     </header>
   );
 }
