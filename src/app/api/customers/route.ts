@@ -153,6 +153,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Name and phone are required" }, { status: 400 });
     }
 
+    // Idempotency: don't create duplicate if same name+phone already exists
+    const existingCustomer = await prisma.customer.findFirst({
+      where: { name: name.trim(), phone: phone.trim() },
+    });
+    if (existingCustomer) {
+      return NextResponse.json(existingCustomer);
+    }
+
     async function resolveNextCode(): Promise<string> {
       const maxCodeRes = await prisma.$queryRaw<Array<{ max_seq: string | null }>>`
         SELECT COALESCE(
@@ -252,7 +260,10 @@ export async function POST(request: NextRequest) {
         );
         break;
       } catch (err: any) {
-        if (err?.code === "P2002" && attempt < maxRetries - 1) {
+        const isCodeConflict = 
+          err?.code === "P2002" && 
+          (String(err?.constraint ?? "").toLowerCase().includes("code") || err?.meta?.target?.includes("code"));
+        if (isCodeConflict && attempt < maxRetries - 1) {
           console.warn(`Customer.code conflict on single add (P2002). Retrying attempt ${attempt + 1}...`);
           await new Promise((res) => setTimeout(res, 50 * (attempt + 1)));
           continue;
@@ -322,7 +333,6 @@ export async function POST(request: NextRequest) {
     console.error("Create Customer Error:", {
       message: error?.message,
       code: error?.code,
-      meta: error?.meta,
       stack: error?.stack,
     });
     return NextResponse.json({ error: "Failed to create customer" }, { status: 500 });
