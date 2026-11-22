@@ -294,7 +294,7 @@ export default function PropertiesClient({
   };
 
   const copyShareLink = (id: string) => {
-    const url = `${window.location.origin}/share/property/${id}`;
+    const url = `${window.location.origin}/properties/${id}`;
     navigator.clipboard.writeText(url);
     setCopiedId(id);
     setTimeout(() => setCopiedId(null), 2500);
@@ -734,7 +734,7 @@ export default function PropertiesClient({
                   <div className="flex items-center gap-2">
                     {/* View Storefront in new tab */}
                     <a
-                      href={`/share/property/${p.id}`}
+                      href={`/properties/${p.id}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="btn btn-secondary btn-sm flex items-center gap-1 text-xs"
