@@ -455,9 +455,7 @@ export default function PublicPropertiesClient({
                   {/* Actions Row */}
                   <div className="square-actions-row">
                     <a
-                      href={`/share/property/${p.id}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                      href={`/properties/${p.id}`}
                       className="btn-square-details"
                     >
                       <Eye size={14} />

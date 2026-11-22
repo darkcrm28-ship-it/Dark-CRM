@@ -269,7 +269,7 @@ export default function PublicPortalClient({
 
                     <div className="square-actions-row">
                       <a
-                        href={`/share/property/${p.id}`}
+                        href={`/properties/${p.id}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="btn-square-details w-full text-center"
