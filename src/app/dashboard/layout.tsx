@@ -78,6 +78,13 @@ export default async function DashboardLayout({ children }: { children: React.Re
       section: "main",
     },
     {
+      href: "/dashboard/properties",
+      icon: <Building size={18} />,
+      label: "إدارة الوحدات والكتالوج",
+      show: isManager,
+      section: "main",
+    },
+    {
       href: "/dashboard/buyers",
       icon: <ShoppingBag size={18} />,
       label: "المشترين والمستأجرين",
