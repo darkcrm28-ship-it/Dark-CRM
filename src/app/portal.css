@@ -277,7 +277,8 @@
 
 /* ─── 1.2. LUXURY MOBILE BOTTOM NAVIGATION BAR ─────────── */
 .mobile-bottom-nav-bar {
-  display: none; /* hidden on desktop */
+  display: none;
+  /* hidden on desktop */
 }
 
 .bottom-nav-inner {
@@ -381,13 +382,11 @@
 .hero-dark-vignette-overlay {
   position: absolute;
   inset: 0;
-  background: linear-gradient(
-    180deg,
-    rgba(6, 8, 13, 0.72) 0%,
-    rgba(6, 8, 13, 0.28) 38%,
-    rgba(6, 8, 13, 0.75) 75%,
-    #06080D 100%
-  );
+  background: linear-gradient(180deg,
+      rgba(6, 8, 13, 0.72) 0%,
+      rgba(6, 8, 13, 0.28) 38%,
+      rgba(6, 8, 13, 0.75) 75%,
+      #06080D 100%);
 }
 
 .hero-content-relative {
@@ -625,10 +624,29 @@
   margin-bottom: 20px;
 }
 
-.pillar-icon-box.gold { background: rgba(212, 175, 55, 0.12); color: #D4AF37; border: 1px solid rgba(212, 175, 55, 0.3); }
-.pillar-icon-box.blue { background: rgba(59, 130, 246, 0.12); color: #60A5FA; border: 1px solid rgba(59, 130, 246, 0.3); }
-.pillar-icon-box.emerald { background: rgba(16, 185, 129, 0.12); color: #10B981; border: 1px solid rgba(16, 185, 129, 0.3); }
-.pillar-icon-box.purple { background: rgba(168, 85, 247, 0.12); color: #C084FC; border: 1px solid rgba(168, 85, 247, 0.3); }
+.pillar-icon-box.gold {
+  background: rgba(212, 175, 55, 0.12);
+  color: #D4AF37;
+  border: 1px solid rgba(212, 175, 55, 0.3);
+}
+
+.pillar-icon-box.blue {
+  background: rgba(59, 130, 246, 0.12);
+  color: #60A5FA;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+.pillar-icon-box.emerald {
+  background: rgba(16, 185, 129, 0.12);
+  color: #10B981;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.pillar-icon-box.purple {
+  background: rgba(168, 85, 247, 0.12);
+  color: #C084FC;
+  border: 1px solid rgba(168, 85, 247, 0.3);
+}
 
 .pillar-card-title {
   font-size: 17px;
@@ -655,7 +673,8 @@
   transition: color 0.2s ease;
 }
 
-.pillar-card-link.gold, .pillar-glass-card:hover .pillar-card-link {
+.pillar-card-link.gold,
+.pillar-glass-card:hover .pillar-card-link {
   color: #D4AF37;
 }
 
@@ -1292,7 +1311,8 @@
 }
 
 /* ─── 4. CONTACT PAGE STYLES ────────────────────────────── */
-.contact-page-hero, .sell-page-hero {
+.contact-page-hero,
+.sell-page-hero {
   padding: 56px 0 32px 0;
 }
 
@@ -1344,10 +1364,25 @@
   flex-shrink: 0;
 }
 
-.direct-card-icon.gold { background: rgba(212, 175, 55, 0.12); color: #D4AF37; }
-.direct-card-icon.green { background: rgba(37, 211, 102, 0.12); color: #25D366; }
-.direct-card-icon.blue { background: rgba(59, 130, 246, 0.12); color: #60A5FA; }
-.direct-card-icon.purple { background: rgba(168, 85, 247, 0.12); color: #C084FC; }
+.direct-card-icon.gold {
+  background: rgba(212, 175, 55, 0.12);
+  color: #D4AF37;
+}
+
+.direct-card-icon.green {
+  background: rgba(37, 211, 102, 0.12);
+  color: #25D366;
+}
+
+.direct-card-icon.blue {
+  background: rgba(59, 130, 246, 0.12);
+  color: #60A5FA;
+}
+
+.direct-card-icon.purple {
+  background: rgba(168, 85, 247, 0.12);
+  color: #C084FC;
+}
 
 .direct-card-label {
   font-size: 11px;
@@ -1550,19 +1585,19 @@
 
   /* Show Bottom Navigation Bar */
   .mobile-bottom-nav-bar {
-    display: flex;
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    z-index: 9999;
-    height: 64px;
-    background: rgba(8, 11, 18, 0.94);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border-top: 1.5px solid rgba(212, 175, 55, 0.3);
-    box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.7), 0 0 15px rgba(212, 175, 55, 0.1);
-    padding-bottom: env(safe-area-inset-bottom, 0px);
+    display: flex !important;
+    position: fixed !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    z-index: 9999 !important;
+    height: 64px !important;
+    background: rgba(8, 11, 18, 0.94) !important;
+    backdrop-filter: blur(20px) !important;
+    -webkit-backdrop-filter: blur(20px) !important;
+    border-top: 1.5px solid rgba(212, 175, 55, 0.3) !important;
+    box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.7), 0 0 15px rgba(212, 175, 55, 0.1) !important;
+    padding-bottom: env(safe-area-inset-bottom, 0px) !important;
   }
 
   /* Safe padding on the root container so bottom nav doesn't cover content */
@@ -1640,7 +1675,7 @@
   }
 
   .btn-header-consultation {
-    display: none !important; /* Kept concise on mobile: tabs are in bottom bar */
+    display: none !important;
   }
 
   .btn-header-whatsapp {
@@ -1652,7 +1687,7 @@
   }
 
   .mobile-hamburger-btn {
-    display: none !important; /* Bottom nav bar provides superior 1-tap navigation */
+    display: none !important;
   }
 
   /* 2. Global Containers */
