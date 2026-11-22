@@ -241,6 +241,18 @@ model AuditLog {
   user      User     @relation(fields: [userId], references: [id])
 }
 
+model LoginAttempt {
+  id        String   @id @default(uuid())
+  email     String
+  ip        String?
+  userAgent String?
+  success   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([email])
+  @@index([createdAt])
+}
+
 model SystemSettings {
   id                      String   @id @default("GLOBAL")
   kanbanEnabled           Boolean  @default(true)
