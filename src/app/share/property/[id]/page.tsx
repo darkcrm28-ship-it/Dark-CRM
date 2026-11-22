@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/db";
 import { notFound } from "next/navigation";
 import { requirePageRole, SALES_ROLES } from "@/lib/auth";
-import PropertyShowcaseClient from "./PropertyShowcaseClient";
+import PropertyShowcaseClient from "@/components/property/PropertyShowcaseClient";
 
 export default async function PublicPropertyShowcasePage({
   params,

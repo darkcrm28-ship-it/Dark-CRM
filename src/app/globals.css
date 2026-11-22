@@ -2422,6 +2422,13 @@ a:hover > .stat-card {
   gap: 24px;
 }
 
+/* Single Column Layout */
+.showcase-single-col {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 24px;
+}
+
 .showcase-card {
   background: linear-gradient(135deg, rgba(22, 27, 34, 0.7), rgba(13, 17, 23, 0.85));
   backdrop-filter: blur(16px);

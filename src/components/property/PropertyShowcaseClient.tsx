@@ -40,9 +40,10 @@ interface UnitProps {
   description?: string | null;
   images: string[];
   status: string;
+  hideFinancials?: boolean;
 }
 
-export default function PropertyShowcaseClient({ unit }: { unit: UnitProps }) {
+export default function PropertyShowcaseClient({ unit, hideFinancials = false }: { unit: UnitProps; hideFinancials?: boolean }) {
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -198,7 +199,7 @@ export default function PropertyShowcaseClient({ unit }: { unit: UnitProps }) {
         </section>
 
         {/* Pricing & Key Specifications Grid */}
-        <div className="showcase-grid-two-cols">
+        <div className={hideFinancials ? "showcase-single-col" : "showcase-grid-two-cols"}>
           {/* Right Column: Specs */}
           <div className="showcase-card">
             <h2 className="section-title">
@@ -265,74 +266,76 @@ export default function PropertyShowcaseClient({ unit }: { unit: UnitProps }) {
             )}
           </div>
 
-          {/* Left Column: Price & Payment Breakdown */}
-          <div className="showcase-card financial-card">
-            <h2 className="section-title">
-              <CreditCard size={18} className="text-gold" />
-              <span>بيانات السعر وخطة السداد</span>
-            </h2>
+          {/* Left Column: Price & Payment Breakdown (conditional for public pages) */}
+          {!hideFinancials && (
+            <div className="showcase-card financial-card">
+              <h2 className="section-title">
+                <CreditCard size={18} className="text-gold" />
+                <span>بيانات السعر وخطة السداد</span>
+              </h2>
 
-            {/* Price Box */}
-            <div className="price-hero-box">
-              <span className="price-sub-label">إجمالي السعر المطلوب</span>
-              <div className="price-main-number">
-                {unit.price ? `${unit.price.toLocaleString()} جنيه` : "السعر عند التواصل"}
+              {/* Price Box */}
+              <div className="price-hero-box">
+                <span className="price-sub-label">إجمالي السعر المطلوب</span>
+                <div className="price-main-number">
+                  {unit.price ? `${unit.price.toLocaleString()} جنيه` : "السعر عند التواصل"}
+                </div>
+              </div>
+
+              {/* Installments details if applicable */}
+              {unit.monthlyInstallment && unit.monthlyInstallment > 0 ? (
+                <div className="installments-breakdown-box">
+                  <div className="flex items-center gap-2 mb-3 text-gold font-bold text-sm">
+                    <Calendar size={16} />
+                    <span>تسهيلات السداد والأقساط</span>
+                  </div>
+                  <div className="installment-row">
+                    <span>القسط الشهري التقريبي:</span>
+                    <strong className="text-white">{unit.monthlyInstallment.toLocaleString()} ج.م / شهر</strong>
+                  </div>
+                  {unit.remainingMonths && (
+                    <div className="installment-row">
+                      <span>عدد الأشهر المتبقية:</span>
+                      <strong className="text-white">{unit.remainingMonths} شهر</strong>
+                    </div>
+                  )}
+                  {unit.installmentType && (
+                    <div className="installment-row">
+                      <span>نوع القسط:</span>
+                      <strong className="text-white">{unit.installmentType === "FIXED" ? "قسط ثابت" : "متغير"}</strong>
+                    </div>
+                  )}
+                </div>
+              ) : null}
+
+              {/* Guarantee / Privacy badge */}
+              <div className="privacy-guarantee-pill">
+                <CheckCircle2 size={16} className="text-emerald-400 flex-shrink-0" />
+                <span>بيانات موثوقة ومفحوصة بالكامل من خلال مستشاري شركة دارك العقارية.</span>
+              </div>
+
+              {/* Direct CTA Buttons */}
+              <div className="cta-actions-stack">
+                <a
+                  href={`https://wa.me/?text=${whatsappMessage}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="primary-whatsapp-cta"
+                >
+                  <MessageCircle size={20} />
+                  <span>حجز موعد معاينة عبر واتساب</span>
+                </a>
+
+                <a
+                  href="tel:"
+                  className="secondary-call-cta"
+                >
+                  <PhoneCall size={18} />
+                  <span>اتصال بالمستشار العقاري</span>
+                </a>
               </div>
             </div>
-
-            {/* Installments details if applicable */}
-            {unit.monthlyInstallment && unit.monthlyInstallment > 0 ? (
-              <div className="installments-breakdown-box">
-                <div className="flex items-center gap-2 mb-3 text-gold font-bold text-sm">
-                  <Calendar size={16} />
-                  <span>تسهيلات السداد والأقساط</span>
-                </div>
-                <div className="installment-row">
-                  <span>القسط الشهري التقريبي:</span>
-                  <strong className="text-white">{unit.monthlyInstallment.toLocaleString()} ج.م / شهر</strong>
-                </div>
-                {unit.remainingMonths && (
-                  <div className="installment-row">
-                    <span>عدد الأشهر المتبقية:</span>
-                    <strong className="text-white">{unit.remainingMonths} شهر</strong>
-                  </div>
-                )}
-                {unit.installmentType && (
-                  <div className="installment-row">
-                    <span>نوع القسط:</span>
-                    <strong className="text-white">{unit.installmentType === "FIXED" ? "قسط ثابت" : "متغير"}</strong>
-                  </div>
-                )}
-              </div>
-            ) : null}
-
-            {/* Guarantee / Privacy badge */}
-            <div className="privacy-guarantee-pill">
-              <CheckCircle2 size={16} className="text-emerald-400 flex-shrink-0" />
-              <span>بيانات موثوقة ومفحوصة بالكامل من خلال مستشاري شركة دارك العقارية.</span>
-            </div>
-
-            {/* Direct CTA Buttons */}
-            <div className="cta-actions-stack">
-              <a
-                href={`https://wa.me/?text=${whatsappMessage}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="primary-whatsapp-cta"
-              >
-                <MessageCircle size={20} />
-                <span>حجز موعد معاينة عبر واتساب</span>
-              </a>
-
-              <a
-                href="tel:"
-                className="secondary-call-cta"
-              >
-                <PhoneCall size={18} />
-                <span>اتصال بالمستشار العقاري</span>
-              </a>
-            </div>
-          </div>
+          )}
         </div>
       </main>
 
@@ -376,9 +379,11 @@ export default function PropertyShowcaseClient({ unit }: { unit: UnitProps }) {
       <div className="mobile-floating-cta-bar">
         <div>
           <div className="text-[11px] text-slate-400">كود: {unit.refCode}</div>
-          <div className="text-sm font-bold text-gold">
-            {unit.price ? `${unit.price.toLocaleString()} ج.م` : "عند التواصل"}
-          </div>
+          {!hideFinancials && (
+            <div className="text-sm font-bold text-gold">
+              {unit.price ? `${unit.price.toLocaleString()} ج.م` : "عند التواصل"}
+            </div>
+          )}
         </div>
         <a
           href={`https://wa.me/?text=${whatsappMessage}`}
