@@ -15,71 +15,40 @@ export async function POST(request: NextRequest) {
     }
 
     const cleanEmail = String(email).trim().toLowerCase();
-    const ip = request.headers.get("x-forwarded-for")?.split(",")[0] ?? "unknown";
+    const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
     const ua = request.headers.get("user-agent") ?? "";
-    const now = Date.now();
-    const windowMs = 5 * 60 * 1000;
-    const maxAttempts = 5;
 
-    // --- DB-backed rate limiting ---
-    let limited = false;
-    let retryAfterMs = 0;
+    const maxEmailFailures = 15;    // failed attempts per email per window
+    const maxIpAttempts = 25;       // total attempts per IP per window
 
-    try {
-      const result = await prisma.$queryRawUnsafe<{ cnt: number }[]>(
-        `SELECT COUNT(*)::int AS cnt FROM "LoginAttempt"
-         WHERE "email" = $1 AND "createdAt" >= now() - interval '5 minutes'`,
-        cleanEmail
-      );
-      const cnt = result?.[0]?.cnt ?? 0;
-      if (cnt >= maxAttempts) {
-        limited = true;
-        retryAfterMs = Math.min(30_000, 1000 * Math.pow(2, cnt - maxAttempts + 1));
-        await prisma.$executeRaw`
-          INSERT INTO "AuditLog" ("userId", "action", "entity", "entityId", "details")
-          VALUES (NULL, 'LOGIN_RATE_LIMIT', 'AUTH', NULL, ${JSON.stringify({
-            email: cleanEmail,
-            attemptCount: cnt,
-            retryAfterMs,
-          })})
-        `.catch(() => {});
-      }
-    } catch (e) {
-      console.warn("Rate limiter DB error, falling back to cookie", e);
-    }
+    // --- Rate limiting (DB-backed, shared across Cloudflare Workers) ---
+    // Email-based: count FAILED attempts only, to avoid locking a legit user
+    // merely because an attacker targets their email address.
+    const emailFailureCount = await prisma.$queryRawUnsafe<{ cnt: number }[]>(
+      `SELECT COUNT(*)::int AS cnt FROM "LoginAttempt"
+       WHERE "email" = $1 AND "success" = false AND "createdAt" >= now() - interval '5 minutes'`,
+      cleanEmail
+    );
+    const emailFailures = emailFailureCount?.[0]?.cnt ?? 0;
 
-    // --- Cookie-based fallback / supplement ---
-    let attemptCount = 1;
-    const existingCookie = request.cookies.get("login_rate_limit");
-    if (existingCookie?.value) {
-      try {
-        const payload = JSON.parse(existingCookie.value) as { email: string; count: number; windowStart: number };
-        if (payload.email === cleanEmail && now - payload.windowStart <= windowMs) {
-          attemptCount = payload.count + 1;
-        }
-      } catch {}
-    }
+    // IP-based: count ALL attempts from the same IP to block brute-force /
+    // credential-stuffing irrespective of which email is targeted.
+    const ipAttemptCount = await prisma.$queryRawUnsafe<{ cnt: number }[]>(
+      `SELECT COUNT(*)::int AS cnt FROM "LoginAttempt"
+       WHERE "ip" = $1 AND "createdAt" >= now() - interval '5 minutes'`,
+      ip
+    );
+    const ipAttempts = ipAttemptCount?.[0]?.cnt ?? 0;
 
-    if (!limited && attemptCount > maxAttempts) {
-      limited = true;
-      retryAfterMs = Math.min(30_000, 1000 * Math.pow(2, attemptCount - maxAttempts));
-    }
-
-    if (limited) {
+    if (emailFailures >= maxEmailFailures || ipAttempts >= maxIpAttempts) {
       return NextResponse.json(
         { error: "محاولة تسجيل دخول مكثفة، يرجى المحاولة لاحقاً." },
         {
           status: 429,
-          headers: { "Retry-After": String(Math.ceil(retryAfterMs / 1000)) },
+          headers: { "Retry-After": "300" },
         }
       );
     }
-
-    // --- Record attempt in DB (best-effort) ---
-    await prisma.$executeRaw`
-      INSERT INTO "LoginAttempt" ("email", "ip", "userAgent", "success")
-      VALUES (${cleanEmail}, ${ip}, ${ua}, false)
-    `.catch(() => {});
 
     // --- Normal login ---
     const user = await prisma.user.findFirst({
@@ -93,37 +62,28 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    if (!user || !user.isActive) {
-      // Update cookie with failure count
-      const response = NextResponse.json(
-        { error: "بيانات الدخول غير صحيحة" },
-        { status: 401 }
-      );
-      response.cookies.set("login_rate_limit", JSON.stringify({ email: cleanEmail, count: attemptCount, windowStart: now }), {
-        httpOnly: true,
-        path: "/",
-        sameSite: "lax",
-        secure: process.env.NODE_ENV === "production",
-        maxAge: 60 * 5,
-      });
-      return response;
+    let isValid = false;
+    if (user) {
+      isValid = await verifyPassword(password, user.password);
     }
 
-    const isValid = await verifyPassword(password, user.password);
+    // Record the attempt with its REAL result: success or failure.
+    // Never record a successful login as a failure.
+    try {
+      await prisma.$executeRaw`
+        INSERT INTO "LoginAttempt" ("email", "ip", "userAgent", "success")
+        VALUES (${cleanEmail}, ${ip}, ${ua}, ${isValid})
+      `.catch(() => {});
+    } catch {
+      // Login attempt table best-effort; do not block login if it fails.
+    }
 
-    if (!isValid) {
-      const response = NextResponse.json(
+    // Generic error regardless of why login failed — no account enumeration.
+    if (!user || !user.isActive || !isValid) {
+      return NextResponse.json(
         { error: "بيانات الدخول غير صحيحة" },
         { status: 401 }
       );
-      response.cookies.set("login_rate_limit", JSON.stringify({ email: cleanEmail, count: attemptCount, windowStart: now }), {
-        httpOnly: true,
-        path: "/",
-        sameSite: "lax",
-        secure: process.env.NODE_ENV === "production",
-        maxAge: 60 * 5,
-      });
-      return response;
     }
 
     if (!ALLOWED_ROLES.has(user.role as AppRole)) {
@@ -144,8 +104,6 @@ export async function POST(request: NextRequest) {
       sameSite: "lax",
       maxAge: 60 * 60 * 24,
     });
-    response.cookies.set("login_rate_limit", "", { httpOnly: true, path: "/", maxAge: 0 });
-
     return response;
   } catch (error) {
     console.error("Login Error:", error);

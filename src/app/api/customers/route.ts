@@ -153,34 +153,35 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Name and phone are required" }, { status: 400 });
     }
 
-    // Idempotency: don't create duplicate if same name+phone already exists
-    const existingCustomer = await prisma.customer.findFirst({
-      where: { name: name.trim(), phone: phone.trim() },
-    });
-    if (existingCustomer) {
-      return NextResponse.json(existingCustomer);
-    }
-
-    async function resolveNextCode(): Promise<string> {
-      const maxCodeRes = await prisma.$queryRaw<Array<{ max_seq: string | null }>>`
-        SELECT COALESCE(
-          MAX(NULLIF(REGEXP_REPLACE(code, '^CUST-0*', ''), '')::bigint), 0
-        )::text AS max_seq
-        FROM "Customer"
-        WHERE code ~ '^CUST-[0-9]+$';
-      `;
-      const nextSeq = Number(maxCodeRes[0]?.max_seq ?? 0) + 1;
-      return "CUST-" + nextSeq.toString().padStart(4, "0");
-    }
-
     let customer: any = null;
     const maxRetries = 3;
+    const CUSTOMER_SEQUENCE_LOCK = 74839205;
 
     for (let attempt = 0; attempt < maxRetries; attempt++) {
-      const code = await resolveNextCode();
       try {
         customer = await prisma.$transaction(
           async (tx) => {
+            // Serialize code allocation across single-add and bulk-import via shared lock
+            await tx.$queryRaw`SELECT pg_advisory_xact_lock(${CUSTOMER_SEQUENCE_LOCK});`;
+
+            // Idempotency inside lock: same name+phone => return existing, no cross-unit merge
+            const existingCustomer = await tx.customer.findFirst({
+              where: { name: name.trim(), phone: phone.trim() },
+            });
+            if (existingCustomer) {
+              return existingCustomer;
+            }
+
+            const maxCodeRes = await tx.$queryRaw<Array<{ max_seq: string | null }>>`
+              SELECT COALESCE(
+                MAX(NULLIF(REGEXP_REPLACE(code, '^CUST-0*', ''), '')::bigint), 0
+              )::text AS max_seq
+              FROM "Customer"
+              WHERE code ~ '^CUST-[0-9]+$';
+            `;
+            const nextSeq = Number(maxCodeRes[0]?.max_seq ?? 0) + 1;
+            const code = "CUST-" + nextSeq.toString().padStart(4, "0");
+
             const createdCustomer = await tx.customer.create({
               data: {
                 code,
@@ -260,9 +261,11 @@ export async function POST(request: NextRequest) {
         );
         break;
       } catch (err: any) {
-        const isCodeConflict = 
-          err?.code === "P2002" && 
-          (String(err?.constraint ?? "").toLowerCase().includes("code") || err?.meta?.target?.includes("code"));
+        const errTarget = Array.isArray(err?.meta?.target) ? err?.meta?.target.map(String) : [String(err?.meta?.target ?? "")];
+        const isCodeConflict =
+          err?.code === "P2002" &&
+          (String(err?.constraint ?? "").toLowerCase().includes("code") ||
+            errTarget.some((t: string) => t.toLowerCase().includes("code")));
         if (isCodeConflict && attempt < maxRetries - 1) {
           console.warn(`Customer.code conflict on single add (P2002). Retrying attempt ${attempt + 1}...`);
           await new Promise((res) => setTimeout(res, 50 * (attempt + 1)));

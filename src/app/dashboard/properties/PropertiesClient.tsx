@@ -92,6 +92,24 @@ export default function PropertiesClient({
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [customFieldDefs, setCustomFieldDefs] = useState<any[]>([]);
 
+  // Publication field selector (replaces window.prompt)
+  const [showFieldSelector, setShowFieldSelector] = useState(false);
+  const [selectedFields, setSelectedFields] = useState<string[]>([]);
+  const [pendingPublicationProperty, setPendingPublicationProperty] = useState<any>(null);
+
+  const PUBLISHABLE_FIELDS: { key: string; label: string }[] = [
+    { key: "title", label: "العنوان" },
+    { key: "projectName", label: "اسم المشروع" },
+    { key: "zone", label: "المنطقة" },
+    { key: "unitType", label: "نوع الوحدة" },
+    { key: "finishing", label: "التشطيب" },
+    { key: "size", label: "المساحة" },
+    { key: "bedrooms", label: "غرف النوم" },
+    { key: "bathrooms", label: "الحمامات" },
+    { key: "images", label: "الصور" },
+    { key: "description", label: "الوصف" },
+  ];
+
   const router = useRouter();
 
   useEffect(() => {
@@ -224,24 +242,23 @@ export default function PropertiesClient({
   };
 
   const updatePublication = async (property: any) => {
-    const current = property.customData?.publicListing || {};
     const isGeneralManager = session?.role === "GENERAL_MANAGER";
+    const current = property.customData?.publicListing || {};
+    const fields: string[] = Array.isArray(current.fields) ? current.fields : [];
     let status: "PENDING" | "APPROVED" | "REJECTED";
-    let fields: string[] = Array.isArray(current.fields) ? current.fields : [];
 
+    // If currently PENDING or APPROVED, use the existing status-change flow
     if (current.status === "PENDING" && isGeneralManager) {
       status = confirm("اعتماد نشر هذه الوحدة بالحقول المحددة؟") ? "APPROVED" : "REJECTED";
     } else if (current.status === "APPROVED") {
       if (!isGeneralManager) return;
       status = "PENDING";
     } else {
-      const selection = prompt(
-        "اختر الحقول العامة المسموح بنشرها، مفصولة بفواصل. الحقول: title, projectName, zone, unitType, finishing, size, bedrooms, bathrooms, images, description",
-        "projectName, zone, unitType, size, bedrooms, bathrooms, images"
-      );
-      if (selection === null) return;
-      fields = selection.split(",").map((field) => field.trim()).filter(Boolean);
-      status = "PENDING";
+      // Show field selection UI instead of prompt
+      setPendingPublicationProperty(property);
+      setSelectedFields(Array.isArray(current.fields) ? current.fields : []);
+      setShowFieldSelector(true);
+      return; // UI will handle submission
     }
 
     try {
@@ -259,6 +276,32 @@ export default function PropertiesClient({
       router.refresh();
     } catch (error: any) {
       alert(error.message || "تعذر تحديث حالة النشر");
+    }
+  };
+
+  const handleConfirmPublication = async () => {
+    const property = pendingPublicationProperty;
+    if (!property) return;
+    const status = "PENDING";
+    try {
+      const response = await fetch(`/api/properties/${property.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status, fields: selectedFields }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "تعذر تحديث حالة النشر");
+      setList((items) => items.map((item) => item.id === property.id ? {
+        ...item,
+        customData: { ...(item.customData || {}), publicListing: { status, fields: selectedFields } },
+      } : item));
+      router.refresh();
+    } catch (error: any) {
+      alert(error.message || "تعذر تحديث حالة النشر");
+    } finally {
+      setShowFieldSelector(false);
+      setPendingPublicationProperty(null);
+      setSelectedFields([]);
     }
   };
 
@@ -780,6 +823,63 @@ export default function PropertiesClient({
                 ? "ابدأ بإضافة أول وحدة عقارية من زر 'إضافة وحدة جديدة' في الأعلى."
                 : "جرب تغيير معايير البحث أو تصفية الحالات."}
             </p>
+          </div>
+        )}
+        {showFieldSelector && (
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-xl p-6 max-w-sm w-full border">
+              <h3 className="text-xl font-bold mb-4">اختيار الحقول العامة</h3>
+              <div className="space-y-3">
+                {PUBLISHABLE_FIELDS.map((field) => (
+                  <div key={field.key} className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={selectedFields.includes(field.key)}
+                      onChange={(e) =>
+                        e.target.checked
+                          ? setSelectedFields([...selectedFields, field.key])
+                          : setSelectedFields(selectedFields.filter((k) => k !== field.key))
+                      }
+                      className="form-checkbox form-checkbox-info"
+                      id={`field-${field.key}`}
+                    />
+                    <label htmlFor={`field-${field.key}`} className="text-sm">
+                      {field.label}
+                    </label>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-4 pt-3 border-t">
+                <p className="text-sm text-muted mb-2">معاينة:</p>
+                <div className="text-xs text-slate-400">
+                  <strong>العنوان:</strong>{" "}
+                  {selectedFields.includes("title") ? "وحدة عقارية" : "—"}
+                  <br />
+                  <strong>اسم المشروع:</strong>{" "}
+                  {selectedFields.includes("projectName") ? "اسم المشروع" : "—"}
+                  <br />
+                  <strong>الوصف:</strong>{" "}
+                  {selectedFields.includes("description") ? "وصف الوحدة" : "—"}
+                </div>
+              </div>
+              <div className="mt-4 flex gap-2">
+                <button
+                  onClick={handleConfirmPublication}
+                  className="btn btn-primary"
+                >
+                  تأكيد النشر
+                </button>
+                <button
+                  onClick={() => {
+                    setShowFieldSelector(false);
+                    setSelectedFields([]);
+                  }}
+                  className="btn btn-ghost"
+                >
+                  إلغاء
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>

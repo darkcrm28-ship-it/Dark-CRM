@@ -794,7 +794,14 @@ export async function POST(request: NextRequest) {
 
         break;
       } catch (insertErr: any) {
-        if (insertErr?.code === "P2002" && attempt < maxRetries - 1) {
+        const errTarget = Array.isArray(insertErr?.meta?.target)
+          ? insertErr?.meta?.target.map(String)
+          : [String(insertErr?.meta?.target ?? "")];
+        const isCodeConflict =
+          insertErr?.code === "P2002" &&
+          (String(insertErr?.constraint ?? "").toLowerCase().includes("code") ||
+            errTarget.some((t: string) => t.toLowerCase().includes("code")));
+        if (isCodeConflict && attempt < maxRetries - 1) {
           console.warn(`Customer.code conflict on import (P2002). Retrying in fresh transaction attempt ${attempt + 1}...`);
           await new Promise((res) => setTimeout(res, 100 * (attempt + 1)));
           continue;

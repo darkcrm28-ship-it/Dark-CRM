@@ -34,10 +34,6 @@ export default async function PublicPropertyDetailPage({
       bathrooms: true,
       images: true,
       description: true,
-      price: true,
-      monthlyInstallment: true,
-      remainingMonths: true,
-      installmentType: true,
     },
   });
 
@@ -81,7 +77,7 @@ export default async function PublicPropertyDetailPage({
   const sanitizedUnit = {
     id: property.id,
     refCode: `DK-${property.id.substring(0, 6).toUpperCase()}`,
-    title: fields.has("title") ? (property.title ?? `وحدة فاخرة في ${property.projectName ?? "مشروع مميز"}`) : `وحدة فاخرة في ${property.projectName ?? "مشروع مميز"}`,
+    title: fields.has("title") ? (property.title ?? "وحدة عقارية") : "وحدة عقارية",
     projectName: fields.has("projectName") ? property.projectName ?? "مشروع عقاري راقي" : "مشروع عقاري راقي",
     zone: fields.has("zone") ? property.zone ?? "منطقة متميزة" : "منطقة متميزة",
     size: fields.has("size") ? property.size : null,

@@ -51,3 +51,5 @@ create-admin.js
 
 .vercel
 .env*.local
+.kilo/
+
