@@ -31,8 +31,7 @@ export async function getApprovedPublicListings(limit?: number) {
     select: {
       id: true, status: true, customData: true, title: true, projectName: true,
       zone: true, unitType: true, finishing: true, size: true, bedrooms: true,
-      bathrooms: true, images: true, description: true, price: true,
-      monthlyInstallment: true, remainingMonths: true,
+      bathrooms: true, images: true, description: true,
     },
   });
 

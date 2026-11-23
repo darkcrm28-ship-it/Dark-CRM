@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireRole, FINANCE_ROLES } from "@/lib/auth";
+import { resolveEffectiveDealPrice } from "@/lib/financial";
 
 const ACCOUNTING_LOCK_ID = 74839210;
 export async function POST() {
@@ -59,8 +60,8 @@ export async function POST() {
               data: {
                 type: "INCOME",
                 category: "REVENUE",
-                amount: deal.value,
-                description: `إيراد صفقة مكتملة - قيمة العقد`,
+                amount: resolveEffectiveDealPrice(deal),
+                description: `إيراد صفقة مكتملة - القيمة المحققة`,
                 status: "COMPLETED",
                 relatedId: deal.id,
                 date: deal.closedAt || deal.createdAt,

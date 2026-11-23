@@ -104,6 +104,7 @@ model Customer {
   deals                 Deal[]
   interactions          Interaction[]
   reminders             Reminder[]
+  propertyOwnerships    PropertyOwnership[]
 
   @@index([assignedToId])
   @@index([status])
@@ -140,6 +141,11 @@ model Property {
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
   deals                 Deal[]
+  ownerships            PropertyOwnership[]
+
+  @@index([status, createdAt])
+  @@index([projectName])
+  @@index([zone])
 }
 
 model CustomFieldDefinition {
@@ -170,6 +176,11 @@ model Deal {
   customer      Customer  @relation(fields: [customerId], references: [id])
   property      Property? @relation(fields: [propertyId], references: [id])
   salesRep      User?     @relation("SalesRep", fields: [salesRepId], references: [id])
+
+  @@index([salesRepId])
+  @@index([customerId])
+  @@index([status])
+  @@index([createdAt])
 }
 
 model Interaction {
@@ -228,6 +239,9 @@ model Commission {
   notes     String?
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([status])
 }
 
 model AuditLog {
@@ -284,4 +298,64 @@ model FinancialTransaction {
   relatedId   String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  @@index([date])
+  @@index([relatedId])
+  @@index([type])
 }
+
+model PropertyOwnership {
+  id              String    @id @default(uuid())
+  propertyId      String
+  customerId      String
+  percentage      Float
+  effectiveFrom   DateTime  @default(now())
+  effectiveTo     DateTime?
+  isCurrent       Boolean   @default(true)
+  notes           String?
+  transferReason  String?
+  previousOwnerId String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  property        Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  customer        Customer  @relation(fields: [customerId], references: [id], onDelete: Restrict)
+
+  @@index([propertyId, isCurrent])
+  @@index([customerId])
+  @@index([effectiveFrom, effectiveTo])
+}
+
+model JobQueue {
+  id          String    @id @default(uuid())
+  type        String
+  payload     Json      @default("{}")
+  status      String    @default("PENDING") // PENDING, PROCESSING, COMPLETED, FAILED
+  attempts    Int       @default(0)
+  maxAttempts Int       @default(3)
+  lastError   String?
+  lockedAt    DateTime?
+  lockedBy    String?
+  runAt       DateTime  @default(now())
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([status, runAt])
+  @@index([lockedAt])
+}
+
+model PushDeliveryLog {
+  id             String    @id @default(uuid())
+  notificationId String?
+  userId         String
+  endpoint       String
+  outcome        String    // DELIVERED, EXPIRED, FAILED, UNKNOWN
+  statusCode     Int?
+  errorDetails   String?
+  createdAt      DateTime  @default(now())
+
+  @@index([userId])
+  @@index([outcome])
+  @@index([createdAt])
+}
+

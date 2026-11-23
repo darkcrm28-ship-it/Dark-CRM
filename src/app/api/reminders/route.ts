@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireRole, SALES_ROLES, SALES_MANAGER_ROLES } from "@/lib/auth";
+import { handleReminderStatusChange } from "@/lib/notification-dispatcher";
 
 const MANAGER_ROLES = SALES_MANAGER_ROLES;
 
@@ -95,9 +96,10 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const reminder = await prisma.reminder.update({
-      where: { id },
-      data: { status: body.isDone ? "COMPLETED" : "PENDING" },
+    const reminder = await handleReminderStatusChange({
+      reminderId: id,
+      isDone: body.isDone,
+      operatorUserId: session.id,
     });
     return NextResponse.json({ success: true, reminder });
   } catch (error) {

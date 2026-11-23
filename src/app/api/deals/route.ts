@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireRole, ROLE, SALES_ROLES } from "@/lib/auth";
+import { parseCurrency, calculateCommission } from "@/lib/financial";
 
 export async function GET() {
   const session = await requireRole(SALES_ROLES);
@@ -30,15 +31,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "العميل مطلوب لإتمام الصفقة" }, { status: 400 });
     }
 
-    const finalPrice = typeof body.finalPrice === "number" ? body.finalPrice : parseFloat(body.finalPrice);
-    if (!finalPrice || isNaN(finalPrice) || finalPrice <= 0) {
+    const parsedFinalPrice = parseCurrency(body.finalPrice);
+    const parsedNominalValue = parseCurrency(body.value);
+    const finalPrice = parsedFinalPrice ?? parsedNominalValue;
+    if (!finalPrice || finalPrice <= 0) {
       return NextResponse.json({ error: "قيمة الصفقة يجب أن تكون رقماً موجباً" }, { status: 400 });
     }
+    const nominalValue = parsedNominalValue ?? finalPrice;
 
     const commissionPercent = body.commission !== undefined ? Math.max(0, parseFloat(body.commission) || 0) : 0;
     const commissionAmt = body.commissionAmt !== undefined 
-      ? Math.max(0, parseFloat(body.commissionAmt) || 0) 
-      : (finalPrice * commissionPercent) / 100;
+      ? Math.max(0, parseCurrency(body.commissionAmt) || 0) 
+      : calculateCommission(finalPrice, commissionPercent);
 
     // Verify Customer exists
     const customer = await prisma.customer.findUnique({
@@ -109,7 +113,7 @@ export async function POST(request: NextRequest) {
           propertyId: propertyId || null,
           salesRepId: targetSalesRepId,
           status: "COMPLETED",
-          value: finalPrice,
+          value: nominalValue,
           finalPrice,
           commission: commissionPercent,
           commissionAmt,
