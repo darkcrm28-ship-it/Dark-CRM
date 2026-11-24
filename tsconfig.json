@@ -36,6 +36,7 @@
   ],
   "exclude": [
     "node_modules",
-    "import-backup-before-smart-update"
+    "import-backup-before-smart-update",
+    "workers"
   ]
 }

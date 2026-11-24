@@ -1,8 +1,10 @@
 // Custom Cloudflare Worker Entrypoint wrapping OpenNext
 // Conforms to Cloudflare Workers ExportedHandler contract: { fetch, scheduled }
+// @ts-ignore .open-next/worker.js is generated dynamically during 'opennextjs-cloudflare build'
 import openNextHandler from "../.open-next/worker.js";
 
 // Re-export Durable Objects required by OpenNext for queue & caching
+// @ts-ignore
 export { DOQueueHandler, DOShardedTagCache, BucketCachePurge } from "../.open-next/worker.js";
 
 export interface ScheduledController {
@@ -30,7 +32,6 @@ const worker = {
   },
 
   // 2. Dedicated Cloudflare Cron Trigger event handler
-  // Note: Executed on schedule (e.g. daily reminder dispatch / audit sweep)
   async scheduled(controller: ScheduledController, env: CloudflareEnv, ctx: ExecutionContext) {
     const scheduledTime = new Date(controller.scheduledTime).toISOString();
     console.log(`[Cron Trigger] Fired at ${scheduledTime} with pattern: "${controller.cron}"`);
@@ -39,7 +40,6 @@ const worker = {
     ctx.waitUntil(
       (async () => {
         try {
-          // Direct execution of background tasks
           console.log(`[Cron Trigger] Executing scheduled maintenance for pattern ${controller.cron}`);
         } catch (error) {
           console.error(`[Cron Trigger] Execution error for pattern ${controller.cron}:`, error);
