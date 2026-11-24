@@ -444,6 +444,59 @@ async function main() {
   }
 
   // ══════════════════════════════════════════════════════════════════════════════
+  // TEST 6: Background Jobs System (Cron + JobQueue)
+  // ══════════════════════════════════════════════════════════════════════════════
+  section("TEST 6 — Background Jobs System (Cron + JobQueue)");
+
+  // Import the background jobs module dynamically (uses Prisma client)
+  const bgJobs = await import("../src/lib/background-jobs");
+  const { claimBackgroundJobs, enqueueJob, processJob, completeJob, failJob } = bgJobs;
+
+  try {
+    // Clean up test jobs
+    await pool.query(`DELETE FROM "JobQueue" WHERE type LIKE 'TEST_%'`);
+
+    // Test enqueue + claim
+    const runAt = new Date(Date.now() - 60000); // in the past
+    const enqueued = await enqueueJob("TEST_CLAIM", { message: "hello" }, runAt);
+    assert("enqueueJob returns job record", enqueued && enqueued.id);
+    assert("enqueueJob type matches", enqueued.type === "TEST_CLAIM");
+
+    const claimed = await claimBackgroundJobs("test-worker-1", 5, 5);
+    assert("claimBackgroundJobs returns at least one job", claimed.length >= 1);
+    const testJob = claimed.find(j => j.type === "TEST_CLAIM");
+    assert("claimed job type matches", testJob?.type === "TEST_CLAIM");
+    assert("claimed job status is PROCESSING", testJob?.status === "PROCESSING");
+    assert("claimed job lockedBy set", testJob?.lockedBy === "test-worker-1");
+
+    // Test processJob (which calls completeJob)
+    await processJob(testJob!);
+    const completed = await pool.query(`SELECT status FROM "JobQueue" WHERE id=$1`, [testJob!.id]);
+    assert("processJob marks job COMPLETED", completed.rows[0].status === "COMPLETED");
+
+    // Test failJob with retry (not final)
+    const failJobRecord = await enqueueJob("TEST_FAIL_RETRY", { a: 1 }, runAt);
+    await failJob(failJobRecord.id, 1, 3, "temporary error");
+    const retried = await pool.query(`SELECT status, "runAt" FROM "JobQueue" WHERE id=$1`, [failJobRecord.id]);
+    assert("failJob sets status PENDING when not final", retried.rows[0].status === "PENDING");
+    assert("failJob sets future runAt for retry", new Date(retried.rows[0].runAt).getTime() > Date.now());
+
+    // Test failJob final (exceeds maxAttempts)
+    const finalFailRecord = await enqueueJob("TEST_FAIL_FINAL", { a: 2 }, runAt);
+    await failJob(finalFailRecord.id, 3, 3, "permanent error");
+    const final = await pool.query(`SELECT status FROM "JobQueue" WHERE id=$1`, [finalFailRecord.id]);
+    assert("failJob sets status FAILED when maxAttempts reached", final.rows[0].status === "FAILED");
+
+    console.log("   → Background job lifecycle tests passed");
+  } catch (err) {
+    assert("Background Jobs test suite", false, String(err.message));
+  }
+
+  // Cleanup test jobs
+  await pool.query(`DELETE FROM "JobQueue" WHERE type LIKE 'TEST_%'`);
+  console.log("   → Cleaned up test jobs");
+
+  // ══════════════════════════════════════════════════════════════════════════════
   // SUMMARY
   // ══════════════════════════════════════════════════════════════════════════════
   console.log(`\n${"═".repeat(60)}`);

@@ -55,6 +55,45 @@ export async function claimBackgroundJobs(
 }
 
 /**
+ * Enqueues a new background job.
+ * type: e.g. "REMINDER_SEND", "PUSH_NOTIFY", etc.
+ * payload: job‑specific data.
+ * runAt: when the job should first be considered (default now).
+ */
+export async function enqueueJob(
+  type: string,
+  payload: Record<string, unknown>,
+  runAt?: Date
+): Promise<JobRecord> {
+  const id = crypto.randomUUID();
+  const created = await prisma.jobQueue.create({
+    data: {
+      id,
+      type,
+      payload: JSON.stringify(payload ?? {}),
+      status: "PENDING",
+      runAt: runAt ?? new Date(),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    },
+  });
+  return {
+    id: created.id,
+    type: created.type,
+    payload: typeof created.payload === "string" ? JSON.parse(created.payload) : created.payload,
+    status: created.status,
+    attempts: created.attempts,
+    maxAttempts: created.maxAttempts,
+    lastError: created.lastError,
+    lockedAt: created.lockedAt ?? null,
+    lockedBy: created.lockedBy ?? null,
+    runAt: created.runAt,
+    createdAt: created.createdAt,
+    updatedAt: created.updatedAt,
+  };
+}
+
+/**
  * Marks a claimed job as COMPLETED upon successful processing.
  */
 export async function completeJob(jobId: string): Promise<void> {
@@ -90,5 +129,67 @@ export async function failJob(
       lockedBy: null,
       runAt: isFinal ? undefined : nextRunAt,
     },
+  });
+}
+
+/**
+ * Process a single job according to its type.
+ * Returns true on success, false on failure.
+ */
+export async function processJob(job: JobRecord): Promise<void> {
+  const payload = typeof job.payload === "string" ? JSON.parse(job.payload) : job.payload;
+  switch (job.type) {
+    case "REMINDER_SEND": {
+      // payload: { reminderId: string }
+      const { reminderId } = payload as { reminderId: string };
+      await processReminderSend(reminderId);
+      break;
+    }
+    case "PUSH_NOTIFY": {
+      // payload: { userId: string, title: string, body: string, link?: string }
+      const { userId, title, body, link } = payload as { userId: string; title: string; body: string; link?: string };
+      const { dispatchNotification } = await import("./notification-dispatcher");
+      await dispatchNotification({ userId, title, body, link });
+      break;
+    }
+    default:
+      console.warn(`[JobProcessor] Unknown job type: ${job.type}`);
+      // Mark as completed to avoid infinite retry
+      await completeJob(job.id);
+      return;
+  }
+  await completeJob(job.id);
+}
+
+async function processReminderSend(reminderId: string) {
+  // Fetch reminder with customer
+  const reminder = await prisma.reminder.findUnique({
+    where: { id: reminderId },
+    include: { customer: { select: { id: true, name: true, assignedToId: true } } },
+  });
+  if (!reminder || reminder.status !== "PENDING") return;
+
+  const targetUserId = reminder.userId || reminder.customer?.assignedToId;
+  if (!targetUserId) return;
+
+  // Create in-app notification
+  await prisma.notification.create({
+    data: {
+      userId: targetUserId,
+      title: `تذكير: ${reminder.title}`,
+      body: `موعد المتابعة للعميل ${reminder.customer?.name || ""}`,
+      type: "INFO",
+      link: `/dashboard/customers/${reminder.customerId}`,
+    },
+  });
+
+  // Dispatch push if VAPID configured
+  const { dispatchNotification } = await import("./notification-dispatcher");
+  await dispatchNotification({
+    userId: targetUserId,
+    title: `تذكير: ${reminder.title}`,
+    body: `موعد المتابعة للعميل ${reminder.customer?.name || ""}`,
+    link: `/dashboard/customers/${reminder.customerId}`,
+    createInAppRecord: false, // already created
   });
 }

@@ -7,6 +7,8 @@ import openNextHandler from "../.open-next/worker.js";
 // @ts-ignore
 export { DOQueueHandler, DOShardedTagCache, BucketCachePurge } from "../.open-next/worker.js";
 
+import { claimBackgroundJobs, processJob, completeJob, failJob } from "../src/lib/background-jobs";
+
 export interface ScheduledController {
   readonly scheduledTime: number;
   readonly cron: string;
@@ -25,6 +27,22 @@ export interface CloudflareEnv {
   [key: string]: unknown;
 }
 
+const WORKER_ID = "cron-worker";
+
+async function runScheduledJobs() {
+  const jobs = await claimBackgroundJobs(WORKER_ID, 5, 5);
+  console.log(`[Cron Trigger] Claimed ${jobs.length} job(s)`);
+  for (const job of jobs) {
+    try {
+      await processJob(job);
+      console.log(`[Cron Trigger] Completed job ${job.id} type=${job.type}`);
+    } catch (error) {
+      console.error(`[Cron Trigger] Failed job ${job.id} type=${job.type}:`, error);
+      await failJob(job.id, job.attempts, job.maxAttempts, String(error));
+    }
+  }
+}
+
 const worker = {
   // 1. Delegate standard HTTP traffic to OpenNext Next.js handler
   async fetch(request: Request, env: CloudflareEnv, ctx: ExecutionContext) {
@@ -41,6 +59,7 @@ const worker = {
       (async () => {
         try {
           console.log(`[Cron Trigger] Executing scheduled maintenance for pattern ${controller.cron}`);
+          await runScheduledJobs();
         } catch (error) {
           console.error(`[Cron Trigger] Execution error for pattern ${controller.cron}:`, error);
         }
