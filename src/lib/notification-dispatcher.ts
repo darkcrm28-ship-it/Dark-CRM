@@ -21,7 +21,7 @@ function ensureVapidConfigured(): boolean {
   }
 }
 
-export type PushDeliveryOutcome = "DELIVERED" | "EXPIRED" | "FAILED" | "UNKNOWN" | "SKIPPED_NO_KEYS";
+export type PushDeliveryOutcome = "PROVIDER_ACCEPTED" | "EXPIRED" | "FAILED" | "UNKNOWN" | "SKIPPED_NO_KEYS";
 
 export interface DispatchNotificationOptions {
   userId: string;
@@ -30,6 +30,7 @@ export interface DispatchNotificationOptions {
   link?: string;
   type?: string;
   createInAppRecord?: boolean;
+  dispatchKey?: string;
 }
 
 /**
@@ -40,11 +41,11 @@ export async function dispatchNotification(options: DispatchNotificationOptions)
   notificationId?: string;
   pushOutcomes: Array<{ endpoint: string; outcome: PushDeliveryOutcome; statusCode?: number }>;
 }> {
-  const { userId, title, body, link, type = "INFO", createInAppRecord = true } = options;
+  const { userId, title, body, link, type = "INFO", createInAppRecord = true, dispatchKey } = options;
 
   let inAppNotificationId: string | undefined;
 
-  // 1. Create In-App Notification Record
+  // 1. Create In-App Notification Record (idempotent if dispatchKey provided)
   if (createInAppRecord) {
     const notif = await prisma.notification.create({
       data: {
@@ -54,6 +55,8 @@ export async function dispatchNotification(options: DispatchNotificationOptions)
         type,
         link: link || null,
         read: false,
+        dedupKey: dispatchKey || null,
+        dedupAt: dispatchKey ? new Date() : null,
       },
     });
     inAppNotificationId = notif.id;
@@ -95,11 +98,13 @@ export async function dispatchNotification(options: DispatchNotificationOptions)
       );
 
       const statusCode = response.statusCode;
-      const outcome: PushDeliveryOutcome = statusCode >= 200 && statusCode < 300 ? "DELIVERED" : "UNKNOWN";
+      // PROVIDER_ACCEPTED: the push provider accepted the message for delivery.
+      // This does NOT prove the device received it, only that the provider accepted it.
+      const outcome: PushDeliveryOutcome = statusCode >= 200 && statusCode < 300 ? "PROVIDER_ACCEPTED" : "UNKNOWN";
 
       pushOutcomes.push({ endpoint: sub.endpoint, outcome, statusCode });
 
-      // Log delivery attempt
+      // Log delivery attempt with dispatchKey for idempotency
       await prisma.pushDeliveryLog.create({
         data: {
           notificationId: inAppNotificationId || null,
@@ -107,6 +112,7 @@ export async function dispatchNotification(options: DispatchNotificationOptions)
           endpoint: sub.endpoint,
           outcome,
           statusCode,
+          dispatchKey: dispatchKey || null,
         },
       }).catch(() => {});
     } catch (err: any) {
@@ -121,7 +127,7 @@ export async function dispatchNotification(options: DispatchNotificationOptions)
 
       pushOutcomes.push({ endpoint: sub.endpoint, outcome, statusCode });
 
-      // Log failure/expiration
+      // Log failure/expiration with dispatchKey
       await prisma.pushDeliveryLog.create({
         data: {
           notificationId: inAppNotificationId || null,
@@ -130,6 +136,7 @@ export async function dispatchNotification(options: DispatchNotificationOptions)
           outcome,
           statusCode: statusCode || null,
           errorDetails: String(err?.message || err).slice(0, 500),
+          dispatchKey: dispatchKey || null,
         },
       }).catch(() => {});
     }

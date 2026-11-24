@@ -215,22 +215,6 @@ model Reminder {
   @@index([dueDate])
 }
 
-model Notification {
-  id        String   @id @default(uuid())
-  userId    String
-  title     String
-  body      String
-  type      String   @default("INFO")
-  read      Boolean  @default(false)
-  link      String?
-  createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id])
-
-  @@index([userId])
-  @@index([read])
-  @@index([createdAt])
-}
-
 model Commission {
   id        String   @id @default(uuid())
   userId    String
@@ -339,9 +323,28 @@ model JobQueue {
   runAt       DateTime  @default(now())
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+  claimToken String?    @unique
 
   @@index([status, runAt])
   @@index([lockedAt])
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  title     String
+  body      String
+  type      String   @default("INFO")
+  read      Boolean  @default(false)
+  link      String?
+  dedupKey String?   @unique
+  dedupAt  DateTime?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([read])
+  @@index([createdAt])
 }
 
 model PushDeliveryLog {
@@ -349,9 +352,10 @@ model PushDeliveryLog {
   notificationId String?
   userId         String
   endpoint       String
-  outcome        String    // DELIVERED, EXPIRED, FAILED, UNKNOWN
+  outcome        String    // PROVIDER_ACCEPTED, DELIVERED, EXPIRED, FAILED, UNKNOWN
   statusCode     Int?
   errorDetails   String?
+  dispatchKey   String?   @unique
   createdAt      DateTime  @default(now())
 
   @@index([userId])

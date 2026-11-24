@@ -497,6 +497,114 @@ async function main() {
   console.log("   → Cleaned up test jobs");
 
   // ══════════════════════════════════════════════════════════════════════════════
+  // ══════════════════════════════════════════════════════════════════════════════
+  // TEST 6A: REMINDER_SEND idempotency (dedupKey)
+  // ══════════════════════════════════════════════════════════════════════════════
+  section("TEST 6A — REMINDER_SEND Idempotency (dedupKey)");
+
+  try {
+    const reminderId = "test-reminder-idempotency-1";
+    const dispatchId1 = "dispatch-1";
+    const dispatchId2 = "dispatch-2";
+
+    const job1 = await enqueueJob("REMINDER_SEND", {
+      reminderId,
+      dispatchId: dispatchId1,
+      title: "Test reminder",
+      body: "Test body",
+      userId: "user-123",
+      customerId: "cust-123",
+      customer: { name: "Test Customer" },
+      reminder: { title: "Test reminder" }
+    });
+
+    await processJob(job1);
+
+    // Process same job again - should be idempotent
+    await processJob(job1);
+
+    const notifications = await prisma.notification.findMany({
+      where: { dedupKey: `REMINDER_SEND:${reminderId}:${dispatchId1}` },
+      take: 1
+    });
+
+    assert("Only one notification created for same dispatch", notifications.length === 1);
+
+    const job2 = await enqueueJob("REMINDER_SEND", {
+      reminderId,
+      dispatchId: dispatchId2,
+      title: "Test reminder 2",
+      body: "Test body 2",
+      userId: "user-123",
+      customerId: "cust-123",
+      customer: { name: "Test Customer 2" },
+      reminder: { title: "Test reminder 2" }
+    });
+
+    await processJob(job2);
+
+    const notifCount = await prisma.notification.count({
+      where: {
+        reminderId: reminderId,
+        dedupKey: {
+          startsWith: "REMINDER_SEND:"
+        }
+      }
+    });
+
+    assert("Two notifications for two different dispatches", notifCount === 2);
+  } catch (err) {
+    assert("REMINDER_SEND idempotency test", false, String(err.message));
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  // TEST 6B: PUSH_NOTIFY idempotency with dispatchKey
+  // ══════════════════════════════════════════════════════════════════════════════
+  section("TEST 6B — PUSH_NOTIFY Idempotency (dispatchKey)");
+
+  try {
+    const userId = "user-456";
+    const dispatchKey = "PUSH_NOTIFY:user-456:push-dispatch-1";
+    const endpoint = "https://example.com/endpoint";
+
+    const job = await enqueueJob("PUSH_NOTIFY", {
+      userId,
+      dispatchKey: dispatchKey,
+      title: "Test push",
+      body: "Test body",
+      endpoint: endpoint,
+      notificationId: "notif-123",
+    });
+
+    await processJob(job);
+
+    const log = await prisma.pushDeliveryLog.findFirst({
+      where: {
+        dispatchKey: dispatchKey,
+        endpoint: endpoint
+      }
+    });
+
+    assert("Push delivery log created with dispatchKey", !!log);
+  } catch (err) {
+    assert("PUSH_NOTIFY idempotency test", false, String(err.message));
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  // TEST 6C: Unknown job types
+  // ══════════════════════════════════════════════════════════════════════════════
+  section("TEST 6C — Unknown Job Type Handling");
+
+  try {
+    const unknownJob = await enqueueJob("UNKNOWN_TYPE", { message: "test" }, new Date(Date.now() - 60000));
+    await processJob(unknownJob);
+
+    const status = await pool.query(`SELECT status FROM "JobQueue" WHERE id=${unknownJob.id}`);
+    assert("Unknown job type marked as FAILED", status.rows[0].status === "FAILED");
+  } catch (err) {
+    assert("Unknown job type test", false, String(err.message));
+  }
+
   // SUMMARY
   // ══════════════════════════════════════════════════════════════════════════════
   console.log(`\n${"═".repeat(60)}`);

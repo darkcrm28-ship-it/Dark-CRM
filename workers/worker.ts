@@ -32,13 +32,24 @@ const WORKER_ID = "cron-worker";
 async function runScheduledJobs() {
   const jobs = await claimBackgroundJobs(WORKER_ID, 5, 5);
   console.log(`[Cron Trigger] Claimed ${jobs.length} job(s)`);
+  
   for (const job of jobs) {
+    const startTime = Date.now();
     try {
+      // processJob handles its own success/failure status updates internally
       await processJob(job);
-      console.log(`[Cron Trigger] Completed job ${job.id} type=${job.type}`);
+      const duration = Date.now() - startTime;
+      console.log(`[Cron Trigger] Completed job ${job.id} type=${job.type} in ${duration}ms`);
     } catch (error) {
-      console.error(`[Cron Trigger] Failed job ${job.id} type=${job.type}:`, error);
-      await failJob(job.id, job.attempts, job.maxAttempts, String(error));
+      // This catch is a safety net for unexpected errors that escape processJob
+      const duration = Date.now() - startTime;
+      console.error(`[Cron Trigger] Unhandled error in job ${job.id} type=${job.type} after ${duration}ms:`, error);
+      // processJob should have already called failJob, but as a safety net:
+      try {
+        await failJob(job.id, job.attempts, job.maxAttempts, error instanceof Error ? error.message : String(error), job.claimToken || "");
+      } catch (failError) {
+        console.error(`[Cron Trigger] Critical: failJob also failed for job ${job.id}:`, failError);
+      }
     }
   }
 }
