@@ -29,6 +29,7 @@ import {
   Wallet,
   Cpu,
   FileText,
+  Crown,
 } from "lucide-react";
 
 const ROLE_LABELS: Record<string, string> = {
@@ -119,6 +120,13 @@ export default async function DashboardLayout({ children }: { children: React.Re
       icon: <Handshake size={18} />,
       label: "دورة الصفقات",
       show: isSales || session.role === ROLE.ACCOUNTING_MANAGER,
+      section: "main",
+    },
+    {
+      href: "/dashboard/property-owners",
+      icon: <Crown size={18} />,
+      label: "الملاك والملكية",
+      show: isManager || session.role === ROLE.ACCOUNTING_MANAGER,
       section: "main",
     },
     {
