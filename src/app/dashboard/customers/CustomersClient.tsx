@@ -6,6 +6,7 @@ import Link from "next/link";
 import dynamic from "next/dynamic";
 import CustomerDrawer from "@/components/CustomerDrawer";
 import DynamicFields from "@/components/DynamicFields";
+import UnitImageManager from "@/components/UnitImageManager";
 const ImportWizardModal = dynamic(() => import("@/components/import/ImportWizardModal"));
 
 // ─── Toast System ──────────────────────────────────────────────────────────────
@@ -88,8 +89,9 @@ export default function CustomersClient({
   const [customers, setCustomers] = useState(initialCustomers);
   const [totalCount, setTotalCount] = useState(initialTotal ?? initialCustomers.length);
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(25);
+  const [pageSize, setPageSize] = useState(10);
   const [isFetching, setIsFetching] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
   const [search, setSearch] = useState("");
   const [subTypeFilter, setSubTypeFilter] = useState<"ALL" | "LEAD" | "SELLER">("ALL");
   
@@ -148,6 +150,7 @@ export default function CustomersClient({
   const [newPhone, setNewPhone] = useState("");
   const [newProject, setNewProject] = useState("");
   const [newUnitNumber, setNewUnitNumber] = useState("");
+  const [newUnitImages, setNewUnitImages] = useState<string[]>([]);
   const [newBuildingNumber, setNewBuildingNumber] = useState("");
   const [newArea, setNewArea] = useState("");
   const [newFloor, setNewFloor] = useState("");
@@ -188,7 +191,7 @@ export default function CustomersClient({
         if (saved?.version === 1 && isRecent && saved.values && typeof saved.values === "object") {
           const v = saved.values;
           setNewName(v.name || ""); setNewPhone(v.phone || ""); setNewProject(v.project || "");
-          setNewUnitNumber(v.unitNumber || ""); setNewBuildingNumber(v.buildingNumber || "");
+          setNewUnitNumber(v.unitNumber || ""); setNewUnitImages(Array.isArray(v.unitImages) ? v.unitImages : []); setNewBuildingNumber(v.buildingNumber || "");
           setNewArea(v.area || ""); setNewFloor(v.floor || ""); setNewPropType(v.propType || "");
           setNewStatus(v.status || "BUYER"); setNewFollowUpDate(v.followUpDate || "");
           setNewGeneralNotes(v.generalNotes || ""); setNewBedrooms(v.bedrooms || "");
@@ -215,6 +218,7 @@ export default function CustomersClient({
     if (!customerDraftKey || !draftHydratedRef.current || typeof window === "undefined") return;
     const values = {
       name: newName, phone: newPhone, project: newProject, unitNumber: newUnitNumber,
+      unitImages: newUnitImages,
       buildingNumber: newBuildingNumber, area: newArea, floor: newFloor, propType: newPropType,
       status: newStatus, followUpDate: newFollowUpDate, generalNotes: newGeneralNotes,
       bedrooms: newBedrooms, bathrooms: newBathrooms, unitSize: newUnitSize,
@@ -234,7 +238,7 @@ export default function CustomersClient({
     } catch (error) {
       console.warn("Could not save the customer draft in this browser session.", error);
     }
-  }, [customerDraftKey, newName, newPhone, newProject, newUnitNumber, newBuildingNumber, newArea,
+  }, [customerDraftKey, newName, newPhone, newProject, newUnitNumber, newUnitImages, newBuildingNumber, newArea,
     newFloor, newPropType, newStatus, newFollowUpDate, newGeneralNotes, newBedrooms, newBathrooms,
     newUnitSize, newAskingPrice, newInstallmentAmt, newInstallmentRem, newInstallmentDet,
     newFinishing, newPreferencesSummary, newPaperworkStatus, newPaymentMethod, newLeaseDuration,
@@ -262,6 +266,7 @@ export default function CustomersClient({
   const router = useRouter();
   const isSeeking = newStatus === "BUYER" || newStatus === "RENTER";
   const isOffering = newStatus === "SELLER" || newStatus === "POTENTIAL_SELLER" || newStatus === "LANDLORD";
+  const createsCatalogUnit = newStatus === "SELLER" || newStatus === "LANDLORD";
 
   const fetchDefs = async () => {
     const res = await fetch("/api/settings/custom-fields");
@@ -303,7 +308,7 @@ export default function CustomersClient({
     const requestId = ++customerRequest.current;
     setIsFetching(true);
     try {
-      const safeLimit = Math.min(25, Math.max(1, targetLimit));
+      const safeLimit = Math.min(10, Math.max(1, targetLimit));
       const params = new URLSearchParams({
         view: view || "ALL",
         page: targetPage.toString(),
@@ -371,29 +376,28 @@ export default function CustomersClient({
 
   const filtered = customers;
 
-  useEffect(() => {
-    const t = setTimeout(() => {
-      const newFilters = {
-        query: search,
-        building: filterBuilding,
-        unit: filterUnit,
-        project: filterProject,
-        area: filterArea,
-        type: filterType,
-        floor: filterFloor,
-        staff: filterStaff,
-        status: filterStatus,
-        neglected: appliedFilters.neglected
-      };
-      setAppliedFilters(newFilters);
-      fetchServerCustomers(1, newFilters, pageSize, subTypeFilter);
-    }, 400);
-    return () => clearTimeout(t);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, filterBuilding, filterUnit, filterProject, filterArea, filterType, filterFloor, filterStaff, filterStatus]);
+  // البيانات لا تُحمّل تلقائياً؛ فقط بعد ضغط «بحث» أو Enter أو تغيير صريح للفلاتر.
+  const applySearch = () => {
+    const nextFilters = {
+      query: search,
+      building: filterBuilding,
+      unit: filterUnit,
+      project: filterProject,
+      area: filterArea,
+      type: filterType,
+      floor: filterFloor,
+      staff: filterStaff,
+      status: filterStatus,
+      neglected: appliedFilters.neglected,
+    };
+    setAppliedFilters(nextFilters);
+    setHasSearched(true);
+    void fetchServerCustomers(1, nextFilters, pageSize, subTypeFilter);
+  };
 
   const handleSubTypeChange = (newSubType: "ALL" | "LEAD" | "SELLER") => {
     setSubTypeFilter(newSubType);
+    setHasSearched(true);
     fetchServerCustomers(1, appliedFilters, pageSize, newSubType);
   };
 
@@ -466,7 +470,7 @@ export default function CustomersClient({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: newName, phone: newPhone, projectId: newProject,
-          unitNumber: newUnitNumber, buildingNumber: newBuildingNumber, 
+          unitNumber: newUnitNumber, buildingNumber: newBuildingNumber, unitImages: newUnitImages,
           area: isSeeking ? newDesiredAreas : newArea,
           floor: newFloor, propertyType: newPropType, status: newStatus,
           bedrooms: parseInt(newBedrooms) || null, bathrooms: parseInt(newBathrooms) || null,
@@ -491,6 +495,7 @@ export default function CustomersClient({
       if (stayInModal) {
         // Clear only unit fields
         setNewUnitNumber("");
+        setNewUnitImages([]);
         setNewBuildingNumber("");
         setNewFloor("");
         setNewUnitSize("");
@@ -507,7 +512,7 @@ export default function CustomersClient({
         setShowAddModal(false);
         setModalStep(1);
         // Clear all
-        setNewName(""); setNewPhone(""); setNewProject(""); setNewUnitNumber(""); 
+        setNewName(""); setNewPhone(""); setNewProject(""); setNewUnitNumber(""); setNewUnitImages([]);
         setNewBuildingNumber(""); setNewArea(""); setNewFloor(""); setNewPropType(""); 
         setNewStatus("BUYER");
         setNewFollowUpDate("");
@@ -525,7 +530,12 @@ export default function CustomersClient({
         setNewLeaseDuration("");
         setNewDesiredAreas("");
         setNewCustomData({});
-        showToast(`تم حفظ العميل بنجاح ✓`, "success");
+        showToast(
+          responseData?.propertyId
+            ? "تم حفظ العميل وإنشاء وحدة في إدارة الكتالوج بانتظار موافقتك على العرض ✓"
+            : "تم حفظ العميل بنجاح ✓",
+          "success"
+        );
         if (responseData?.id) {
           router.push(`/dashboard/customers/${responseData.id}`);
           return;
@@ -805,12 +815,15 @@ export default function CustomersClient({
               view === "NOT_INTERESTED" ? "🚫 عملاء غير مهتمين" :
               "👥 قاعدة البيانات الشاملة"}
           </div>
-          <div className="page-subtitle">{filtered.length} عميل من إجمالي {customers.length}</div>
+          <div className="page-subtitle">
+            {hasSearched ? `${filtered.length} عميل من إجمالي ${totalCount}` : "اضغط «بحث» لعرض العملاء"}
+          </div>
         </div>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
           {view === "LEADS" && settings?.kanbanEnabled !== false && (
             <button onClick={() => {
               setIsKanban(!isKanban);
+              setHasSearched(true);
               void fetchServerCustomers(1, appliedFilters, pageSize, subTypeFilter, { enabled: !isKanban });
             }} className="btn btn-ghost btn-sm">
               {isKanban ? "📋 عرض الجدول" : "📊 Kanban"}
@@ -878,16 +891,26 @@ export default function CustomersClient({
           <div className="form-group" style={{ flex: 1, minWidth: 200 }}>
             <label className="form-label">بحث عام</label>
             <input 
-              type="text" value={search} onChange={(e) => setSearch(e.target.value)} 
+              type="text" value={search} onChange={(e) => setSearch(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") applySearch(); }}
               className="input" placeholder="اسم، هاتف، عمارة، وحدة..." 
             />
           </div>
+
+          <button onClick={applySearch} disabled={isFetching} className="btn btn-primary" style={{ padding: "10px 18px" }}>
+            🔍 بحث
+          </button>
           
           <button onClick={() => setShowAdvanced(!showAdvanced)} className="btn btn-secondary">
             {showAdvanced ? "إخفاء الفلاتر ▲" : "فلاتر متقدمة ⚙️"}
           </button>
 
-          <button onClick={() => { setSearch(""); setFilterBuilding(""); setFilterUnit(""); setFilterProject(""); setFilterArea(""); setFilterType(""); setFilterFloor(""); setFilterStaff(""); setFilterStatus(""); }} className="btn btn-secondary" style={{ padding: "10px 16px" }}>
+          <button onClick={() => {
+            setSearch(""); setFilterBuilding(""); setFilterUnit(""); setFilterProject(""); setFilterArea("");
+            setFilterType(""); setFilterFloor(""); setFilterStaff(""); setFilterStatus("");
+            setAppliedFilters({ query: "", building: "", unit: "", project: "", area: "", type: "", floor: "", staff: "", status: "", neglected: false });
+            setCustomers([]); setTotalCount(0); setCurrentPage(1); setBoard({}); setHasSearched(false);
+          }} className="btn btn-secondary" style={{ padding: "10px 16px" }}>
             ✕ مسح الفلاتر
           </button>
 
@@ -1118,7 +1141,9 @@ export default function CustomersClient({
                   <td colSpan={13}>
                     <div className="empty-state">
                       <div className="empty-state-icon">🔍</div>
-                      <div className="empty-state-text">لا توجد نتائج مطابقة لبحثك أو الفلاتر المحددة</div>
+                      <div className="empty-state-text">
+                        {hasSearched ? "لا توجد نتائج مطابقة لبحثك أو الفلاتر المحددة" : "اضغط زر «بحث» لعرض العملاء"}
+                      </div>
                     </div>
                   </td>
                 </tr>
@@ -1284,17 +1309,15 @@ export default function CustomersClient({
           <select
             value={pageSize}
             onChange={(e) => {
-              const newSize = Math.min(25, parseInt(e.target.value));
+              const newSize = Math.min(10, Math.max(1, parseInt(e.target.value)));
               setPageSize(newSize);
-              fetchServerCustomers(1, appliedFilters, newSize);
+              if (hasSearched) fetchServerCustomers(1, appliedFilters, newSize);
             }}
             className="input"
             style={{ width: 80, height: 34, padding: "4px 8px", fontSize: 12, borderRadius: 8 }}
           >
-            <option value={10}>10</option>
-            <option value={15}>15</option>
-            <option value={20}>20</option>
-            <option value={25}>25 (الحد الأقصى)</option>
+            <option value={5}>5</option>
+            <option value={10}>10 (الحد الأقصى)</option>
           </select>
         </div>
       </div>
@@ -1602,6 +1625,19 @@ export default function CustomersClient({
                           <option value="سوبر لوكس">سوبر لوكس</option>
                         </select>
                       </div>
+                    </div>
+                  )}
+
+                  {createsCatalogUnit && (
+                    <div style={{ marginTop: 20 }}>
+                      <UnitImageManager
+                        images={newUnitImages}
+                        onChange={setNewUnitImages}
+                        maxImages={10}
+                      />
+                      <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 8 }}>
+                        الصور هتتحفظ مع الوحدة اللي بتتضاف تلقائياً لإدارة الكتالوج، والعرض العام هيبدأ بعد موافقة المدير.
+                      </p>
                     </div>
                   )}
 

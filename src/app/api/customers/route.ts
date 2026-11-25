@@ -2,6 +2,28 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireRole, ROLE, SALES_ROLES } from "@/lib/auth";
 
+/** Only accept public catalog images produced by our own /api/upload endpoint. */
+function normalizeUnitImages(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const cleaned: string[] = [];
+  for (const item of value) {
+    if (typeof item !== "string" || cleaned.length >= 10) continue;
+    try {
+      const url = new URL(item);
+      if (
+        url.protocol === "https:" &&
+        url.hostname === "ik.imagekit.io" &&
+        url.pathname.includes("/dark-crm/properties/")
+      ) {
+        cleaned.push(item);
+      }
+    } catch {
+      // Ignore malformed URLs.
+    }
+  }
+  return cleaned;
+}
+
 export async function GET(request: NextRequest) {
   try {
     const session = await requireRole(SALES_ROLES);
@@ -11,7 +33,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = request.nextUrl;
 
     const page = Math.min(100000, Math.max(1, parseInt(searchParams.get("page") || "", 10) || 1));
-    const limit = Math.min(25, Math.max(1, parseInt(searchParams.get("limit") || "", 10) || 25));
+    const limit = Math.min(10, Math.max(1, parseInt(searchParams.get("limit") || "", 10) || 10));
     const view = searchParams.get("view") || "ALL";
     const q = (searchParams.get("q") || "").trim();
     const status = searchParams.get("status") || "";
@@ -146,100 +168,147 @@ export async function POST(request: NextRequest) {
       governorate, city, executingCompany, deliveryDate,
       floor, bedrooms, bathrooms, finishing, preferencesSummary,
       customData, followUpDate, generalNotes, askingPrice, buildingNumber, unitSize,
-      unitNumber, paperworkStatus
+      unitNumber, paperworkStatus, unitImages
     } = data;
 
     if (!name || !phone) {
       return NextResponse.json({ error: "Name and phone are required" }, { status: 400 });
     }
 
+    const cleanedUnitImages = normalizeUnitImages(unitImages);
+    const baseCustomData: Record<string, unknown> =
+      customData && typeof customData === "object" && !Array.isArray(customData)
+        ? { ...(customData as Record<string, unknown>) }
+        : {};
+    if (cleanedUnitImages.length > 0) baseCustomData.unitImages = cleanedUnitImages;
+
+    // Only real sellers/landlords get an automatic catalog draft. Buyers and
+    // potential sellers stay customer-only until explicitly converted.
+    const shouldCreateProperty = status === "SELLER" || status === "LANDLORD";
+
     let customer: any = null;
+    let createdPropertyId: string | null = null;
     const maxRetries = 3;
     const CUSTOMER_SEQUENCE_LOCK = 74839205;
 
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       try {
+        createdPropertyId = null;
         customer = await prisma.$transaction(
           async (tx) => {
             // Serialize code allocation across single-add and bulk-import via shared lock
             await tx.$executeRaw`SELECT pg_advisory_xact_lock(${CUSTOMER_SEQUENCE_LOCK}::bigint);`;
 
-            // Idempotency inside lock: same name+phone => return existing, no cross-unit merge
+            // Idempotency inside lock: same name+phone => reuse existing customer,
+            // but a seller/landlord unit can still be added as a separate catalog draft.
             const existingCustomer = await tx.customer.findFirst({
               where: { name: name.trim(), phone: phone.trim() },
             });
-            if (existingCustomer) {
-              return existingCustomer;
-            }
 
-            const maxCodeRes = await tx.$queryRaw<Array<{ max_seq: string | null }>>`
-              SELECT COALESCE(
-                MAX(NULLIF(REGEXP_REPLACE(code, '^CUST-0*', ''), '')::bigint), 0
-              )::text AS max_seq
-              FROM "Customer"
-              WHERE code ~ '^CUST-[0-9]+$';
-            `;
-            const nextSeq = Number(maxCodeRes[0]?.max_seq ?? 0) + 1;
-            const code = "CUST-" + nextSeq.toString().padStart(4, "0");
+            let createdCustomer = existingCustomer;
 
-            const createdCustomer = await tx.customer.create({
-              data: {
-                code,
-                name: name.trim(),
-                phone: phone.trim(),
-                email: email ? email.trim() : null,
-                type: type || (["INTERESTED", "BUYER", "RENTER"].includes(status) ? "BUYER" : "SELLER"),
-                status: status || "POTENTIAL_SELLER",
-                projectId: projectId || null,
-                area: area || null,
-                propertyType: propertyType || null,
-                source: source || null,
-                installmentAmount: installmentAmount ? parseFloat(installmentAmount) : 0,
-                installmentRemaining: installmentRemaining ? parseInt(installmentRemaining) : 0,
-                installmentDetails: installmentDetails || null,
-                governorate: governorate || null,
-                city: city || null,
-                executingCompany: executingCompany || null,
-                deliveryDate: deliveryDate || null,
-                floor: floor ? String(floor) : null,
-                bedrooms: bedrooms ? parseInt(bedrooms) : null,
-                bathrooms: bathrooms ? parseInt(bathrooms) : null,
-                finishing: finishing || null,
-                preferencesSummary: preferencesSummary || null,
-                askingPrice: askingPrice ? parseFloat(askingPrice) : null,
-                buildingNumber: buildingNumber ? String(buildingNumber) : null,
-                unitNumber: unitNumber ? String(unitNumber) : null,
-                unitSize: unitSize ? parseFloat(unitSize) : null,
-                paperworkStatus: paperworkStatus || null,
-                customData: (customData || {}) as any,
-                assignedToId: session.role === ROLE.SALES_EMPLOYEE ? session.id : null,
-              },
-            });
+            if (!createdCustomer) {
+              const maxCodeRes = await tx.$queryRaw<Array<{ max_seq: string | null }>>`
+                SELECT COALESCE(
+                  MAX(NULLIF(REGEXP_REPLACE(code, '^CUST-0*', ''), '')::bigint), 0
+                )::text AS max_seq
+                FROM "Customer"
+                WHERE code ~ '^CUST-[0-9]+$';
+              `;
+              const nextSeq = Number(maxCodeRes[0]?.max_seq ?? 0) + 1;
+              const code = "CUST-" + nextSeq.toString().padStart(4, "0");
 
-            if (generalNotes?.trim()) {
-              await tx.interaction.create({
+              createdCustomer = await tx.customer.create({
                 data: {
-                  customerId: createdCustomer.id,
-                  userId: session.id,
-                  type: "NOTE",
-                  notes: generalNotes.trim(),
+                  code,
+                  name: name.trim(),
+                  phone: phone.trim(),
+                  email: email ? email.trim() : null,
+                  type: type || (["INTERESTED", "BUYER", "RENTER"].includes(status) ? "BUYER" : "SELLER"),
+                  status: status || "POTENTIAL_SELLER",
+                  projectId: projectId || null,
+                  area: area || null,
+                  propertyType: propertyType || null,
+                  source: source || null,
+                  installmentAmount: installmentAmount ? parseFloat(installmentAmount) : 0,
+                  installmentRemaining: installmentRemaining ? parseInt(installmentRemaining) : 0,
+                  installmentDetails: installmentDetails || null,
+                  governorate: governorate || null,
+                  city: city || null,
+                  executingCompany: executingCompany || null,
+                  deliveryDate: deliveryDate || null,
+                  floor: floor ? String(floor) : null,
+                  bedrooms: bedrooms ? parseInt(bedrooms) : null,
+                  bathrooms: bathrooms ? parseInt(bathrooms) : null,
+                  finishing: finishing || null,
+                  preferencesSummary: preferencesSummary || null,
+                  askingPrice: askingPrice ? parseFloat(askingPrice) : null,
+                  buildingNumber: buildingNumber ? String(buildingNumber) : null,
+                  unitNumber: unitNumber ? String(unitNumber) : null,
+                  unitSize: unitSize ? parseFloat(unitSize) : null,
+                  paperworkStatus: paperworkStatus || null,
+                  customData: baseCustomData as any,
+                  assignedToId: session.role === ROLE.SALES_EMPLOYEE ? session.id : null,
                 },
               });
-            }
 
-            if (status === "CALL_LATER" && followUpDate) {
-              const followUp = new Date(followUpDate);
-              if (!Number.isNaN(followUp.getTime())) {
-                await tx.reminder.create({
+              if (generalNotes?.trim()) {
+                await tx.interaction.create({
                   data: {
                     customerId: createdCustomer.id,
                     userId: session.id,
-                    title: "اتصال متابعة",
-                    dueDate: followUp,
-                    status: "PENDING",
+                    type: "NOTE",
+                    notes: generalNotes.trim(),
                   },
                 });
               }
+
+              if (status === "CALL_LATER" && followUpDate) {
+                const followUp = new Date(followUpDate);
+                if (!Number.isNaN(followUp.getTime())) {
+                  await tx.reminder.create({
+                    data: {
+                      customerId: createdCustomer.id,
+                      userId: session.id,
+                      title: "اتصال متابعة",
+                      dueDate: followUp,
+                      status: "PENDING",
+                    },
+                  });
+                }
+              }
+            }
+
+            if (shouldCreateProperty) {
+              const projectRow = projectId
+                ? await tx.project.findUnique({ where: { id: projectId }, select: { name: true } })
+                : null;
+              const property = await tx.property.create({
+                data: {
+                  title: [projectRow?.name, unitNumber ? `وحدة ${unitNumber}` : null].filter(Boolean).join(" - ") || null,
+                  projectName: projectRow?.name || null,
+                  unitNumber: unitNumber ? String(unitNumber) : null,
+                  buildingNumber: buildingNumber ? String(buildingNumber) : null,
+                  zone: area || null,
+                  floor: floor ? String(floor) : null,
+                  size: unitSize ? parseFloat(unitSize) : null,
+                  bedrooms: bedrooms ? parseInt(bedrooms) : null,
+                  bathrooms: bathrooms ? parseInt(bathrooms) : null,
+                  unitType: propertyType || null,
+                  finishing: finishing || null,
+                  price: askingPrice ? parseFloat(askingPrice) : null,
+                  status: "AVAILABLE",
+                  images: cleanedUnitImages.length > 0 ? JSON.stringify(cleanedUnitImages) : null,
+                  monthlyInstallment: installmentAmount ? parseFloat(installmentAmount) : null,
+                  remainingMonths: installmentRemaining ? parseInt(installmentRemaining) : null,
+                  customData: {
+                    sourceCustomerId: createdCustomer.id,
+                    sourceCustomerCode: createdCustomer.code,
+                  } as any,
+                },
+                select: { id: true },
+              });
+              createdPropertyId = property.id;
             }
 
             await tx.auditLog.create({
@@ -248,7 +317,7 @@ export async function POST(request: NextRequest) {
                 action: "CREATE",
                 entity: "CUSTOMER",
                 entityId: createdCustomer.id,
-                details: `تمت إضافة العميل ${createdCustomer.name} (${code})`,
+                details: `تمت إضافة العميل ${createdCustomer.name} (${createdCustomer.code || "بدون كود"})`,
               },
             });
 
@@ -331,6 +400,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    if (createdPropertyId) (customer as any).propertyId = createdPropertyId;
     return NextResponse.json(customer);
   } catch (error: any) {
     console.error("Create Customer Error:", { code: error?.code || "UNEXPECTED" });
