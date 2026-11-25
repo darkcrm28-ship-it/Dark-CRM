@@ -1,12 +1,13 @@
-import { getSession, ROLE } from "@/lib/auth";
+import { getPageSession, ROLE } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { Prisma } from "@prisma/client";
 import { redirect } from "next/navigation";
 import DashboardClient from "./DashboardClient";
 
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
-  const session = await getSession();
+  const session = await getPageSession();
   if (!session) {
     redirect("/login");
     return null;
@@ -16,38 +17,50 @@ export default async function DashboardPage() {
   if (session.role === ROLE.ACCOUNTING_MANAGER) redirect("/dashboard/accounting");
 
   const isManager = session.role === "GENERAL_MANAGER" || session.role === "SALES_MANAGER";
-  const where = isManager ? {} : { assignedToId: session.id };
-  const interactionWhere = isManager ? {} : { userId: session.id };
-
-  const startOfYesterday = new Date();
-  startOfYesterday.setDate(startOfYesterday.getDate() - 1);
-  startOfYesterday.setHours(0,0,0,0);
-
-  const threeDaysAgo = new Date();
-  threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
-
   const startOfToday = new Date();
-  startOfToday.setHours(0,0,0,0);
+  startOfToday.setHours(0, 0, 0, 0);
+  const startOfYesterday = new Date(startOfToday);
+  startOfYesterday.setDate(startOfYesterday.getDate() - 1);
 
   const [
-    totalCustomers, totalBuyers, totalSellers, totalUsers, interestedCount, wantsToSellCount, recentInteractions, neglectedCount, deals,
-    callsToday, viewingsToday, newLeadsToday, teamCallsToday
+    [customers], [deals], [activity], recentInteractions, neglectedCount, teamPerformance,
   ] = await Promise.all([
-    prisma.customer.count({ where }),
-    prisma.customer.count({ where: { ...where, type: "BUYER" } }),
-    prisma.customer.count({ where: { ...where, type: "SELLER" } }),
-    prisma.user.count(),
-    prisma.customer.count({ where: { ...where, status: "INTERESTED" } }),
-    prisma.customer.count({ where: { ...where, status: { in: ["WANTS_TO_SELL", "SELLER", "LANDLORD"] }, isArchived: false } }),
+    prisma.$queryRaw<{
+      totalCustomers: number; totalBuyers: number; totalSellers: number;
+      interestedCount: number; wantsToSellCount: number; newLeadsToday: number;
+    }[]>`
+      SELECT COUNT(*)::int AS "totalCustomers",
+        COUNT(*) FILTER (WHERE type = 'BUYER')::int AS "totalBuyers",
+        COUNT(*) FILTER (WHERE type = 'SELLER')::int AS "totalSellers",
+        COUNT(*) FILTER (WHERE status = 'INTERESTED')::int AS "interestedCount",
+        COUNT(*) FILTER (WHERE status IN ('WANTS_TO_SELL', 'SELLER', 'LANDLORD') AND NOT "isArchived")::int AS "wantsToSellCount",
+        COUNT(*) FILTER (WHERE "assignedToId" = ${session.id} AND "createdAt" >= ${startOfToday})::int AS "newLeadsToday"
+      FROM "Customer"
+      ${isManager ? Prisma.empty : Prisma.sql`WHERE "assignedToId" = ${session.id}`}
+    `,
+    prisma.$queryRaw<{ totalDeals: number; totalSalesValue: number }[]>`
+      SELECT COUNT(*)::int AS "totalDeals",
+        COALESCE(SUM(COALESCE(NULLIF("finalPrice", 0), value)), 0)::double precision AS "totalSalesValue"
+      FROM "Deal"
+      ${isManager ? Prisma.empty : Prisma.sql`WHERE "salesRepId" = ${session.id}`}
+    `,
+    prisma.$queryRaw<{ callsToday: number; viewingsToday: number; teamCallsToday: number }[]>`
+      SELECT COUNT(*) FILTER (WHERE type = 'CALL' AND "userId" = ${session.id})::int AS "callsToday",
+        COUNT(*) FILTER (WHERE type = 'VIEWING')::int AS "viewingsToday",
+        CASE WHEN ${isManager} THEN COUNT(*) FILTER (WHERE type = 'CALL')::int ELSE 0 END AS "teamCallsToday"
+      FROM "Interaction"
+      WHERE "createdAt" >= ${startOfToday}
+      ${isManager ? Prisma.empty : Prisma.sql`AND "userId" = ${session.id}`}
+    `,
     prisma.interaction.findMany({
       where: {
-        ...interactionWhere,
-        ...(session.role === ROLE.SALES_EMPLOYEE ? { customer: { assignedToId: session.id } } : {}),
-        createdAt: { gte: startOfYesterday } // Today and Yesterday only
+        ...(isManager ? {} : { userId: session.id, customer: { assignedToId: session.id } }),
+        createdAt: { gte: startOfYesterday },
       },
       take: 12,
       orderBy: { createdAt: "desc" },
-      include: {
+      select: {
+        id: true, type: true, createdAt: true,
         customer: { select: { name: true } },
         user: { select: { name: true } },
       },
@@ -56,59 +69,48 @@ export default async function DashboardPage() {
       where: {
         ...(isManager ? {} : { userId: session.id }),
         status: "PENDING",
-        dueDate: { lt: new Date() }
-      }
-    }),
-    prisma.deal.findMany({ 
-      where: isManager ? {} : { salesRepId: session.id }, 
-      select: { value: true, finalPrice: true, createdAt: true } 
-    }),
-    prisma.interaction.count({ where: { userId: session.id, type: "CALL", createdAt: { gte: startOfToday } } }),
-    prisma.interaction.count({ where: { userId: isManager ? undefined : session.id, type: "VIEWING", createdAt: { gte: startOfToday } } }),
-    prisma.customer.count({ where: { assignedToId: session.id, createdAt: { gte: startOfToday } } }),
-    isManager ? prisma.interaction.count({ where: { type: "CALL", createdAt: { gte: startOfToday } } }) : 0
-  ]);
-
-  const totalDeals = deals.length;
-  const totalSalesValue = deals.reduce((sum, d) => sum + (d.finalPrice || d.value || 0), 0);
-
-  // Team Performance Table for Managers
-  const teamPerformance = isManager ? await prisma.user.findMany({
-    where: { role: { in: ["SALES_EMPLOYEE", "SALES_MANAGER"] } },
-    select: {
-      id: true,
-      name: true,
-      _count: {
-        select: {
-          customers: true,
-          interactions: { where: { type: "CALL" } }
-        }
+        dueDate: { lt: new Date() },
       },
-      customers: {
-        select: {
-          status: true,
-          lastInteractionAt: true
-        }
-      }
-    }
-  }).then(users => users.map(u => ({
-    id: u.id,
-    name: u.name,
-    assignedCount: u._count.customers,
-    callsCount: u._count.interactions,
-    notContacted: u.customers.filter(c => !c.lastInteractionAt).length,
-    interested: u.customers.filter(c => c.status === "INTERESTED").length,
-    notInterested: u.customers.filter(c => c.status === "NOT_INTERESTED").length
-  }))) : [];
+    }),
+    isManager ? prisma.$queryRaw<{
+      id: string; name: string; assignedCount: number; callsCount: number;
+      notContacted: number; interested: number; notInterested: number;
+    }[]>`
+      WITH team AS (
+        SELECT id, name FROM "User" WHERE role IN ('SALES_EMPLOYEE', 'SALES_MANAGER')
+      ), customers AS (
+        SELECT "assignedToId",
+          COUNT(*)::int AS "assignedCount",
+          COUNT(*) FILTER (WHERE "lastInteractionAt" IS NULL)::int AS "notContacted",
+          COUNT(*) FILTER (WHERE status = 'INTERESTED')::int AS interested,
+          COUNT(*) FILTER (WHERE status = 'NOT_INTERESTED')::int AS "notInterested"
+        FROM "Customer"
+        WHERE "assignedToId" IN (SELECT id FROM team)
+        GROUP BY "assignedToId"
+      ), calls AS (
+        SELECT "userId", COUNT(*)::int AS "callsCount"
+        FROM "Interaction"
+        WHERE type = 'CALL' AND "userId" IN (SELECT id FROM team)
+        GROUP BY "userId"
+      )
+      SELECT team.id, team.name,
+        COALESCE(customers."assignedCount", 0) AS "assignedCount",
+        COALESCE(calls."callsCount", 0) AS "callsCount",
+        COALESCE(customers."notContacted", 0) AS "notContacted",
+        COALESCE(customers.interested, 0) AS interested,
+        COALESCE(customers."notInterested", 0) AS "notInterested"
+      FROM team
+      LEFT JOIN customers ON customers."assignedToId" = team.id
+      LEFT JOIN calls ON calls."userId" = team.id
+      ORDER BY team.name, team.id
+    ` : [],
+  ]);
 
   return (
     <DashboardClient 
       session={session}
       isManager={isManager}
-      stats={{ 
-        totalCustomers, totalBuyers, totalSellers, totalUsers, interestedCount, wantsToSellCount, totalDeals, totalSalesValue,
-        callsToday, viewingsToday, newLeadsToday, teamCallsToday
-      }}
+      stats={{ ...customers, ...deals, ...activity }}
       recentInteractions={recentInteractions}
       neglectedCount={neglectedCount}
       teamPerformance={teamPerformance}

@@ -4,12 +4,13 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import DynamicFields from "./DynamicFields";
 
-export default function CustomerDrawer({ customer, isOpen, onClose, projects, onUpdated }: any) {
+export default function CustomerDrawer({ customer, isOpen, onClose, projects, onUpdated, fieldDefinitions }: any) {
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState(customer?.status || "");
   const [notes, setNotes] = useState("");
   const [isListening, setIsListening] = useState(false);
-  const [customFieldDefs, setCustomFieldDefs] = useState<any[]>([]);
+  const [loadedFieldDefs, setLoadedFieldDefs] = useState<any[]>([]);
+  const customFieldDefs = fieldDefinitions ?? loadedFieldDefs;
   const [customData, setCustomData] = useState<any>(customer?.customData || {});
   const [followUpDate, setFollowUpDate] = useState("");
 
@@ -17,17 +18,23 @@ export default function CustomerDrawer({ customer, isOpen, onClose, projects, on
 
   useEffect(() => {
     if (isOpen) {
-      const fetchDefs = async () => {
-        const res = await fetch("/api/settings/custom-fields");
-        const data = await res.json();
-        setCustomFieldDefs(data.filter((f: any) => f.entityType === "CUSTOMER"));
-      };
-      fetchDefs();
       setStatus(customer?.status || "");
       setCustomData(customer?.customData || {});
       setNotes("");
     }
   }, [isOpen, customer]);
+
+  useEffect(() => {
+    if (!isOpen || fieldDefinitions) return;
+    const controller = new AbortController();
+    fetch("/api/settings/custom-fields", { signal: controller.signal })
+      .then(response => response.ok ? response.json() : [])
+      .then(fields => {
+        if (!controller.signal.aborted) setLoadedFieldDefs(fields.filter((field: any) => field.entityType === "CUSTOMER"));
+      })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [fieldDefinitions, isOpen]);
 
   const startListening = () => {
     if (!('webkitSpeechRecognition' in window) && !('speechRecognition' in window)) {

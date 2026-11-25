@@ -6,6 +6,8 @@ import Link from "next/link";
 import dynamic from "next/dynamic";
 import CustomerDrawer from "@/components/CustomerDrawer";
 import DynamicFields from "@/components/DynamicFields";
+import { createClientReadCache } from "@/lib/client-read-cache";
+import { CUSTOMER_SEARCH_PAGE_SIZE } from "@/lib/customer-search";
 import UnitImageManager from "@/components/UnitImageManager";
 const ImportWizardModal = dynamic(() => import("@/components/import/ImportWizardModal"));
 
@@ -64,32 +66,24 @@ const PROPERTY_TYPES = ["شقة", "فيلا", "توين هاوس", "تاون ه�
 const FACTORY_ACTIVITIES = ["غذائي", "صناعي", "طبي", "هندسي", "كيماوي", "ملابس/نسيج", "أخرى"];
 
 const BOARD_STATUSES = ["NEW", "POTENTIAL_SELLER", "BUYER", "MEETING_SCHEDULED"] as const;
-type BoardStatus = typeof BOARD_STATUSES[number];
-type BoardColumn = { customers: any[]; total: number; page: number };
+type CustomerSearchPage = { customers: any[]; total: number; page: number };
+type SearchOption = { id: string; name: string };
+type SearchOptions = { users: SearchOption[]; projects: SearchOption[] };
 
 export default function CustomersClient({
-  initialCustomers,
-  initialTotal,
-  users,
-  projects,
   isManager,
   view = "ALL",
   settings = {},
   session,
 }: {
-  initialCustomers: any[];
-  initialTotal?: number;
-  users: any[];
-  projects: any[];
   isManager: boolean;
   view?: "LEADS" | "INVENTORY" | "ALL" | "AVAILABLE_FOR_SALE" | "BUYERS" | "OWNERS" | "NOT_INTERESTED";
   settings?: any;
   session?: any;
 }) {
-  const [customers, setCustomers] = useState(initialCustomers);
-  const [totalCount, setTotalCount] = useState(initialTotal ?? initialCustomers.length);
+  const [customers, setCustomers] = useState<any[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
   const [isFetching, setIsFetching] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const [search, setSearch] = useState("");
@@ -105,6 +99,11 @@ export default function CustomersClient({
   const [filterStaff, setFilterStaff] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [neglectedFilter, setNeglectedFilter] = useState(false);
+  const [searchCache] = useState(() => createClientReadCache<CustomerSearchPage>());
+  const [fieldCache] = useState(() => createClientReadCache<any[]>(60_000, 1));
+  const [optionsCache] = useState(() => createClientReadCache<SearchOptions>(60_000, 1));
+  const [{ users, projects }, setSearchOptions] = useState<SearchOptions>({ users: [], projects: [] });
 
   // Applied Filter States (for manual trigger)
   const [appliedFilters, setAppliedFilters] = useState({
@@ -117,14 +116,15 @@ export default function CustomersClient({
     floor: "",
     staff: "",
     status: "",
-    neglected: false
+    neglected: false,
+    subType: "ALL" as typeof subTypeFilter,
   });
 
   useEffect(() => {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
       if (params.get("filter") === "neglected") {
-        setAppliedFilters(prev => ({ ...prev, neglected: true }));
+        setNeglectedFilter(true);
       }
     }
   }, []);
@@ -134,8 +134,8 @@ export default function CustomersClient({
   const [loading, setLoading] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [isKanban, setIsKanban] = useState(false);
-  const [board, setBoard] = useState<Partial<Record<BoardStatus, BoardColumn>>>({});
-  const customerRequest = useRef(0);
+  const customerRequest = useRef<AbortController | null>(null);
+  useEffect(() => () => customerRequest.current?.abort(), []);
 
   // Import Modal State
   const [showImportModal, setShowImportModal] = useState(false);
@@ -264,27 +264,35 @@ export default function CustomersClient({
   // ─────────────────────────────────────────────────────────────────────────────
 
   const router = useRouter();
+  const needsOptions = showAdvanced || showAddModal || showImportModal || (isManager && selectedIds.length > 0);
   const isSeeking = newStatus === "BUYER" || newStatus === "RENTER";
   const isOffering = newStatus === "SELLER" || newStatus === "POTENTIAL_SELLER" || newStatus === "LANDLORD";
   const createsCatalogUnit = newStatus === "SELLER" || newStatus === "LANDLORD";
 
-  const fetchDefs = async () => {
-    const res = await fetch("/api/settings/custom-fields");
-    const data = await res.json();
-    setCustomFieldDefs(data.filter((f: any) => f.entityType === "CUSTOMER"));
-  };
+  useEffect(() => {
+    if (!needsOptions) return;
+    const controller = new AbortController();
+    optionsCache.load("/api/customers/options", controller.signal)
+      .then(data => { if (!controller.signal.aborted) setSearchOptions(data); })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [needsOptions, optionsCache]);
 
   useEffect(() => {
-    fetchDefs();
-  }, []);
-
-
+    if (!showAddModal && !showImportModal && !isDrawerOpen) return;
+    const controller = new AbortController();
+    fieldCache.load("/api/settings/custom-fields", controller.signal)
+      .then(fields => {
+        if (!controller.signal.aborted) setCustomFieldDefs(fields.filter(field => field.entityType === "CUSTOMER"));
+      })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [fieldCache, isDrawerOpen, showAddModal, showImportModal]);
 
   const handlePhoneChange = async (phone: string) => {
-    setNewPhone(phone);
     if (phone.length >= 8) {
       try {
-        const res = await fetch(`/api/customers/check-phone?phone=${phone}`);
+        const res = await fetch(`/api/customers/check-phone?phone=${encodeURIComponent(phone)}`);
         const data = await res.json();
         if (data.exists) {
           setDuplicateWarning(`⚠️ هذا الرقم مسجل مسبقاً باسم: ${data.customer.name}`);
@@ -298,107 +306,89 @@ export default function CustomersClient({
     }
   };
 
-  const fetchServerCustomers = useCallback(async (
-    targetPage = 1,
-    currentFilters = appliedFilters,
-    targetLimit = pageSize,
-    currentSubType = subTypeFilter,
-    boardOptions?: { enabled: boolean; column?: BoardStatus }
-  ) => {
-    const requestId = ++customerRequest.current;
+  const fetchServerCustomers = async (targetPage: number, filters = appliedFilters) => {
+    customerRequest.current?.abort();
+    const controller = new AbortController();
+    customerRequest.current = controller;
     setIsFetching(true);
-    try {
-      const safeLimit = Math.min(10, Math.max(1, targetLimit));
-      const params = new URLSearchParams({
-        view: view || "ALL",
-        page: targetPage.toString(),
-        limit: safeLimit.toString(),
-        subType: currentSubType,
-      });
-
-      if (currentFilters.query) params.set("q", currentFilters.query);
-      if (currentFilters.building) params.set("building", currentFilters.building);
-      if (currentFilters.unit) params.set("unit", currentFilters.unit);
-      if (currentFilters.project) params.set("project", currentFilters.project);
-      if (currentFilters.area) params.set("area", currentFilters.area);
-      if (currentFilters.type) params.set("propertyType", currentFilters.type);
-      if (currentFilters.floor) params.set("floor", currentFilters.floor);
-      if (currentFilters.staff) params.set("staff", currentFilters.staff);
-      if (currentFilters.status) params.set("status", currentFilters.status);
-      if (currentFilters.neglected) params.set("neglected", "true");
-
-      if (boardOptions?.enabled ?? isKanban) {
-        const columns = boardOptions?.column ? [boardOptions.column] : BOARD_STATUSES;
-        const result = await Promise.all(columns.map(async (column) => {
-          if (currentFilters.status && currentFilters.status !== column) {
-            return [column, { customers: [], total: 0, page: 1 }] as const;
-          }
-          const columnParams = new URLSearchParams(params);
-          columnParams.set("status", column);
-          const response = await fetch(`/api/customers?${columnParams}`);
-          if (!response.ok) throw new Error("تعذّر تحميل لوحة العملاء");
-          return [column, await response.json() as BoardColumn] as const;
-        }));
-        if (customerRequest.current === requestId) {
-          setBoard((previous) => ({
-            ...(boardOptions?.column ? previous : {}),
-            ...Object.fromEntries(result),
-          }));
-        }
-        return;
-      }
-
-      const res = await fetch(`/api/customers?${params.toString()}`);
-      if (res.ok && customerRequest.current === requestId) {
-        const data = await res.json();
-        setCustomers(data.customers || []);
-        setTotalCount(data.total || 0);
-        setCurrentPage(data.page || 1);
-      }
-    } catch (err) {
-      console.error("Error fetching customers:", err);
-    } finally {
-      if (customerRequest.current === requestId) setIsFetching(false);
+    const params = new URLSearchParams({ view, page: String(targetPage), summary: "1" });
+    const fields = {
+      q: filters.query, building: filters.building, unit: filters.unit,
+      project: filters.project, area: filters.area, propertyType: filters.type,
+      floor: filters.floor, staff: filters.staff, status: filters.status,
+      neglected: filters.neglected ? "true" : "",
+      subType: filters.subType === "ALL" ? "" : filters.subType,
+    };
+    for (const [key, value] of Object.entries(fields)) {
+      if (value) params.set(key, value);
     }
-  }, [view, pageSize, appliedFilters, subTypeFilter, isKanban]);
-
-  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
-
-  const handlePageChange = (newPage: number) => {
-    if (newPage < 1 || newPage > totalPages || newPage === currentPage) return;
-    fetchServerCustomers(newPage);
+    try {
+      const data = await searchCache.load(`/api/customers?${params}`, controller.signal);
+      if (controller.signal.aborted) return;
+      setAppliedFilters(filters);
+      setCustomers(data.customers);
+      setTotalCount(data.total);
+      setCurrentPage(data.page);
+      setSelectedIds([]);
+      setHasSearched(true);
+    } catch {
+      if (!controller.signal.aborted) showToast("تعذّر تحميل نتائج البحث. حاول مرة أخرى.", "error");
+    } finally {
+      if (!controller.signal.aborted) setIsFetching(false);
+    }
   };
 
-  const handleCustomerUpdated = (updatedCustomer: any) => {
-    setCustomers(prev => prev.map(c => c.id === updatedCustomer.id ? { ...c, ...updatedCustomer } : c));
-    if (isKanban) void fetchServerCustomers();
-  };
-
+  const totalPages = Math.max(1, Math.ceil(totalCount / CUSTOMER_SEARCH_PAGE_SIZE));
   const filtered = customers;
 
-  // البيانات لا تُحمّل تلقائياً؛ فقط بعد ضغط «بحث» أو Enter أو تغيير صريح للفلاتر.
-  const applySearch = () => {
-    const nextFilters = {
-      query: search,
-      building: filterBuilding,
-      unit: filterUnit,
-      project: filterProject,
-      area: filterArea,
-      type: filterType,
-      floor: filterFloor,
-      staff: filterStaff,
-      status: filterStatus,
-      neglected: appliedFilters.neglected,
-    };
-    setAppliedFilters(nextFilters);
-    setHasSearched(true);
-    void fetchServerCustomers(1, nextFilters, pageSize, subTypeFilter);
+  const handlePageChange = (newPage: number) => {
+    if (newPage < 1 || newPage > totalPages || newPage === currentPage || isFetching) return;
+    void fetchServerCustomers(newPage);
   };
 
-  const handleSubTypeChange = (newSubType: "ALL" | "LEAD" | "SELLER") => {
-    setSubTypeFilter(newSubType);
-    setHasSearched(true);
-    fetchServerCustomers(1, appliedFilters, pageSize, newSubType);
+  const refreshSearch = () => {
+    searchCache.clear();
+    if (hasSearched) void fetchServerCustomers(currentPage);
+  };
+
+  const handleCustomerUpdated = () => refreshSearch();
+
+  const applySearch = () => {
+    if (isFetching) return;
+    void fetchServerCustomers(1, {
+      query: search.trim(),
+      building: filterBuilding.trim(),
+      unit: filterUnit.trim(),
+      project: filterProject,
+      area: filterArea.trim(),
+      type: filterType,
+      floor: filterFloor.trim(),
+      staff: filterStaff,
+      status: filterStatus,
+      neglected: neglectedFilter,
+      subType: subTypeFilter,
+    });
+  };
+
+  const clearFilters = () => {
+    setSearch("");
+    setFilterBuilding("");
+    setFilterUnit("");
+    setFilterProject("");
+    setFilterArea("");
+    setFilterType("");
+    setFilterFloor("");
+    setFilterStaff("");
+    setFilterStatus("");
+    setNeglectedFilter(false);
+    setSubTypeFilter("ALL");
+    customerRequest.current?.abort();
+    setIsFetching(false);
+    setCustomers([]);
+    setTotalCount(0);
+    setCurrentPage(1);
+    setSelectedIds([]);
+    setHasSearched(false);
   };
 
   const toggleOne = (id: string) => {
@@ -413,12 +403,13 @@ export default function CustomersClient({
     if (!selectedEmployee || selectedIds.length === 0) return;
     setLoading(true);
     try {
-      await fetch("/api/customers/assign", {
+      const response = await fetch("/api/customers/assign", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ customerIds: selectedIds, employeeId: selectedEmployee }),
       });
-      fetchServerCustomers(currentPage);
+      if (!response.ok) throw new Error("تعذّر تعيين العملاء");
+      refreshSearch();
       setSelectedIds([]);
       setSelectedEmployee("");
     } catch {
@@ -440,7 +431,7 @@ export default function CustomersClient({
         const result = await response.json().catch(() => null);
         throw new Error(result?.error || "تعذّر تنفيذ الإجراء");
       }
-      fetchServerCustomers(currentPage);
+      refreshSearch();
       setSelectedIds([]);
     } catch (error) {
       showToast(error instanceof Error ? error.message : "تعذّر تنفيذ الإجراء", "error");
@@ -492,6 +483,7 @@ export default function CustomersClient({
         return;
       }
       
+      searchCache.clear();
       if (stayInModal) {
         // Clear only unit fields
         setNewUnitNumber("");
@@ -541,7 +533,7 @@ export default function CustomersClient({
           return;
         }
       }
-      router.refresh();
+      if (hasSearched) void fetchServerCustomers(currentPage);
     } catch (err) {
       console.error("Error adding customer:", err);
       showToast("حدث خطأ أثناء حفظ العميل. تحقق من الاتصال بالإنترنت.", "error");
@@ -821,11 +813,7 @@ export default function CustomersClient({
         </div>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
           {view === "LEADS" && settings?.kanbanEnabled !== false && (
-            <button onClick={() => {
-              setIsKanban(!isKanban);
-              setHasSearched(true);
-              void fetchServerCustomers(1, appliedFilters, pageSize, subTypeFilter, { enabled: !isKanban });
-            }} className="btn btn-ghost btn-sm">
+            <button type="button" onClick={() => setIsKanban(!isKanban)} className="btn btn-ghost btn-sm">
               {isKanban ? "📋 عرض الجدول" : "📊 Kanban"}
             </button>
           )}
@@ -876,7 +864,7 @@ export default function CustomersClient({
           {(["ALL", "LEAD", "SELLER"] as const).map(t => (
             <button
               key={t}
-              onClick={() => handleSubTypeChange(t)}
+              onClick={() => setSubTypeFilter(t)}
               className={`btn btn-sm ${subTypeFilter === t ? "btn-primary" : "btn-ghost"}`}
             >
               {t === "ALL" ? "🔵 الكل" : t === "LEAD" ? "🎯 عملاء محتملين" : "🏠 ملاك وبائعين"}
@@ -892,25 +880,20 @@ export default function CustomersClient({
             <label className="form-label">بحث عام</label>
             <input 
               type="text" value={search} onChange={(e) => setSearch(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") applySearch(); }}
+              onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing) applySearch(); }}
               className="input" placeholder="اسم، هاتف، عمارة، وحدة..." 
             />
           </div>
 
           <button onClick={applySearch} disabled={isFetching} className="btn btn-primary" style={{ padding: "10px 18px" }}>
-            🔍 بحث
+            البحث
           </button>
           
           <button onClick={() => setShowAdvanced(!showAdvanced)} className="btn btn-secondary">
             {showAdvanced ? "إخفاء الفلاتر ▲" : "فلاتر متقدمة ⚙️"}
           </button>
 
-          <button onClick={() => {
-            setSearch(""); setFilterBuilding(""); setFilterUnit(""); setFilterProject(""); setFilterArea("");
-            setFilterType(""); setFilterFloor(""); setFilterStaff(""); setFilterStatus("");
-            setAppliedFilters({ query: "", building: "", unit: "", project: "", area: "", type: "", floor: "", staff: "", status: "", neglected: false });
-            setCustomers([]); setTotalCount(0); setCurrentPage(1); setBoard({}); setHasSearched(false);
-          }} className="btn btn-secondary" style={{ padding: "10px 16px" }}>
+          <button onClick={clearFilters} className="btn btn-secondary" style={{ padding: "10px 16px" }}>
             ✕ مسح الفلاتر
           </button>
 
@@ -1016,8 +999,8 @@ export default function CustomersClient({
           if (filterStatus) {
             activeChips.push({ key: "status", label: `حالة: ${STATUS_MAP[filterStatus]?.label || filterStatus}`, onRemove: () => setFilterStatus("") });
           }
-          if (appliedFilters.neglected) {
-            activeChips.push({ key: "neglected", label: `⏰ عملاء لم يُتواصل معهم منذ 3+ أيام`, onRemove: () => setAppliedFilters(prev => ({ ...prev, neglected: false })) });
+          if (neglectedFilter) {
+            activeChips.push({ key: "neglected", label: `⏰ عملاء لم يُتواصل معهم منذ 3+ أيام`, onRemove: () => setNeglectedFilter(false) });
           }
 
           if (activeChips.length === 0) return null;
@@ -1035,18 +1018,7 @@ export default function CustomersClient({
               ))}
               <button
                 type="button"
-                onClick={() => {
-                  setSearch("");
-                  setFilterBuilding("");
-                  setFilterUnit("");
-                  setFilterProject("");
-                  setFilterArea("");
-                  setFilterType("");
-                  setFilterFloor("");
-                  setFilterStaff("");
-                  setFilterStatus("");
-                  setAppliedFilters(prev => ({ ...prev, neglected: false }));
-                }}
+                onClick={clearFilters}
                 className="filter-clear-all-chip"
               >
                 مسح الكل ✕
@@ -1077,16 +1049,16 @@ export default function CustomersClient({
         </div>
       )}
 
-      {isKanban ? (
+      {isKanban && hasSearched && customers.length > 0 ? (
         <div className="kanban-board animate-in">
-          {BOARD_STATUSES.map(status => (
+          {[...new Set([...BOARD_STATUSES, ...customers.map(c => String(c.status))])].map(status => (
             <div key={status} className="kanban-column">
               <div className="kanban-column-header">
                 <span>{STATUS_MAP[status]?.label || status}</span>
-                <span className="badge badge-gray">{board[status]?.total ?? "—"}</span>
+                <span className="badge badge-gray">{customers.filter(c => c.status === status).length}</span>
               </div>
               <div className="kanban-cards">
-                {board[status]?.customers.map(c => (
+                {customers.filter(c => c.status === status).map(c => (
                   <div key={c.id} className="kanban-card" onClick={() => { setSelectedCustomer(c); setIsDrawerOpen(true); }}>
                     <div style={{ fontWeight: 800, marginBottom: 4 }}>{c.name}</div>
                     <div style={{ fontSize: 11, color: "var(--text-secondary)" }}>📞 {c.phone}</div>
@@ -1097,20 +1069,6 @@ export default function CustomersClient({
                     </div>
                   </div>
                 ))}
-                {board[status] && (
-                  <div>
-                    <button type="button" className="btn btn-ghost btn-sm"
-                      disabled={isFetching || board[status]!.page <= 1}
-                      onClick={() => void fetchServerCustomers(board[status]!.page - 1, appliedFilters, pageSize, subTypeFilter, { enabled: true, column: status })}>
-                      السابق
-                    </button>
-                    <button type="button" className="btn btn-ghost btn-sm"
-                      disabled={isFetching || board[status]!.page * pageSize >= board[status]!.total}
-                      onClick={() => void fetchServerCustomers(board[status]!.page + 1, appliedFilters, pageSize, subTypeFilter, { enabled: true, column: status })}>
-                      التالي
-                    </button>
-                  </div>
-                )}
               </div>
             </div>
           ))}
@@ -1205,7 +1163,7 @@ export default function CustomersClient({
             {filtered.length === 0 ? (
               <div className="empty-state">
                 <div className="empty-state-icon">🔍</div>
-                <div className="empty-state-text">لا توجد نتائج مطابقة</div>
+                <div className="empty-state-text">{hasSearched ? "لا توجد نتائج مطابقة" : "اضغط «بحث» لعرض العملاء"}</div>
               </div>
             ) : filtered.map(c => {
               const { label: contactLabel, cls: contactCls } = relativeTime(c.interactions?.[0]?.createdAt || c.lastInteractionAt);
@@ -1246,7 +1204,7 @@ export default function CustomersClient({
       )}
 
       {/* Glassmorphism Server Pagination Bar */}
-      {!isKanban && <div style={{
+      {hasSearched && totalPages > 1 && <div style={{
         display: "flex",
         justifyContent: "space-between",
         alignItems: "center",
@@ -1304,27 +1262,12 @@ export default function CustomersClient({
           </button>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 12, color: "var(--text-muted)" }}>عناصر لكل صفحة:</span>
-          <select
-            value={pageSize}
-            onChange={(e) => {
-              const newSize = Math.min(10, Math.max(1, parseInt(e.target.value)));
-              setPageSize(newSize);
-              if (hasSearched) fetchServerCustomers(1, appliedFilters, newSize);
-            }}
-            className="input"
-            style={{ width: 80, height: 34, padding: "4px 8px", fontSize: 12, borderRadius: 8 }}
-          >
-            <option value={5}>5</option>
-            <option value={10}>10 (الحد الأقصى)</option>
-          </select>
-        </div>
+
       </div>
 
       }
       {/* Drawer */}
-      <CustomerDrawer customer={selectedCustomer} isOpen={isDrawerOpen} onClose={() => setIsDrawerOpen(false)} onUpdated={handleCustomerUpdated} />
+      <CustomerDrawer customer={selectedCustomer} isOpen={isDrawerOpen} fieldDefinitions={customFieldDefs} onClose={() => setIsDrawerOpen(false)} onUpdated={handleCustomerUpdated} />
 
       {/* Add Modal */}
       {showAddModal && (
@@ -1401,7 +1344,8 @@ export default function CustomersClient({
                       <label className="form-label">رقم الهاتف * (إلزامي)</label>
                       <input 
                         type="text" value={newPhone} 
-                        onChange={e => handlePhoneChange(e.target.value)} 
+                        onChange={e => { setNewPhone(e.target.value); setDuplicateWarning(null); }}
+                        onBlur={e => void handlePhoneChange(e.target.value)}
                         className="input" required placeholder="01xxxxxxxxx" 
                       />
                       {duplicateWarning && (
@@ -1787,6 +1731,7 @@ export default function CustomersClient({
       {showImportModal && <ImportWizardModal
         isOpen={showImportModal}
         onClose={() => setShowImportModal(false)}
+        onImported={refreshSearch}
         projects={projects}
         customFieldDefs={customFieldDefs}
       />}

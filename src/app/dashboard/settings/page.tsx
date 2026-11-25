@@ -1,12 +1,12 @@
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+import { getPageSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import SettingsClient from "./SettingsClient";
 
 export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
-  const session = await getSession();
+  const session = await getPageSession();
   if (session?.role !== "GENERAL_MANAGER") {
     redirect("/dashboard");
     return null;

@@ -1,5 +1,6 @@
 "use client";
-import { useState, useCallback, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
+import { createClientReadCache } from "@/lib/client-read-cache";
 import { useRouter } from "next/navigation";
 
 export default function GlobalSearch() {
@@ -7,35 +8,46 @@ export default function GlobalSearch() {
   const [results, setResults] = useState<any>(null);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const debounceRef = useRef<NodeJS.Timeout>();
-  const abortControllerRef = useRef<AbortController | null>(null);
+  const [error, setError] = useState(false);
+  const [searchCache] = useState(() => createClientReadCache<any>());
+  const requestRef = useRef<AbortController | null>(null);
+  const searchBox = useRef<HTMLDivElement | null>(null);
   const router = useRouter();
+  useEffect(() => () => requestRef.current?.abort(), []);
+  useEffect(() => {
+    if (!open) return;
+    const dismiss = (event: PointerEvent) => {
+      if (event.target instanceof Node && !searchBox.current?.contains(event.target)) setOpen(false);
+    };
+    document.addEventListener("pointerdown", dismiss);
+    return () => document.removeEventListener("pointerdown", dismiss);
+  }, [open]);
 
-  const search = useCallback(async (q: string) => {
-    if (q.length < 2) { setResults(null); return; }
-    if (abortControllerRef.current) abortControllerRef.current.abort();
-    abortControllerRef.current = new AbortController();
+  const setDraft = (value: string) => {
+    requestRef.current?.abort();
+    setQuery(value);
+    setResults(null);
+    setError(false);
+    setLoading(false);
+  };
 
+  const search = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const q = query.trim();
+    if (loading || q.length < 2) return;
+    const controller = new AbortController();
+    requestRef.current = controller;
     setLoading(true);
+    setOpen(true);
+    setError(false);
     try {
-      const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`, {
-        signal: abortControllerRef.current.signal,
-      });
-      if (res.ok) {
-        setResults(await res.json());
-      }
-    } catch (e: any) {
-      if (e.name !== "AbortError") {
-        setResults(null);
-      }
-    } finally { setLoading(false); }
-  }, []);
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
-    setQuery(val);
-    clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => search(val), 400);
+      const data = await searchCache.load("/api/search?q=" + encodeURIComponent(q), controller.signal);
+      if (!controller.signal.aborted) setResults(data);
+    } catch {
+      if (!controller.signal.aborted) setError(true);
+    } finally {
+      if (!controller.signal.aborted) setLoading(false);
+    }
   };
 
   const handleSelect = (path: string) => {
@@ -46,19 +58,19 @@ export default function GlobalSearch() {
   const STATUS_LABELS: Record<string, string> = { NEW: "جديد", INTERESTED: "مهتم", AVAILABLE: "متاحة", SOLD: "مباعة" };
 
   return (
-    <div style={{ position: "relative" }}>
+    <div ref={searchBox} style={{ position: "relative" }}>
+      <form onSubmit={search} style={{ display: "flex", gap: 6, alignItems: "center" }}>
       <div style={{ position: "relative" }}>
         <span style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", fontSize: 14, opacity: 0.4 }}>🔍</span>
         <input
           value={query}
-          onChange={handleChange}
+          onChange={(e) => setDraft(e.target.value)}
           onFocus={() => setOpen(true)}
-          onBlur={() => setTimeout(() => setOpen(false), 200)}
           className="input"
           placeholder="بحث عالمي... (عملاء، عقارات)"
           style={{ paddingRight: 32, width: 280, fontSize: 13 }}
         />
-        <button 
+        <button type="button"
           onClick={() => {
             const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
             if (SpeechRecognition) {
@@ -66,8 +78,7 @@ export default function GlobalSearch() {
               rec.lang = "ar-SA";
               rec.onresult = (e: any) => {
                 const text = e.results[0][0].transcript;
-                setQuery(text);
-                search(text);
+                setDraft(text);
               };
               rec.start();
             }
@@ -78,8 +89,10 @@ export default function GlobalSearch() {
           🎙️
         </button>
       </div>
+      <button type="submit" className="btn btn-secondary btn-sm" disabled={loading || query.trim().length < 2}>البحث</button>
+      </form>
 
-      {open && query.length >= 2 && (
+      {open && (loading || error || results) && (
         <div style={{
           position: "absolute", top: "calc(100% + 12px)", right: 0, width: "max(320px, 100%)", minWidth: 320,
           background: "rgba(10, 15, 25, 0.98)", 
@@ -93,7 +106,8 @@ export default function GlobalSearch() {
         }}>
           {loading && <div style={{ padding: 16, textAlign: "center", fontSize: 12, color: "var(--text-muted)" }}>جاري البحث...</div>}
 
-          {!loading && results && (
+          {error && <p role="alert" style={{ padding: 16 }}>تعذّر البحث. حاول مرة أخرى.</p>}
+          {!loading && !error && results && (
             <>
               {results.customers?.length > 0 && (
                 <div>

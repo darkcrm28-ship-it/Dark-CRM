@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, useRef } from "react";
+import { createClientReadCache } from "@/lib/client-read-cache";
 import DynamicFields from "@/components/DynamicFields";
 import UnitImageManager from "@/components/UnitImageManager";
 import EntityDocumentsPanel from "@/components/EntityDocumentsPanel";
@@ -53,18 +53,18 @@ const EMPTY_FORM = {
 };
 
 export default function PropertiesClient({
-  inventory,
   isManager,
   session,
 }: {
-  inventory: { properties: any[]; total: number; page: number; pageSize: number };
   isManager: boolean;
   session?: any;
 }) {
-  const [list, setList] = useState(inventory.properties);
-  const [total, setTotal] = useState(inventory.total);
-  const [page, setPage] = useState(inventory.page);
-  const [reload, setReload] = useState(0);
+  const [result, setResult] = useState<{ properties: any[]; total: number; page: number; pageSize: number } | null>(null);
+  const [propertyCache] = useState(() => createClientReadCache<NonNullable<typeof result>>());
+  const requestRef = useRef<AbortController | null>(null);
+  const page = result?.page ?? 1;
+  const total = result?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / (result?.pageSize ?? 1)));
   const [loadingList, setLoadingList] = useState(false);
   const [listError, setListError] = useState("");
   const [showForm, setShowForm] = useState(false);
@@ -83,19 +83,11 @@ export default function PropertiesClient({
   const [filterPriceMin, setFilterPriceMin] = useState("");
   const [filterPriceMax, setFilterPriceMax] = useState("");
 
-  const [appliedFilters, setAppliedFilters] = useState<any>({
-    search: "",
-    filterStatus: "",
-    filterUnitType: "",
-    filterBedrooms: "",
-    filterBathrooms: "",
-    filterFinishing: "",
-    filterPriceMin: "",
-    filterPriceMax: "",
-  });
+  const [appliedFilters, setAppliedFilters] = useState("");
 
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [customFieldDefs, setCustomFieldDefs] = useState<any[]>([]);
+  const [fieldCache] = useState(() => createClientReadCache<any[]>(60_000, 1));
 
   // Publication field selector (replaces window.prompt)
   const [showFieldSelector, setShowFieldSelector] = useState(false);
@@ -115,55 +107,67 @@ export default function PropertiesClient({
     { key: "description", label: "الوصف" },
   ];
 
-  const router = useRouter();
+  useEffect(() => () => requestRef.current?.abort(), []);
 
   useEffect(() => {
-    const fetchDefs = async () => {
-      try {
-        const res = await fetch("/api/settings/custom-fields");
-        const data = await res.json();
-        setCustomFieldDefs(data.filter((f: any) => f.entityType === "PROPERTY"));
-      } catch (err) {
-        console.error(err);
-      }
-    };
-    fetchDefs();
-  }, []);
-
-  useEffect(() => {
+    if (!showForm) return;
     const controller = new AbortController();
-    const params = new URLSearchParams({
-      page: String(page),
-      q: appliedFilters.search,
-      status: appliedFilters.filterStatus,
-      unitType: appliedFilters.filterUnitType,
-      bedrooms: appliedFilters.filterBedrooms,
-      bathrooms: appliedFilters.filterBathrooms,
-      finishing: appliedFilters.filterFinishing,
-      minPrice: appliedFilters.filterPriceMin,
-      maxPrice: appliedFilters.filterPriceMax,
-    });
+    fieldCache.load("/api/settings/custom-fields", controller.signal)
+      .then(fields => {
+        if (!controller.signal.aborted) setCustomFieldDefs(fields.filter((field: any) => field.entityType === "PROPERTY"));
+      })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [fieldCache, showForm]);
+
+  const loadPage = async (targetPage: number, filters = appliedFilters, adjustPage = false) => {
+    requestRef.current?.abort();
+    const controller = new AbortController();
+    requestRef.current = controller;
+    const params = new URLSearchParams(filters);
+    params.set("page", String(targetPage));
     setLoadingList(true);
     setListError("");
-    fetch(`/api/properties?${params}`, { signal: controller.signal }).then(async (response) => {
-      if (!response.ok) throw new Error("Inventory unavailable");
-      const result = await response.json();
+    try {
+      let data = await propertyCache.load("/api/properties?" + params, controller.signal);
       if (controller.signal.aborted) return;
-      setTotal(result.total);
-      if (page > 1 && result.properties.length === 0) {
-        setPage(Math.max(1, Math.ceil(result.total / inventory.pageSize)));
-      } else {
-        setList(result.properties);
+      const lastPage = Math.max(1, Math.ceil(data.total / data.pageSize));
+      if (adjustPage && targetPage > lastPage) {
+        params.set("page", String(lastPage));
+        data = await propertyCache.load("/api/properties?" + params, controller.signal);
       }
-    }).catch(() => {
+      if (!controller.signal.aborted) {
+        setResult(data);
+        setAppliedFilters(filters);
+      }
+    } catch {
       if (!controller.signal.aborted) setListError("تعذّر تحميل العقارات.");
-    }).finally(() => {
+    } finally {
       if (!controller.signal.aborted) setLoadingList(false);
-    });
-    return () => controller.abort();
-  }, [appliedFilters, inventory.pageSize, page, reload]);
+    }
+  };
 
-  const filtered = list;
+  const applySearch = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (loadingList) return;
+    const params = new URLSearchParams();
+    const filters = {
+      q: search.trim(), status: filterStatus, unitType: filterUnitType,
+      bedrooms: filterBedrooms, bathrooms: filterBathrooms, finishing: filterFinishing,
+      minPrice: filterPriceMin, maxPrice: filterPriceMax,
+    };
+    for (const [key, value] of Object.entries(filters)) {
+      if (value) params.set(key, value);
+    }
+    void loadPage(1, params.toString());
+  };
+
+  const refreshInventory = () => {
+    propertyCache.clear();
+    if (result) void loadPage(page, appliedFilters, true);
+  };
+
+  const filtered = result?.properties ?? [];
 
   const exportToExcel = async () => {
     const XLSX = await import("xlsx");
@@ -218,11 +222,10 @@ export default function PropertiesClient({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "فشل حفظ الوحدة");
 
-      setReload((value) => value + 1);
+      refreshInventory();
       setShowForm(false);
       setEditing(null);
       setForm(EMPTY_FORM);
-      router.refresh();
     } catch (err: any) {
       alert(err.message || "حدث خطأ أثناء حفظ الوحدة");
     } finally {
@@ -239,7 +242,7 @@ export default function PropertiesClient({
         alert(result?.error || "تعذّر حذف العقار");
         return;
       }
-      setReload((value) => value + 1);
+      refreshInventory();
     } catch (err) {
       console.error(err);
     }
@@ -273,11 +276,7 @@ export default function PropertiesClient({
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "تعذر تحديث حالة النشر");
-      setList((items) => items.map((item) => item.id === property.id ? {
-        ...item,
-        customData: { ...(item.customData || {}), publicListing: { status, fields } },
-      } : item));
-      router.refresh();
+      refreshInventory();
     } catch (error: any) {
       alert(error.message || "تعذر تحديث حالة النشر");
     }
@@ -295,11 +294,7 @@ export default function PropertiesClient({
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "تعذر تحديث حالة النشر");
-      setList((items) => items.map((item) => item.id === property.id ? {
-        ...item,
-        customData: { ...(item.customData || {}), publicListing: { status, fields: selectedFields } },
-      } : item));
-      router.refresh();
+      refreshInventory();
     } catch (error: any) {
       alert(error.message || "تعذر تحديث حالة النشر");
     } finally {
@@ -581,7 +576,7 @@ export default function PropertiesClient({
       )}
 
       {/* Search & Filters */}
-      <div className="card mb-4 p-3.5">
+      <form className="card mb-4 p-3.5" onSubmit={applySearch}>
         <div className="flex gap-3 flex-wrap">
           <div className="flex-1 min-w-[220px] relative">
             <input
@@ -607,30 +602,15 @@ export default function PropertiesClient({
           </select>
 
           <button
-            onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+            type="button" onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
             className="btn btn-secondary flex items-center gap-1.5"
           >
             <SlidersHorizontal size={15} />
             <span>{showAdvancedFilters ? "إخفاء الفلاتر" : "فلاتر متقدمة"}</span>
           </button>
 
-          <button
-            onClick={() => {
-              setPage(1);
-              setAppliedFilters({
-                search,
-                filterStatus,
-                filterUnitType,
-                filterBedrooms,
-                filterBathrooms,
-                filterFinishing,
-                filterPriceMin,
-                filterPriceMax,
-              });
-            }}
-            className="btn btn-primary"
-          >
-            تطبيق البحث
+          <button type="submit" disabled={loadingList} className="btn btn-primary">
+            البحث
           </button>
         </div>
 
@@ -684,7 +664,7 @@ export default function PropertiesClient({
             </div>
           </div>
         )}
-      </div>
+      </form>
 
       {/* Units Cards Grid */}
       <div className="grid-3 gap-4">
@@ -697,7 +677,7 @@ export default function PropertiesClient({
               {/* Unit Card Image Preview Header */}
               <div className="property-card-cover-wrapper">
                 {coverImage ? (
-                  <img src={coverImage} alt={p.projectName} className="property-card-cover-img" />
+                  <img src={coverImage} alt={p.projectName} loading="lazy" className="property-card-cover-img" />
                 ) : (
                   <div className="property-card-no-cover">
                     <Building2 size={36} className="text-gold opacity-40 mb-1" />
@@ -833,20 +813,20 @@ export default function PropertiesClient({
         {filtered.length === 0 && !loadingList && !listError && (
           <div className="empty-state col-span-full py-12 text-center card">
             <Building2 size={48} className="mx-auto text-gold opacity-40 mb-2" />
-            <div className="text-base font-bold text-slate-300">لا توجد وحدات مطابقة للبحث</div>
+            <div className="text-base font-bold text-slate-300">{result ? "لا توجد وحدات مطابقة للبحث" : "اضغط «البحث» لعرض الوحدات"}</div>
             <p className="text-xs text-muted mt-1">
               جرب تغيير معايير البحث أو تصفية الحالات.
             </p>
           </div>
         )}
         {listError && <p role="alert">{listError}</p>}
-        <nav className="col-span-full flex items-center gap-3" aria-label="صفحات العقارات">
+        {result && totalPages > 1 && <nav className="col-span-full flex items-center gap-3" aria-label="صفحات العقارات">
           <button type="button" className="btn btn-secondary btn-sm" disabled={loadingList || page === 1}
-            onClick={() => setPage(page - 1)}>السابق</button>
-          <span>{loadingList ? "جاري التحميل…" : `صفحة ${page} من ${Math.max(1, Math.ceil(total / inventory.pageSize))} · ${total} وحدة`}</span>
-          <button type="button" className="btn btn-secondary btn-sm" disabled={loadingList || page * inventory.pageSize >= total}
-            onClick={() => setPage(page + 1)}>التالي</button>
-        </nav>
+            onClick={() => void loadPage(page - 1)}>السابق</button>
+          <span>{loadingList ? "جاري التحميل…" : `صفحة ${page} من ${totalPages} · ${total} وحدة`}</span>
+          <button type="button" className="btn btn-secondary btn-sm" disabled={loadingList || page >= totalPages}
+            onClick={() => void loadPage(page + 1)}>التالي</button>
+        </nav>}
         {showFieldSelector && (
           <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
             <div className="bg-white rounded-xl p-6 max-w-sm w-full border">

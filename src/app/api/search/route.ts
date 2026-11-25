@@ -6,11 +6,19 @@ export async function GET(request: NextRequest) {
   const session = await requireRole(SALES_ROLES);
   if (session instanceof NextResponse) return session;
 
-  const q = request.nextUrl.searchParams.get("q") || "";
-  if (!q || q.length < 2) return NextResponse.json({ customers: [], properties: [] });
+  const params = request.nextUrl.searchParams;
+  const headers = { "Cache-Control": "private, no-store" };
+  const q = (params.get("q") || "").trim().slice(0, 120);
+  const propertiesOnly = params.get("scope") === "properties";
+  const priceParam = params.get("priceMax");
+  const priceMax = priceParam?.trim() ? Number(priceParam) : NaN;
+  const hasPrice = Number.isFinite(priceMax) && priceMax > 0;
+  if (q.length < 2 && !(propertiesOnly && hasPrice)) {
+    return NextResponse.json({ customers: [], properties: [] }, { headers });
+  }
 
   const [customers, properties] = await Promise.all([
-    prisma.customer.findMany({
+    propertiesOnly ? [] : prisma.customer.findMany({
       where: {
         AND: [
           session.role === ROLE.SALES_EMPLOYEE ? { assignedToId: session.id } : {},
@@ -28,17 +36,19 @@ export async function GET(request: NextRequest) {
     }),
     prisma.property.findMany({
       where: {
-        OR: [
+        ...(propertiesOnly ? { status: "AVAILABLE" } : {}),
+        ...(hasPrice ? { price: { lte: priceMax } } : {}),
+        ...(q.length >= 2 ? { OR: [
           { title: { contains: q, mode: "insensitive" } },
           { zone: { contains: q, mode: "insensitive" } },
           { projectName: { contains: q, mode: "insensitive" } },
           { unitNumber: { contains: q } },
-        ],
+        ] } : {}),
       },
       take: 6,
       select: { id: true, title: true, zone: true, projectName: true, unitNumber: true, status: true, price: true },
     }),
   ]);
 
-  return NextResponse.json({ customers, properties });
+  return NextResponse.json({ customers, properties }, { headers });
 }

@@ -1,11 +1,11 @@
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+import { getPageSession } from "@/lib/auth";
 import ReportsClient from "./ReportsClient";
 import { redirect } from "next/navigation";
 import { Prisma } from "@prisma/client";
 
 export default async function ReportsPage() {
-  const session = await getSession();
+  const session = await getPageSession();
   if (!session || !["GENERAL_MANAGER", "SALES_MANAGER"].includes(session.role)) redirect("/dashboard");
   const employees = await prisma.user.findMany({
     where: { role: { in: ["SALES_EMPLOYEE", "SALES_MANAGER"] } },

@@ -1,11 +1,11 @@
 import { prisma } from "@/lib/db";
-import { getSession, COMMISSION_ROLES } from "@/lib/auth";
+import { getPageSession, COMMISSION_ROLES } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import CommissionsClient from "./CommissionsClient";
 import { readMoney } from "@/lib/financial";
 
 export default async function CommissionsPage() {
-  const session = await getSession();
+  const session = await getPageSession();
 
   if (!session || !COMMISSION_ROLES.includes(session.role)) {
     redirect("/dashboard");

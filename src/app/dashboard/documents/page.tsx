@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getSession, ROLE, SALES_MANAGER_ROLES, SALES_ROLES } from "@/lib/auth";
+import { getPageSession, ROLE, SALES_MANAGER_ROLES, SALES_ROLES } from "@/lib/auth";
 import { scopedCustomerWhere, scopedDealWhere } from "@/lib/access-scope";
 import { prisma } from "@/lib/db";
 import DocumentsClient from "./DocumentsClient";
@@ -13,7 +13,7 @@ export default async function DocumentsPage({
 }: {
   searchParams: Promise<{ entityType?: string; entityId?: string }>;
 }) {
-  const session = await getSession();
+  const session = await getPageSession();
   if (!session) redirect("/login");
   const canRead = SALES_ROLES.includes(session.role) || session.role === ROLE.ACCOUNTING_MANAGER;
   if (!canRead) redirect("/dashboard");

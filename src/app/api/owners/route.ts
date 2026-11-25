@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireRole, ROLE, type AppRole } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { CUSTOMER_SEARCH_PAGE_SIZE } from "@/lib/customer-search";
 
 export const dynamic = "force-dynamic";
 
@@ -22,45 +23,68 @@ export async function GET(request: NextRequest) {
     const session = await requireRole(READ_ROLES);
     if (session instanceof NextResponse) return session;
 
-    const q = (request.nextUrl.searchParams.get("q") || "").trim();
-    const limit = Math.min(100, Math.max(1, Number(request.nextUrl.searchParams.get("limit") || 50)));
+    const params = request.nextUrl.searchParams;
+    const headers = { "Cache-Control": "private, no-store" };
+    if (params.get("options") === "1") {
+      const [owners, properties] = await Promise.all([
+        prisma.owner.findMany({ orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 200, select: { id: true, name: true } }),
+        prisma.property.findMany({
+          orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 300,
+          select: { id: true, title: true, projectName: true, unitNumber: true, status: true },
+        }),
+      ]);
+      return NextResponse.json({
+        owners,
+        properties: properties.map(({ id, title, projectName, unitNumber, status }) => ({
+          id,
+          label: (title || projectName || "وحدة") + (unitNumber ? " - " + unitNumber : "") + " (" + status + ")",
+        })),
+      }, { headers });
+    }
 
-    const owners = await prisma.owner.findMany({
-      where: q
-        ? {
-            OR: [
-              { name: { contains: q, mode: "insensitive" } },
-              { phone: { contains: q } },
-              { nationalId: { contains: q } },
-            ],
-          }
-        : undefined,
-      orderBy: { createdAt: "desc" },
-      take: limit,
-      select: {
-        id: true,
-        name: true,
-        phone: true,
-        email: true,
-        nationalId: true,
-        type: true,
-        address: true,
-        notes: true,
-        createdAt: true,
-        properties: {
-          where: { isCurrent: true },
-          select: {
-            id: true,
-            percentage: true,
-            property: {
-              select: { id: true, title: true, unitNumber: true, projectName: true, status: true },
+    const q = (params.get("q") || "").trim().slice(0, 120);
+    const limit = Math.min(CUSTOMER_SEARCH_PAGE_SIZE, Math.max(1, parseInt(params.get("limit") || "", 10) || CUSTOMER_SEARCH_PAGE_SIZE));
+    const page = Math.min(100_000, Math.max(1, parseInt(params.get("page") || "", 10) || 1));
+    const where = q ? {
+      OR: [
+        { name: { contains: q, mode: "insensitive" as const } },
+        { phone: { contains: q } },
+        { nationalId: { contains: q } },
+      ],
+    } : {};
+    const [owners, total] = await Promise.all([
+      prisma.owner.findMany({
+        where,
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        take: limit,
+        skip: (page - 1) * limit,
+        select: {
+          id: true,
+          name: true,
+          phone: true,
+          email: true,
+          nationalId: true,
+          type: true,
+          address: true,
+          notes: true,
+          createdAt: true,
+          properties: {
+            where: { isCurrent: true },
+            select: {
+              id: true,
+              percentage: true,
+              property: {
+                select: { id: true, title: true, unitNumber: true, projectName: true, status: true },
+              },
             },
           },
         },
-      },
-    });
+      }),
+      prisma.owner.count({ where }),
+    ]);
 
     return NextResponse.json({
+      page, totalPages: Math.ceil(total / limit),
       owners: owners.map((owner) => ({
         ...owner,
         properties: owner.properties.map((link) => ({
@@ -70,7 +94,7 @@ export async function GET(request: NextRequest) {
         })),
         createdAt: owner.createdAt.toISOString(),
       })),
-    }, { headers: { "Cache-Control": "no-store" } });
+    }, { headers });
   } catch (error) {
     console.error("List owners error:", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });

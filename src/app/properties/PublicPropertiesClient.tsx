@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
+import { createClientReadCache } from "@/lib/client-read-cache";
 import {
   Building2,
   Calendar,
@@ -74,39 +75,46 @@ export default function PublicPropertiesClient({
   const [catalog, setCatalog] = useState(initialCatalog);
   const [loadingCatalog, setLoadingCatalog] = useState(false);
   const [catalogError, setCatalogError] = useState("");
-  const [page, setPage] = useState(1);
+  const [catalogCache] = useState(() => createClientReadCache<typeof initialCatalog>());
+  const catalogRequest = useRef<AbortController | null>(null);
+  const [appliedFilters, setAppliedFilters] = useState("");
+  const page = catalog.page;
   const uniqueZones = ["الكل", ...zones];
   const filteredProperties = catalog.properties;
+  useEffect(() => () => catalogRequest.current?.abort(), []);
 
-  useEffect(() => {
+  const loadCatalog = async (targetPage: number, filters = appliedFilters) => {
+    if (loadingCatalog) return;
     const controller = new AbortController();
-    const params = new URLSearchParams({ page: String(page) });
+    catalogRequest.current = controller;
+    const params = new URLSearchParams(filters);
+    params.set("page", String(targetPage));
+    setLoadingCatalog(true);
+    setCatalogError("");
+    try {
+      const result = await catalogCache.load('/api/public/properties?' + params, controller.signal);
+      if (!controller.signal.aborted) {
+        setCatalog(result);
+        setAppliedFilters(filters);
+      }
+    } catch {
+      if (!controller.signal.aborted) setCatalogError("تعذّر تحميل الوحدات. حاول مرة أخرى.");
+    } finally {
+      if (!controller.signal.aborted) setLoadingCatalog(false);
+    }
+  };
+
+  const applySearch = (event: React.FormEvent) => {
+    event.preventDefault();
+    const params = new URLSearchParams();
     if (searchQuery.trim()) params.set("q", searchQuery.trim());
     if (selectedUnitType !== "الكل") params.set("type", selectedUnitType);
     if (selectedBedrooms !== "الكل") params.set("rooms", selectedBedrooms);
     if (selectedZone !== "الكل") params.set("zone", selectedZone);
-    setLoadingCatalog(true);
-    setCatalogError("");
-    const timer = setTimeout(async () => {
-      try {
-        const response = await fetch(`/api/public/properties?${params}`, { signal: controller.signal });
-        if (!response.ok) throw new Error("Catalog unavailable");
-        const result = await response.json();
-        if (!controller.signal.aborted) setCatalog(result);
-      } catch {
-        if (!controller.signal.aborted) setCatalogError("تعذّر تحديث الوحدات. جرّب تغيير الفلاتر أو إعادة تحميل الصفحة.");
-      } finally {
-        if (!controller.signal.aborted) setLoadingCatalog(false);
-      }
-    }, 250);
-    return () => {
-      clearTimeout(timer);
-      controller.abort();
-    };
-  }, [page, searchQuery, selectedUnitType, selectedBedrooms, selectedZone]);
+    void loadCatalog(1, params.toString());
+  };
 
   const resetFilters = () => {
-    setPage(1);
     setSearchQuery("");
     setSelectedUnitType("الكل");
     setSelectedBedrooms("الكل");
@@ -210,7 +218,7 @@ export default function PublicPropertiesClient({
 
       {/* Filter Bar */}
       <section className="portal-container mb-10">
-        <div className="catalog-filter-card">
+        <form className="catalog-filter-card" onSubmit={applySearch}>
           {/* Top Search Input */}
           <div className="catalog-search-field">
             <Search size={18} className="catalog-search-icon" />
@@ -218,11 +226,11 @@ export default function PublicPropertiesClient({
               type="text"
               placeholder="ابحث باسم المشروع، الكومباوند، أو المنطقة (مثل: مدينتي، ميفيدا، التجمع، زايد...)"
               value={searchQuery}
-              onChange={(e) => { setPage(1); setSearchQuery(e.target.value); }}
+              onChange={(e) => setSearchQuery(e.target.value)}
               className="catalog-search-input"
             />
             {searchQuery && (
-              <button onClick={() => setSearchQuery("")} className="clear-search-btn">
+              <button type="button" aria-label="مسح البحث" onClick={() => setSearchQuery("")} className="clear-search-btn">
                 <X size={16} />
               </button>
             )}
@@ -234,7 +242,7 @@ export default function PublicPropertiesClient({
               <label>نوع الوحدة</label>
               <select
                 value={selectedUnitType}
-                onChange={(e) => { setPage(1); setSelectedUnitType(e.target.value); }}
+                onChange={(e) => setSelectedUnitType(e.target.value)}
                 className="catalog-select"
               >
                 {UNIT_TYPES.map((t) => (
@@ -247,7 +255,7 @@ export default function PublicPropertiesClient({
               <label>المنطقة / الكومباوند</label>
               <select
                 value={selectedZone}
-                onChange={(e) => { setPage(1); setSelectedZone(e.target.value); }}
+                onChange={(e) => setSelectedZone(e.target.value)}
                 className="catalog-select"
               >
                 {uniqueZones.map((z) => (
@@ -260,7 +268,7 @@ export default function PublicPropertiesClient({
               <label>عدد الغرف</label>
               <select
                 value={selectedBedrooms}
-                onChange={(e) => { setPage(1); setSelectedBedrooms(e.target.value); }}
+                onChange={(e) => setSelectedBedrooms(e.target.value)}
                 className="catalog-select"
               >
                 {BEDROOMS_OPTIONS.map((b) => (
@@ -273,7 +281,8 @@ export default function PublicPropertiesClient({
           {/* Bottom Bar: Reset + Count */}
           <div className="catalog-filter-footer">
             <div className="flex items-center gap-4">
-              <button onClick={resetFilters} className="btn-reset-filters">
+              <button type="submit" disabled={loadingCatalog} className="btn-consultation-gold">البحث</button>
+              <button type="button" onClick={resetFilters} className="btn-reset-filters">
                 <RotateCcw size={13} />
                 <span>إعادة ضبط</span>
               </button>
@@ -282,7 +291,7 @@ export default function PublicPropertiesClient({
               </div>
             </div>
           </div>
-        </div>
+        </form>
       </section>
 
       {/* ═══════════ SQUARES CATALOG GRID WITH DISTINCTIVE EDGE GLOWS ═══════════ */}
@@ -308,6 +317,7 @@ export default function PublicPropertiesClient({
                     <img
                       src={cover}
                       alt={p.projectName || "وحدة عقارية"}
+                      loading="lazy"
                       className="square-cover-img"
                     />
                   ) : (
@@ -419,9 +429,9 @@ export default function PublicPropertiesClient({
         {catalogError && <p role="alert">{catalogError}</p>}
         {catalog.total > catalog.pageSize && (
           <nav aria-label="صفحات الكتالوج" className="catalog-filter-footer">
-            <button type="button" className="btn-reset-filters" disabled={loadingCatalog || page <= 1} onClick={() => setPage(page - 1)}>السابق</button>
+            <button type="button" className="btn-reset-filters" disabled={loadingCatalog || page <= 1} onClick={() => void loadCatalog(page - 1)}>السابق</button>
             <span>صفحة {catalog.page} من {Math.ceil(catalog.total / catalog.pageSize)}</span>
-            <button type="button" className="btn-reset-filters" disabled={loadingCatalog || page * catalog.pageSize >= catalog.total} onClick={() => setPage(page + 1)}>التالي</button>
+            <button type="button" className="btn-reset-filters" disabled={loadingCatalog || page * catalog.pageSize >= catalog.total} onClick={() => void loadCatalog(page + 1)}>التالي</button>
           </nav>
         )}
         {filteredProperties.length === 0 && !catalogError && !loadingCatalog && (

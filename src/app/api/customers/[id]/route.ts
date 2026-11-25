@@ -44,6 +44,7 @@ export async function PUT(
       executingCompany, deliveryDate, floor, bedrooms, bathrooms, finishing,
       preferencesSummary, askingPrice, installmentDuration, unitStatus, isNegotiable,
       viewingTimes, paperworkStatus, leadScore, customData, followUpDate,
+      budgetMin, budgetMax, preferredZone,
     } = data;
 
     if (name !== undefined && (typeof name !== "string" || !name.trim())) {
@@ -51,6 +52,12 @@ export async function PUT(
     }
     if (phone !== undefined && (typeof phone !== "string" || !phone.trim())) {
       return NextResponse.json({ error: "Invalid customer phone" }, { status: 400 });
+    }
+    if ([budgetMin, budgetMax].some(value =>
+      value != null && (typeof value !== "number" || !Number.isFinite(value) || value < 0)
+    ) || (preferredZone != null && (typeof preferredZone !== "string" || preferredZone.length > 120))
+      || (budgetMin != null && budgetMax != null && budgetMin > budgetMax)) {
+      return NextResponse.json({ error: "حدود الميزانية أو المنطقة غير صالحة" }, { status: 400 });
     }
 
     const updateData = {
@@ -68,6 +75,7 @@ export async function PUT(
       finishing, preferencesSummary, unitStatus,
       isNegotiable: isNegotiable !== undefined ? Boolean(isNegotiable) : undefined,
       viewingTimes, paperworkStatus,
+      budgetMin, budgetMax, preferredZone,
       leadScore: leadScore !== undefined ? Number.parseInt(leadScore, 10) : undefined,
       customData: customData !== undefined ? customData : undefined,
     };
@@ -99,7 +107,7 @@ export async function PUT(
 
       const updated = await tx.customer.update({ where: { id }, data: updateData });
       const changes: string[] = [];
-      for (const field of ["status", "askingPrice", "phone", "leadScore"] as const) {
+      for (const field of ["status", "askingPrice", "phone", "leadScore", "budgetMin", "budgetMax", "preferredZone"] as const) {
         const newValue = (data as Record<string, unknown>)[field];
         const oldValue = (oldCustomer as unknown as Record<string, unknown>)[field];
         if (newValue !== undefined && oldValue !== newValue) changes.push(`${field}: ${oldValue} -> ${newValue}`);

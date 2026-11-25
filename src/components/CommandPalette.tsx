@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { createClientReadCache } from "@/lib/client-read-cache";
 import { useRouter } from "next/navigation";
 
 export default function CommandPalette() {
@@ -8,7 +9,10 @@ export default function CommandPalette() {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
-  const [activeIndex, setActiveIndex] = useState(0);
+  const [searched, setSearched] = useState(false);
+  const [error, setError] = useState(false);
+  const [searchCache] = useState(() => createClientReadCache<any>());
+  const requestRef = useRef<AbortController | null>(null);
   const router = useRouter();
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
@@ -24,32 +28,43 @@ export default function CommandPalette() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [handleKeyDown]);
 
-  useEffect(() => {
-    if (!query.trim()) {
-      setResults([]);
-      return;
+  useEffect(() => () => requestRef.current?.abort(), []);
+
+  const updateQuery = (value: string) => {
+    requestRef.current?.abort();
+    setQuery(value);
+    setResults([]);
+    setSearched(false);
+    setLoading(false);
+    setError(false);
+  };
+
+  const search = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (loading || query.trim().length < 2) return;
+    const controller = new AbortController();
+    requestRef.current = controller;
+    setLoading(true);
+    setError(false);
+    try {
+      const data = await searchCache.load("/api/search?q=" + encodeURIComponent(query.trim()), controller.signal);
+      if (controller.signal.aborted) return;
+      const combined = [
+        ...(data.customers || []).map((c: any) => ({ ...c, type: "CUSTOMER" })),
+        ...(data.properties || []).map((p: any) => ({ ...p, type: "PROPERTY", name: p.title || p.projectName })),
+      ];
+      setResults(combined.slice(0, 8));
+      setSearched(true);
+    } catch {
+      if (!controller.signal.aborted) setError(true);
+    } finally {
+      if (!controller.signal.aborted) setLoading(false);
     }
-    const timer = setTimeout(async () => {
-      setLoading(true);
-      try {
-        const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
-        if (res.ok) {
-          const data = await res.json();
-          const combined = [
-            ...(data.customers || []).map((c: any) => ({ ...c, type: "CUSTOMER" })),
-            ...(data.properties || []).map((p: any) => ({ ...p, type: "PROPERTY", name: p.title || p.projectName })),
-          ];
-          setResults(combined.slice(0, 8));
-        }
-      } catch (err) {}
-      finally { setLoading(false); }
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [query]);
+  };
 
   const onSelect = (item: any) => {
     setIsOpen(false);
-    setQuery("");
+    updateQuery("");
     if (item.type === "CUSTOMER") router.push(`/dashboard/customers/${item.id}`);
     else if (item.type === "PROJECT") router.push(`/dashboard/projects`);
   };
@@ -59,20 +74,24 @@ export default function CommandPalette() {
   return (
     <div className="cmd-palette-overlay" onClick={() => setIsOpen(false)}>
       <div className="cmd-palette" onClick={(e) => e.stopPropagation()}>
+        <form onSubmit={search} style={{ display: "flex", gap: 8, alignItems: "center" }}>
         <input 
           autoFocus 
           className="cmd-input" 
           placeholder="ابحث عن عملاء، مشاريع، أو وحدات... (Esc للإغلاق)"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => updateQuery(e.target.value)}
         />
+          <button type="submit" className="btn btn-primary btn-sm" disabled={loading || query.trim().length < 2}>البحث</button>
+        </form>
         <div className="cmd-results">
           {loading && <div style={{ padding: 20, textAlign: "center" }}>جاري البحث...</div>}
-          {!loading && query && results.length === 0 && <div style={{ padding: 20, textAlign: "center" }}>لا توجد نتائج.</div>}
-          {results.map((item, idx) => (
+          {error && <p role="alert" style={{ padding: 16 }}>تعذّر البحث. حاول مرة أخرى.</p>}
+          {!loading && !error && searched && results.length === 0 && <div style={{ padding: 20, textAlign: "center" }}>لا توجد نتائج.</div>}
+          {results.map((item) => (
             <div 
               key={item.id} 
-              className={`cmd-item ${idx === activeIndex ? "active" : ""}`}
+              className="cmd-item"
               onClick={() => onSelect(item)}
             >
               <div className="cmd-item-icon">{item.type === "CUSTOMER" ? "👤" : "🏢"}</div>
@@ -85,7 +104,7 @@ export default function CommandPalette() {
           ))}
         </div>
         <div style={{ padding: "12px 24px", background: "rgba(255,255,255,0.02)", fontSize: 11, color: "var(--text-muted)", borderTop: "1px solid var(--border-subtle)" }}>
-          استخدم الأسهم للتنقل و Enter للاختيار. يمكنك البحث برقم الهاتف أو الاسم.
+          يمكنك البحث برقم الهاتف أو الاسم.
         </div>
       </div>
     </div>

@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import type { Prisma } from "@prisma/client";
+import { readPublicCache } from "@/lib/public-read-cache";
 
 const PUBLISHABLE_FIELDS = [
   "title", "projectName", "zone", "unitType", "finishing", "size",
@@ -68,12 +69,19 @@ async function readApprovedListings(where: Prisma.PropertyWhereInput, limit: num
 }
 
 export function getApprovedPublicListings(limit = 24) {
-  return readApprovedListings(approvedListing, limit);
+  return readPublicCache(`listings-${limit}`, () => readApprovedListings(approvedListing, limit));
+}
+
+export function getApprovedPublicListing(id: string) {
+  return readPublicCache(`property-${encodeURIComponent(id)}`, async () => {
+    const [listing] = await readApprovedListings({ AND: [approvedListing, { id }] }, 1);
+    return listing ?? null;
+  });
 }
 
 export async function getPublicCatalogPage(params = new URLSearchParams()) {
   const page = Math.min(10000, Math.max(1, Number.parseInt(params.get("page") || "", 10) || 1));
-  const pageSize = 24;
+  const pageSize = 8;
   const q = params.get("q")?.trim().slice(0, 120);
   const type = params.get("type")?.slice(0, 60);
   const zone = params.get("zone")?.slice(0, 120);
@@ -91,22 +99,28 @@ export async function getPublicCatalogPage(params = new URLSearchParams()) {
   if (rooms === "5+") filters.push(fieldIsPublished("bedrooms"), { bedrooms: { gte: 5 } });
 
   const where = { AND: filters };
-  const [properties, total] = await Promise.all([
-    readApprovedListings(where, pageSize, (page - 1) * pageSize),
-    prisma.property.count({ where }),
-  ]);
-  return { properties, total, page, pageSize };
+  const load = async () => {
+    const [properties, total] = await Promise.all([
+      readApprovedListings(where, pageSize, (page - 1) * pageSize),
+      prisma.property.count({ where }),
+    ]);
+    return { properties, total, page, pageSize };
+  };
+  if (filters.length === 1 && page <= 20) return readPublicCache(`catalog-${page}`, load);
+  return load();
 }
 
-export async function getPublicCatalogZones() {
-  const rows = await prisma.$queryRaw<{ zone: string }[]>`
-    SELECT DISTINCT zone FROM "Property"
-    WHERE status = 'AVAILABLE' AND zone IS NOT NULL AND BTRIM(zone) <> ''
-      AND "customData" #>> '{publicListing,status}' = 'APPROVED'
-      AND "customData" #> '{publicListing,fields}' @> '["zone"]'::jsonb
-    ORDER BY zone
-  `;
-  return rows.map(({ zone }) => zone);
+export function getPublicCatalogZones() {
+  return readPublicCache("catalog-zones", async () => {
+    const rows = await prisma.$queryRaw<{ zone: string }[]>`
+      SELECT DISTINCT zone FROM "Property"
+      WHERE status = 'AVAILABLE' AND zone IS NOT NULL AND BTRIM(zone) <> ''
+        AND "customData" #>> '{publicListing,status}' = 'APPROVED'
+        AND "customData" #> '{publicListing,fields}' @> '["zone"]'::jsonb
+      ORDER BY zone
+    `;
+    return rows.map(({ zone }) => zone);
+  });
 }
 
 export const PUBLIC_LISTING_FIELDS = PUBLISHABLE_FIELDS;

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { createClientReadCache } from "@/lib/client-read-cache";
 
 type OwnerLink = {
   id: string;
@@ -20,6 +21,9 @@ type OwnerRow = {
   properties: OwnerLink[];
 };
 type PropertyOption = { id: string; label: string };
+type OwnerOption = { id: string; name: string };
+type OwnerPage = { owners: OwnerRow[]; page: number; totalPages: number };
+type OwnershipOptions = { owners: OwnerOption[]; properties: PropertyOption[] };
 type LinkRow = {
   id: string;
   propertyId: string;
@@ -61,56 +65,64 @@ async function api<T>(url: string, options?: RequestInit): Promise<T> {
   return data as T;
 }
 
-export default function PropertyOwnersClient({
-  initialOwners,
-  propertyOptions,
-  initialLinks,
-  canWrite,
-}: {
-  initialOwners: OwnerRow[];
-  propertyOptions: PropertyOption[];
-  initialLinks: LinkRow[];
-  canWrite: boolean;
-}) {
+export default function PropertyOwnersClient({ canWrite }: { canWrite: boolean }) {
   const [tab, setTab] = useState<"owners" | "split">("owners");
-  const [owners, setOwners] = useState(initialOwners);
-  const [links, setLinks] = useState(initialLinks);
+  const [ownerPage, setOwnerPage] = useState<OwnerPage | null>(null);
   const [query, setQuery] = useState("");
+  const [appliedQuery, setAppliedQuery] = useState("");
+  const [options, setOptions] = useState<OwnershipOptions | null>(null);
+  const [currentLinks, setCurrentLinks] = useState<LinkRow[]>([]);
+  const [ownerCache] = useState(() => createClientReadCache<OwnerPage>());
+  const [splitOptionsCache] = useState(() => createClientReadCache<OwnershipOptions>(60_000, 1));
+  const [linksCache] = useState(() => createClientReadCache<{ owners: LinkRow[] }>());
+  const owners = ownerPage?.owners ?? [];
+  const ownerOptions = new Map([
+    ...(options?.owners ?? []), ...owners, ...currentLinks.map(link => link.owner),
+  ].map(owner => [owner.id, owner]));
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState({ ...EMPTY_OWNER });
-  const [selectedProperty, setSelectedProperty] = useState(propertyOptions[0]?.id || "");
+  const [selectedProperty, setSelectedProperty] = useState("");
   const [shares, setShares] = useState<ShareDraft[]>([]);
   const [splitNotes, setSplitNotes] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
 
-  const reload = async () => {
-    const [ownerData, linkData] = await Promise.all([
-      api<{ owners: OwnerRow[] }>(`/api/owners?limit=200&q=${encodeURIComponent(query)}`),
-      selectedProperty
-        ? api<{ owners: LinkRow[] }>(`/api/properties/${selectedProperty}/owners`)
-        : Promise.resolve({ owners: [] as LinkRow[] }),
-    ]);
-    setOwners(ownerData.owners);
-    setLinks((current) => {
-      const others = current.filter((link) => link.propertyId !== selectedProperty);
-      return [...others, ...linkData.owners];
-    });
+  const loadOwners = async (page: number, search = appliedQuery) => {
+    const params = new URLSearchParams({ page: String(page) });
+    if (search) params.set("q", search);
+    const data = await ownerCache.load("/api/owners?" + params);
+    setAppliedQuery(search);
+    setOwnerPage(data);
+    if (data.owners.length === 0 && data.page > 1 && data.page > data.totalPages) {
+      await loadOwners(Math.max(1, data.totalPages), search);
+    }
   };
 
-  const run = async (action: () => Promise<void>, successMessage: string) => {
+  const run = async (action: () => Promise<void>, successMessage = "") => {
+    if (busy) return;
     setBusy(true);
     setMessage("");
     try {
       await action();
-      await reload();
       setMessage(successMessage);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "تعذّر إتمام العملية");
     } finally {
       setBusy(false);
     }
+  };
+
+  const refreshOwnerSearch = async () => {
+    ownerCache.clear();
+    splitOptionsCache.clear();
+    setOptions(null);
+    if (ownerPage) await loadOwners(ownerPage.page);
+  };
+
+  const openSplit = () => {
+    setTab("split");
+    void run(async () => setOptions(await splitOptionsCache.load("/api/owners?options=1")));
   };
 
   const submitOwner = (event: React.FormEvent) => {
@@ -132,6 +144,7 @@ export default function PropertyOwnersClient({
       setForm({ ...EMPTY_OWNER });
       setEditingId(null);
       setShowForm(false);
+      await refreshOwnerSearch();
     }, editingId ? "تم تعديل المالك." : "تم إضافة المالك.");
   };
 
@@ -152,15 +165,19 @@ export default function PropertyOwnersClient({
   const deleteOwner = (id: string) => {
     if (!window.confirm("هل تريد حذف هذا المالك؟")) return;
     void run(async () => {
-      await api(`/api/owners/${id}`, { method: "DELETE" });
+      await api("/api/owners/" + encodeURIComponent(id), { method: "DELETE" });
+      await refreshOwnerSearch();
     }, "تم حذف المالك.");
   };
 
-  const selectProperty = (propertyId: string) => {
+  const loadProperty = async (propertyId: string) => {
+    const links = propertyId
+      ? (await linksCache.load("/api/properties/" + encodeURIComponent(propertyId) + "/owners?current=1")).owners
+      : [];
     setSelectedProperty(propertyId);
-    const current = links.filter((link) => link.propertyId === propertyId);
-    setShares(current.map((link) => ({ ownerId: link.ownerId, percentage: link.percentage })));
-    setSplitNotes(current[0]?.notes || "");
+    setCurrentLinks(links);
+    setShares(links.map(link => ({ ownerId: link.ownerId, percentage: link.percentage })));
+    setSplitNotes(links[0]?.notes || "");
   };
 
   const total = shares.reduce((sum, share) => sum + (Number(share.percentage) || 0), 0);
@@ -199,10 +216,12 @@ export default function PropertyOwnersClient({
           notes: splitNotes,
         }),
       });
+      linksCache.clear();
+      ownerCache.clear();
+      setOwnerPage(null);
+      await loadProperty(selectedProperty);
     }, "تم حفظ توزيع الملكية.");
   };
-
-  const currentLinks = links.filter((link) => link.propertyId === selectedProperty);
 
   return (
     <div dir="rtl">
@@ -222,9 +241,9 @@ export default function PropertyOwnersClient({
           </button>
           <button
             className={tab === "split" ? "btn btn-primary" : "btn btn-secondary"}
-            onClick={() => setTab("split")}
+            disabled={busy} onClick={openSplit}
           >
-            توزيع الملكية ({links.length})
+            توزيع الملكية
           </button>
         </div>
       </div>
@@ -234,17 +253,17 @@ export default function PropertyOwnersClient({
       {tab === "owners" ? (
         <>
           <div className="card animate-in" style={{ marginBottom: 24 }}>
-            <div style={{ display: "flex", gap: 10, alignItems: "center", justifyContent: "space-between" }}>
+            <form onSubmit={(event) => { event.preventDefault(); void run(() => loadOwners(1, query.trim())); }} style={{ display: "flex", gap: 10, alignItems: "center" }}>
               <input
                 className="input"
                 style={{ maxWidth: 360 }}
                 placeholder="بحث بالاسم أو الهاتف أو الرقم القومي"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                onBlur={() => void reload()}
               />
+              <button type="submit" className="btn btn-primary" disabled={busy}>البحث</button>
               {canWrite && (
-                <button
+                <button type="button"
                   className="btn btn-primary"
                   onClick={() => {
                     setEditingId(null);
@@ -255,7 +274,7 @@ export default function PropertyOwnersClient({
                   {showForm ? "إغلاق" : "+ مالك جديد"}
                 </button>
               )}
-            </div>
+            </form>
           </div>
 
           {canWrite && showForm && (
@@ -305,7 +324,7 @@ export default function PropertyOwnersClient({
 
           <div className="card animate-in">
             {owners.length === 0 ? (
-              <p className="page-subtitle">لا يوجد ملاك مسجّلون.</p>
+              <p className="page-subtitle">{ownerPage ? "لا توجد نتائج مطابقة." : "اضغط «البحث» لعرض الملاك."}</p>
             ) : (
               <table className="table">
                 <thead>
@@ -341,6 +360,15 @@ export default function PropertyOwnersClient({
                 </tbody>
               </table>
             )}
+            {ownerPage && ownerPage.totalPages > 1 && (
+              <nav aria-label="صفحات الملاك" style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 12 }}>
+                <button type="button" className="btn btn-secondary btn-sm" disabled={busy || ownerPage.page <= 1}
+                  onClick={() => void run(() => loadOwners(ownerPage.page - 1))}>السابق</button>
+                <span>صفحة {ownerPage.page} من {ownerPage.totalPages}</span>
+                <button type="button" className="btn btn-secondary btn-sm" disabled={busy || ownerPage.page >= ownerPage.totalPages}
+                  onClick={() => void run(() => loadOwners(ownerPage.page + 1))}>التالي</button>
+              </nav>
+            )}
           </div>
         </>
       ) : (
@@ -348,9 +376,9 @@ export default function PropertyOwnersClient({
           <div className="card animate-in" style={{ marginBottom: 24 }}>
             <div className="form-group">
               <label className="form-label">الوحدة</label>
-              <select className="input" value={selectedProperty} onChange={(e) => selectProperty(e.target.value)}>
+              <select className="input" value={selectedProperty} disabled={busy} onChange={(e) => { const id = e.target.value; void run(() => loadProperty(id)); }}>
                 <option value="">— اختر وحدة —</option>
-                {propertyOptions.map((option) => (
+                {options?.properties.map((option) => (
                   <option key={option.id} value={option.id}>{option.label}</option>
                 ))}
               </select>
@@ -399,7 +427,7 @@ export default function PropertyOwnersClient({
                             }}
                           >
                             <option value="">— اختر —</option>
-                            {owners.map((owner) => (
+                            {[...ownerOptions.values()].map((owner) => (
                               <option key={owner.id} value={owner.id}>{owner.name}</option>
                             ))}
                           </select>

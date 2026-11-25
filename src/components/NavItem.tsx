@@ -17,7 +17,7 @@ export default function NavItem({
     pathname === href || (href !== "/dashboard" && pathname.startsWith(href));
 
   return (
-    <Link href={href} className={`nav-item ${isActive ? "active" : ""}`}>
+    <Link href={href} prefetch={false} className={`nav-item ${isActive ? "active" : ""}`}>
       <span className="nav-item-icon-box">{icon}</span>
       <span className="nav-item-label">{label}</span>
       {isActive && <span className="nav-active-indicator" />}

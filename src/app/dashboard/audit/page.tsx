@@ -1,10 +1,10 @@
-import { getSession } from "@/lib/auth";
+import { getPageSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { redirect } from "next/navigation";
 import BackupButton from "./BackupButton";
 
 export default async function AuditLogPage() {
-  const session = await getSession();
+  const session = await getPageSession();
   if (session?.role !== "GENERAL_MANAGER") {
     redirect("/dashboard");
   }

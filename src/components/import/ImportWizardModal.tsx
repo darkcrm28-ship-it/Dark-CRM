@@ -2,7 +2,6 @@
 
 import React, { useState, useCallback, useMemo } from "react";
 import * as XLSX from "xlsx";
-import { useRouter } from "next/navigation";
 import {
   normalizeEgyptianPhone,
   normalizeArabicText,
@@ -17,6 +16,7 @@ import PreviewStep, { PreviewRow } from "./PreviewStep";
 interface ImportWizardModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onImported: () => void;
   projects: Array<{ id: string; name: string }>;
   customFieldDefs?: Array<{ id: string; name: string; label: string }>;
 }
@@ -24,10 +24,10 @@ interface ImportWizardModalProps {
 export default function ImportWizardModal({
   isOpen,
   onClose,
+  onImported,
   projects,
   customFieldDefs = [],
 }: ImportWizardModalProps) {
-  const router = useRouter();
 
   // Wizard Navigation
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4 | 5>(1);
@@ -506,7 +506,7 @@ export default function ImportWizardModal({
         review:     totalReview,
         failed:     totalFailed,
       });
-      router.refresh();
+      onImported();
     } catch (err) {
       console.error('Import execution fatal error:', err);
       setExecutionStatusText('❌ حدث خطأ غير متوقع أثناء الاستيراد.');

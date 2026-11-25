@@ -6,25 +6,27 @@ export async function GET() {
   const session = await requireSession();
   if (session instanceof NextResponse) return session;
 
-  const notifications = await prisma.notification.findMany({
-    where: { userId: session.id },
-    orderBy: { createdAt: "desc" },
-    take: 20,
-  });
-
-  // Fetch pending reminders due today or earlier
   const now = new Date();
-  const reminders = SALES_ROLES.includes(session.role)
-    ? await prisma.reminder.findMany({
+  const [notifications, reminders] = await Promise.all([
+    prisma.notification.findMany({
+      where: { userId: session.id },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: 20,
+    }),
+    SALES_ROLES.includes(session.role)
+      ? prisma.reminder.findMany({
         where: {
           userId: session.id,
           status: "PENDING",
           dueDate: { lte: now },
           ...(session.role === ROLE.SALES_EMPLOYEE ? { customer: { assignedToId: session.id } } : {}),
         },
-        include: { customer: { select: { name: true } } },
+        orderBy: [{ dueDate: "desc" }, { id: "desc" }],
+        take: 30,
+        select: { id: true, title: true, dueDate: true, customer: { select: { name: true } } },
       })
-    : [];
+      : [],
+  ]);
 
   // Convert reminders to a notification-like format
   const reminderNotifs = reminders.map(r => ({
@@ -39,7 +41,9 @@ export async function GET() {
 
   const allNotifications = [...reminderNotifs, ...notifications].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-  return NextResponse.json(allNotifications.slice(0, 30));
+  return NextResponse.json(allNotifications.slice(0, 30), {
+    headers: { "Cache-Control": "private, no-store" },
+  });
 }
 
 export async function PATCH(_request: NextRequest) {

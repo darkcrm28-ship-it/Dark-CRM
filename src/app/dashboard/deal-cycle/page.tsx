@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getSession, ROLE, SALES_MANAGER_ROLES, SALES_ROLES } from "@/lib/auth";
+import { getPageSession, ROLE, SALES_MANAGER_ROLES, SALES_ROLES } from "@/lib/auth";
 import { scopedCustomerWhere } from "@/lib/access-scope";
 import { prisma } from "@/lib/db";
 import {
@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 type Option = { id: string; label: string };
 
 export default async function DealCyclePage() {
-  const session = await getSession();
+  const session = await getPageSession();
   if (!session) redirect("/login");
   const canRead = SALES_ROLES.includes(session.role) || session.role === ROLE.ACCOUNTING_MANAGER;
   if (!canRead) redirect("/dashboard");

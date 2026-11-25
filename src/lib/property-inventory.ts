@@ -3,8 +3,9 @@ import { prisma } from "@/lib/db";
 
 export async function getPropertyInventoryPage(params = new URLSearchParams()) {
   const page = Math.min(100000, Math.max(1, Number.parseInt(params.get("page") || "", 10) || 1));
-  const pageSize = 25;
+  const pageSize = Math.min(25, Math.max(1, Number.parseInt(params.get("limit") || "", 10) || 25));
   const query = params.get("q")?.trim().slice(0, 120);
+  const zone = params.get("zone")?.trim().slice(0, 120);
   const status = params.get("status") || undefined;
   const unitType = params.get("unitType") || undefined;
   const finishing = params.get("finishing") || undefined;
@@ -19,6 +20,7 @@ export async function getPropertyInventoryPage(params = new URLSearchParams()) {
   const lte = numberParam("maxPrice");
   const where: Prisma.PropertyWhereInput = {
     status, unitType, finishing,
+    ...(zone ? { zone: { contains: zone, mode: "insensitive" } } : {}),
     bedrooms: Number.isInteger(bedrooms) ? bedrooms : undefined,
     bathrooms: Number.isInteger(bathrooms) ? bathrooms : undefined,
     ...(gte !== undefined || lte !== undefined ? { price: { gte, lte } } : {}),
@@ -28,6 +30,11 @@ export async function getPropertyInventoryPage(params = new URLSearchParams()) {
       { zone: { contains: query, mode: "insensitive" } },
     ] } : {}),
   };
+  const isMatch = params.get("summary") === "1";
+  const summary = {
+    id: true, projectName: true, unitNumber: true, zone: true, size: true,
+    bedrooms: true, unitType: true, price: true,
+  } satisfies Prisma.PropertySelect;
   const [properties, total] = await Promise.all([
     prisma.property.findMany({
       where,
@@ -35,10 +42,10 @@ export async function getPropertyInventoryPage(params = new URLSearchParams()) {
       skip: (page - 1) * pageSize,
       take: pageSize,
       select: {
-        id: true, title: true, projectName: true, unitNumber: true, buildingNumber: true, zone: true,
-        floor: true, size: true, bedrooms: true, bathrooms: true, unitType: true, finishing: true,
-        price: true, status: true, description: true, images: true, monthlyInstallment: true,
-        remainingMonths: true, installmentType: true, installmentPercentage: true, customData: true,
+        ...summary,
+        title: !isMatch, buildingNumber: !isMatch, floor: !isMatch, bathrooms: !isMatch, finishing: !isMatch,
+        status: !isMatch, description: !isMatch, images: !isMatch, monthlyInstallment: !isMatch,
+        remainingMonths: !isMatch, installmentType: !isMatch, installmentPercentage: !isMatch, customData: !isMatch,
       },
     }),
     prisma.property.count({ where }),

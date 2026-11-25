@@ -1,6 +1,6 @@
 import Sidebar from "@/components/Sidebar";
 import Link from "next/link";
-import { getSession } from "@/lib/auth";
+import { getPageSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import GlobalSearch from "@/components/GlobalSearch";
 import NotificationsBell from "@/components/NotificationsBell";
@@ -41,7 +41,7 @@ const ROLE_LABELS: Record<string, string> = {
 };
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const session = await getSession();
+  const session = await getPageSession();
   if (!session) redirect("/login");
 
   const isSales = SALES_ROLES.includes(session.role);
@@ -252,19 +252,19 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
       {/* Mobile Bottom Navigation */}
       {isSales && <nav className="mobile-bottom-nav">
-        <Link href="/dashboard">
+        <Link href="/dashboard" prefetch={false}>
           <LayoutDashboard size={18} />
           <span>الرئيسية</span>
         </Link>
-        <Link href="/dashboard/customers">
+        <Link href="/dashboard/customers" prefetch={false}>
           <Database size={18} />
           <span>العملاء</span>
         </Link>
-        <Link href="/dashboard/buyers">
+        <Link href="/dashboard/buyers" prefetch={false}>
           <ShoppingBag size={18} />
           <span>المشترين</span>
         </Link>
-        <Link href="/dashboard/available-for-sale">
+        <Link href="/dashboard/available-for-sale" prefetch={false}>
           <Building size={18} />
           <span>المعروض</span>
         </Link>

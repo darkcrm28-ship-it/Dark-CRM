@@ -160,7 +160,9 @@ export default function CustomerDetailsClient({
   const handleFetchMatches = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/search?q=${customer.city || customer.governorate || ""}&priceMax=${customer.budgetMax || 99999999}`);
+      const params = new URLSearchParams({ scope: "properties", q: customer.city || customer.governorate || "" });
+      if (customer.budgetMax > 0) params.set("priceMax", String(customer.budgetMax));
+      const res = await fetch(`/api/search?${params}`);
       if (res.ok) {
         const data = await res.json();
         setMatchingUnits(data);

@@ -8,15 +8,11 @@ export async function GET(request: NextRequest) {
     const session = await requireRole(SALES_ROLES);
     if (session instanceof NextResponse) return session;
 
-    if (request.nextUrl.searchParams.has("page")) {
-      return NextResponse.json(await getPropertyInventoryPage(request.nextUrl.searchParams), {
-        headers: { "Cache-Control": "no-store" },
-      });
-    }
-    const properties = await prisma.property.findMany({
-      orderBy: { createdAt: "desc" },
+    const params = request.nextUrl.searchParams;
+    const result = await getPropertyInventoryPage(params);
+    return NextResponse.json(params.has("page") ? result : result.properties, {
+      headers: { "Cache-Control": "private, no-store" },
     });
-    return NextResponse.json(properties);
   } catch (error) {
     return NextResponse.json({ error: "Server Error" }, { status: 500 });
   }

@@ -1,6 +1,8 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { redirect } from "next/navigation";
+import { cache } from "react";
+import type {} from "react/canary";
 import { prisma } from "@/lib/db";
 import { decrypt, encrypt } from "@/lib/session-token";
 import type { Customer, Prisma } from "@prisma/client";
@@ -57,6 +59,10 @@ export async function getSession(): Promise<Session | null> {
   return { id: user.id, email: user.email, name: user.name, role: user.role as AppRole };
 }
 
+// React can memoize this for a single Server Component render. API authorization
+// still reads the current account state and never uses a cross-request cache.
+export const getPageSession = typeof cache === "function" ? cache(getSession) : getSession;
+
 export async function requireSession(): Promise<Session | NextResponse> {
   const session = await getSession();
   return session ?? NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -76,7 +82,7 @@ export async function requireManager(): Promise<Session | NextResponse> {
 }
 
 export async function requirePageRole(roles: readonly AppRole[]): Promise<Session> {
-  const session = await getSession();
+  const session = await getPageSession();
   if (!session) redirect("/login");
   if (!roles.includes(session.role)) {
     if (session.role === ROLE.HR_MANAGER) redirect("/dashboard/commissions");

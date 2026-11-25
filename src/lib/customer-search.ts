@@ -1,0 +1,1 @@
+export const CUSTOMER_SEARCH_PAGE_SIZE = 15;

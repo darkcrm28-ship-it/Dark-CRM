@@ -1,6 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireRole, ROLE, SALES_ROLES } from "@/lib/auth";
+import { CUSTOMER_SEARCH_PAGE_SIZE } from "@/lib/customer-search";
+import type { Prisma } from "@prisma/client";
+
+const latestCustomerInteraction = {
+  select: { createdAt: true, notes: true },
+  orderBy: { createdAt: "desc" },
+  take: 1,
+} satisfies Prisma.Customer$interactionsArgs;
+
+const customerSearchFields = {
+  id: true, code: true, name: true, phone: true, status: true, area: true,
+  projectId: true, projectName: true, unitNumber: true, buildingNumber: true, floor: true,
+  askingPrice: true, createdAt: true, lastInteractionAt: true, leadScore: true,
+  bedrooms: true, bathrooms: true, unitSize: true, finishing: true, paperworkStatus: true,
+  installmentAmount: true, installmentRemaining: true, customData: true,
+  assignedTo: { select: { id: true, name: true } },
+  interactions: latestCustomerInteraction,
+} satisfies Prisma.CustomerSelect;
+
+const matchBuyerFields = {
+  id: true, name: true, phone: true, budgetMin: true, budgetMax: true,
+  preferredZone: true, propertyType: true,
+} satisfies Prisma.CustomerSelect;
 
 /** Only accept public catalog images produced by our own /api/upload endpoint. */
 function normalizeUnitImages(value: unknown): string[] {
@@ -33,9 +56,10 @@ export async function GET(request: NextRequest) {
     const { searchParams } = request.nextUrl;
 
     const page = Math.min(100000, Math.max(1, parseInt(searchParams.get("page") || "", 10) || 1));
-    const limit = Math.min(10, Math.max(1, parseInt(searchParams.get("limit") || "", 10) || 10));
+    const limit = Math.min(CUSTOMER_SEARCH_PAGE_SIZE, Math.max(1,
+      parseInt(searchParams.get("limit") || "", 10) || CUSTOMER_SEARCH_PAGE_SIZE));
     const view = searchParams.get("view") || "ALL";
-    const q = (searchParams.get("q") || "").trim();
+    const q = (searchParams.get("q") || "").trim().slice(0, 120);
     const status = searchParams.get("status") || "";
     const project = searchParams.get("project") || "";
     const area = searchParams.get("area") || "";
@@ -69,6 +93,8 @@ export async function GET(request: NextRequest) {
       }
     } else if (view === "AVAILABLE_FOR_SALE") {
       andConditions.push({ status: { in: ["WANTS_TO_SELL", "SELLER", "LANDLORD"] }, isArchived: false });
+    } else if (view === "MATCH_BUYERS") {
+      andConditions.push({ type: "BUYER", isArchived: false, status: { in: ["INTERESTED", "MEETING_SCHEDULED", "NEW"] } });
     } else if (view === "BUYERS") {
       andConditions.push({ type: "BUYER", status: { notIn: ["NOT_INTERESTED", "DO_NOT_SELL"] } });
     } else if (view === "OWNERS") {
@@ -122,24 +148,27 @@ export async function GET(request: NextRequest) {
     }
 
     const where = andConditions.length > 0 ? { AND: andConditions } : {};
+    const pagination = {
+      where,
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      skip: (page - 1) * limit,
+      take: limit,
+    } satisfies Prisma.CustomerFindManyArgs;
+    const select = view === "MATCH_BUYERS" ? matchBuyerFields
+      : searchParams.get("summary") === "1" ? customerSearchFields : undefined;
 
     const [total, customers] = await Promise.all([
       prisma.customer.count({ where }),
-      prisma.customer.findMany({
-        where,
-        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-        skip: (page - 1) * limit,
-        take: limit,
-        include: {
-          assignedTo: { select: { id: true, name: true } },
-          project: { select: { id: true, name: true } },
-          interactions: {
-            select: { createdAt: true, notes: true },
-            orderBy: { createdAt: "desc" },
-            take: 1,
+      select
+        ? prisma.customer.findMany({ ...pagination, select })
+        : prisma.customer.findMany({
+          ...pagination,
+          include: {
+            assignedTo: { select: { id: true, name: true } },
+            project: { select: { id: true, name: true } },
+            interactions: latestCustomerInteraction,
           },
-        },
-      }),
+        }),
     ]);
 
     return NextResponse.json({
@@ -148,7 +177,7 @@ export async function GET(request: NextRequest) {
       page,
       limit,
       totalPages: Math.ceil(total / limit),
-    });
+    }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     console.error("Fetch Customers Error:", error);
     return NextResponse.json({ error: "Failed to fetch customers" }, { status: 500 });

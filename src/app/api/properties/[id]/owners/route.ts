@@ -37,7 +37,7 @@ function serializeLink(link: {
   };
 }
 
-export async function GET(_request: NextRequest, { params }: Context) {
+export async function GET(request: NextRequest, { params }: Context) {
   try {
     const session = await requireRole(READ_ROLES);
     if (session instanceof NextResponse) return session;
@@ -49,11 +49,12 @@ export async function GET(_request: NextRequest, { params }: Context) {
     });
     if (!property) return NextResponse.json({ error: "العقار غير موجود" }, { status: 404 });
 
+    const currentOnly = request.nextUrl.searchParams.get("current") === "1";
     const links = await prisma.propertyOwner.findMany({
-      where: { propertyId: id },
+      where: { propertyId: id, ...(currentOnly ? { isCurrent: true } : {}) },
       orderBy: [{ isCurrent: "desc" }, { effectiveFrom: "desc" }],
       include: {
-        owner: { select: { id: true, name: true, phone: true, nationalId: true, type: true } },
+        owner: { select: { id: true, name: true, phone: true, nationalId: !currentOnly, type: !currentOnly } },
       },
     });
 

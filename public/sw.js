@@ -1,4 +1,4 @@
-const CACHE_NAME = "darek-crm-v2";
+const CACHE_NAME = "darek-crm-v3";
 const OFFLINE_URL = "/offline";
 
 const STATIC_ASSETS = [
@@ -23,7 +23,7 @@ self.addEventListener("activate", (event) => {
     caches.keys().then((cacheNames) =>
       Promise.all(
         cacheNames
-          .filter((name) => name !== CACHE_NAME)
+          .filter((name) => name.startsWith("darek-crm-") && name !== CACHE_NAME)
           .map((name) => caches.delete(name))
       )
     )
@@ -40,25 +40,9 @@ self.addEventListener("fetch", (event) => {
   if (request.method !== "GET") return;
   if (url.origin !== self.location.origin || url.pathname.startsWith("/api/")) return;
 
-  if (request.headers.get("accept")?.includes("text/html")) {
-    const isPublicDocument = url.pathname === "/" || url.pathname === OFFLINE_URL;
-    if (!isPublicDocument) {
-      event.respondWith(
-        fetch(request).catch(async () => (await caches.match(OFFLINE_URL)) || Response.error())
-      );
-      return;
-    }
-
+  if (request.mode === "navigate") {
     event.respondWith(
-      fetch(request)
-        .then((response) => {
-          if (response.ok && response.type === "basic") {
-            const cacheKey = url.pathname === "/" ? "/" : OFFLINE_URL;
-            caches.open(CACHE_NAME).then((cache) => cache.put(cacheKey, response.clone()));
-          }
-          return response;
-        })
-        .catch(async () => (await caches.match(request)) || (await caches.match(OFFLINE_URL)) || Response.error())
+      fetch(request).catch(async () => (await caches.match(OFFLINE_URL)) || Response.error())
     );
     return;
   }
@@ -66,6 +50,7 @@ self.addEventListener("fetch", (event) => {
   const isStaticAsset = url.pathname.startsWith("/_next/static/")
     || url.pathname.startsWith("/icons/")
     || url.pathname.startsWith("/fonts/")
+    || url.pathname.startsWith("/images/")
     || url.pathname === "/manifest.json";
   if (!isStaticAsset) return;
 
@@ -111,9 +96,12 @@ self.addEventListener("push", (event) => {
     ],
   };
 
-  event.waitUntil(
-    self.registration.showNotification(data.title || "دارك CRM", options)
-  );
+  event.waitUntil(Promise.all([
+    self.registration.showNotification(data.title || "دارك CRM", options),
+    self.clients.matchAll({ type: "window" }).then((windows) => {
+      for (const client of windows) client.postMessage({ type: "crm-notifications-updated" });
+    }),
+  ]));
 });
 
 // ─── NOTIFICATION CLICK ───

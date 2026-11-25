@@ -1,12 +1,12 @@
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+import { getPageSession } from "@/lib/auth";
 import TodayReportClient from "@/app/dashboard/reports/today/TodayReportClient";
 import { redirect } from "next/navigation";
 import { cairoDayRange, reportEmployeeScope } from "@/lib/report-time";
 
 export default async function TodayReportPage({ searchParams }: { searchParams: Promise<{ type?: string; empId?: string }> }) {
   const resolvedSearchParams = await searchParams;
-  const session = await getSession();
+  const session = await getPageSession();
   if (!session) redirect("/login");
   const { isManager, employeeId } = reportEmployeeScope(session.role, session.id, resolvedSearchParams.empId);
   const allowed = ["GENERAL_MANAGER", "SALES_MANAGER", "SALES_EMPLOYEE"];
