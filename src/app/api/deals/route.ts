@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
     if (!contract) return NextResponse.json({ error: "العقد غير موجود" }, { status: 404 });
 
     const result = await prisma.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT pg_advisory_xact_lock(${propertyLockKey(contract.propertyId)})`;
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(${propertyLockKey(contract.propertyId)}::bigint)`;
       const signed = await tx.contract.findUnique({
         where: { id: contractId },
         select: {

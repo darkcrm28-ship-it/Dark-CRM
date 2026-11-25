@@ -160,7 +160,7 @@ export async function POST(request: NextRequest) {
     const result = await prisma.$transaction(
       async (tx) => {
         // Serialize the rate check and WEB code allocation in the same transaction.
-        await tx.$queryRaw`SELECT pg_advisory_xact_lock(${WEB_SEQUENCE_LOCK});`;
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(${WEB_SEQUENCE_LOCK}::bigint);`;
         // Rate limit: count recent inquiries for the same normalized phone in the
         // window. Counting via the Customer table (createdAt) is portable across
         // runtimes and avoids unreliable in-memory counters on Cloudflare.

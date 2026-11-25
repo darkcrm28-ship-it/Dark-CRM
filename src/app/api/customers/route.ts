@@ -162,7 +162,7 @@ export async function POST(request: NextRequest) {
         customer = await prisma.$transaction(
           async (tx) => {
             // Serialize code allocation across single-add and bulk-import via shared lock
-            await tx.$queryRaw`SELECT pg_advisory_xact_lock(${CUSTOMER_SEQUENCE_LOCK});`;
+            await tx.$executeRaw`SELECT pg_advisory_xact_lock(${CUSTOMER_SEQUENCE_LOCK}::bigint);`;
 
             // Idempotency inside lock: same name+phone => return existing, no cross-unit merge
             const existingCustomer = await tx.customer.findFirst({
@@ -333,12 +333,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(customer);
   } catch (error: any) {
-    console.error("Create Customer Error:", {
-      message: error?.message,
-      code: error?.code,
-      stack: error?.stack,
-    });
-    return NextResponse.json({ error: "Failed to create customer" }, { status: 500 });
+    console.error("Create Customer Error:", { code: error?.code || "UNEXPECTED" });
+    return NextResponse.json({ error: "تعذّر حفظ العميل. حاول مرة أخرى." }, { status: 500 });
   }
 }
 

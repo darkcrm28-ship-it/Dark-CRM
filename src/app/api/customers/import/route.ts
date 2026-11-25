@@ -400,7 +400,7 @@ export async function POST(request: NextRequest) {
             }
 
             // ج. حجز قفل تسلسل الأكواد المشترك لمنع التزامن مع الإضافة الفردية
-            await tx.$queryRaw`SELECT pg_advisory_xact_lock(${CUSTOMER_SEQUENCE_LOCK});`;
+            await tx.$executeRaw`SELECT pg_advisory_xact_lock(${CUSTOMER_SEQUENCE_LOCK}::bigint);`;
 
             // استخراج المقاطع العشرية للهواتف المحمولة المصرية
             const mobileSuffixes = [

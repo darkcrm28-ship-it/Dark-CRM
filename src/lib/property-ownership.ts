@@ -90,7 +90,7 @@ export async function registerPropertyOwnership(
 
   return await prisma.$transaction(async (tx) => {
     // 1. Concurrency-safe property lock
-    await tx.$queryRaw`SELECT pg_advisory_xact_lock(${PROPERTY_LOCK_NAMESPACE}, ${lockKey});`;
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(${PROPERTY_LOCK_NAMESPACE}::int, ${lockKey}::int);`;
 
     // 2. Verify property exists
     const property = await tx.property.findUnique({
@@ -170,7 +170,7 @@ export async function transferPropertyOwnership(
 
   return await prisma.$transaction(async (tx) => {
     // 1. Advisory Lock
-    await tx.$queryRaw`SELECT pg_advisory_xact_lock(${PROPERTY_LOCK_NAMESPACE}, ${lockKey});`;
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(${PROPERTY_LOCK_NAMESPACE}::int, ${lockKey}::int);`;
 
     // 2. Fetch existing active ownership
     const sourceOwnership = await tx.propertyOwnership.findFirst({
