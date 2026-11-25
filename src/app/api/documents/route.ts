@@ -91,6 +91,8 @@ export async function GET(request: NextRequest) {
     const documents = await prisma.document.findMany({
       where: { entityType, entityId, isDeleted: false },
       orderBy: { createdAt: "desc" },
+      // Bound response size (and Neon egress) for a single entity.
+      take: 200,
       select: {
         id: true,
         entityType: true,
