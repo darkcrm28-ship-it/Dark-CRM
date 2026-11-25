@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireRole, SALES_ROLES, SALES_MANAGER_ROLES } from "@/lib/auth";
 import { handleReminderStatusChange } from "@/lib/notification-dispatcher";
+import { enqueueJob } from "@/lib/background-jobs";
 
 const MANAGER_ROLES = SALES_MANAGER_ROLES;
 
@@ -57,15 +58,15 @@ export async function POST(request: NextRequest) {
       include: { customer: { select: { id: true, name: true } } },
     });
 
-    await prisma.notification.create({
-      data: {
-        userId: session.id,
-        title: `تذكير: ${title}`,
-        body: `موعد المتابعة: ${dueDate.toLocaleDateString("ar-EG")}`,
-        type: "INFO",
-        link: `/dashboard/customers/${customerId}`,
-      },
-    });
+    // Reminder delivery goes through the durable queue so the cron worker owns
+    // notification + push dispatch and retries it safely. The dispatch key is
+    // derived from the immutable due date, so replays cannot create duplicates.
+    const dispatchKey = `REMINDER_SEND:${reminder.id}:${reminder.dueDate.getTime()}`;
+    await enqueueJob(
+      "REMINDER_SEND",
+      { reminderId: reminder.id, dispatchKey },
+      new Date(Math.min(Date.now(), reminder.dueDate.getTime()))
+    );
 
     return NextResponse.json({ success: true, reminder });
   } catch (error) {

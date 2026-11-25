@@ -19,4 +19,12 @@ CREATE UNIQUE INDEX IF NOT EXISTS "PushDeliveryLog_dispatchKey_endpoint_key"
 CREATE INDEX IF NOT EXISTS "PushDeliveryLog_dispatchKey_idx"
     ON "PushDeliveryLog"("dispatchKey");
 
+-- A browser endpoint belongs to one user; key subscriptions by (userId, endpoint)
+-- so one caller cannot rebind another user's device.
+DROP INDEX IF EXISTS "PushSubscription_endpoint_key";
+CREATE UNIQUE INDEX IF NOT EXISTS "PushSubscription_userId_endpoint_key"
+    ON "PushSubscription"("userId", "endpoint");
+CREATE INDEX IF NOT EXISTS "PushSubscription_endpoint_idx"
+    ON "PushSubscription"("endpoint");
+
 COMMIT;

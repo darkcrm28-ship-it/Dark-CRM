@@ -3,6 +3,11 @@
 --   npx prisma migrate resolve --rolled-back 20261125_phase1_hybrid_fixes
 BEGIN;
 
+DROP INDEX IF EXISTS "PushSubscription_endpoint_idx";
+DROP INDEX IF EXISTS "PushSubscription_userId_endpoint_key";
+CREATE UNIQUE INDEX IF NOT EXISTS "PushSubscription_endpoint_key"
+    ON "PushSubscription"("endpoint");
+
 DROP INDEX IF EXISTS "PushDeliveryLog_dispatchKey_idx";
 DROP INDEX IF EXISTS "PushDeliveryLog_dispatchKey_endpoint_key";
 ALTER TABLE "PushDeliveryLog" DROP COLUMN IF EXISTS "updatedAt";

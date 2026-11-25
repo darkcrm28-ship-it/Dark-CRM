@@ -263,7 +263,9 @@ export async function dispatchNotification(options: DispatchNotificationOptions)
         errorDetails: String(err?.message || err),
       });
       if (expired) {
-        await prisma.pushSubscription.deleteMany({ where: { endpoint: sub.endpoint } });
+        await prisma.pushSubscription.deleteMany({
+          where: { userId: sub.userId, endpoint: sub.endpoint },
+        });
       }
       pushOutcomes.push({ endpoint: sub.endpoint, outcome, statusCode });
     }

@@ -583,6 +583,17 @@ export default function CustomersClient({
       printContainer.style.direction = "rtl";
       printContainer.style.padding = "40px";
 
+      // Customer fields can originate from the public inquiry form. Escape every
+      // interpolated value before it reaches innerHTML to prevent stored XSS in
+      // the authenticated CRM origin when a manager exports/prints this report.
+      const esc = (value: unknown): string =>
+        String(value ?? "")
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#39;");
+
       printContainer.innerHTML = `
         <link rel="preconnect" href="https://fonts.googleapis.com">
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -658,28 +669,28 @@ export default function CustomersClient({
 
                 return `
                   <tr style="border-bottom: 1px solid #e5e7eb; background-color: ${rowBg};">
-                    <td style="padding: 10px 8px; font-weight: bold; border: 1px solid #e5e7eb;">${c.name}</td>
-                    <td style="padding: 10px 8px; direction: ltr; font-size: 11px; border: 1px solid #e5e7eb;">${c.phone}</td>
+                    <td style="padding: 10px 8px; font-weight: bold; border: 1px solid #e5e7eb;">${esc(c.name)}</td>
+                    <td style="padding: 10px 8px; direction: ltr; font-size: 11px; border: 1px solid #e5e7eb;">${esc(c.phone)}</td>
                     <td style="padding: 10px 8px; border: 1px solid #e5e7eb;">
-                      ${projects.find(p => p.id === c.projectId)?.name || c.projectName || "—"}<br/>
-                      <span style="color: #4b5563; font-size: 10px;">${c.area || "—"}</span>
+                      ${esc(projects.find(p => p.id === c.projectId)?.name || c.projectName || "—")}<br/>
+                      <span style="color: #4b5563; font-size: 10px;">${esc(c.area || "—")}</span>
                     </td>
                     <td style="padding: 10px 8px; border: 1px solid #e5e7eb;">
                       <span style="font-size: 10px; background: #e0f2fe; color: #0369a1; padding: 2px 6px; border-radius: 4px; font-weight: bold;">
-                        ${STATUS_MAP[c.status]?.label || c.status}
+                        ${esc(STATUS_MAP[c.status]?.label || c.status)}
                       </span>
                     </td>
                     <td style="padding: 10px 8px; color: #374151; font-size: 10px; border: 1px solid #e5e7eb; line-height: 1.4;">
-                      ${unitDetails || "—"}
+                      ${esc(unitDetails || "—")}
                     </td>
                     <td style="padding: 10px 8px; color: #059669; font-weight: bold; font-size: 12px; border: 1px solid #e5e7eb;">
-                      ${c.askingPrice ? `${c.askingPrice.toLocaleString()} ج.م` : "—"}
+                      ${esc(c.askingPrice ? `${c.askingPrice.toLocaleString()} ج.م` : "—")}
                     </td>
-                    <td style="padding: 10px 8px; border: 1px solid #e5e7eb;">${payMethod}</td>
-                    <td style="padding: 10px 8px; color: #b45309; font-weight: bold; border: 1px solid #e5e7eb;">${instAmt}</td>
-                    <td style="padding: 10px 8px; color: #b45309; border: 1px solid #e5e7eb;">${instRem}</td>
+                    <td style="padding: 10px 8px; border: 1px solid #e5e7eb;">${esc(payMethod)}</td>
+                    <td style="padding: 10px 8px; color: #b45309; font-weight: bold; border: 1px solid #e5e7eb;">${esc(instAmt)}</td>
+                    <td style="padding: 10px 8px; color: #b45309; border: 1px solid #e5e7eb;">${esc(instRem)}</td>
                     <td style="padding: 10px 8px; color: #4b5563; font-size: 10px; border: 1px solid #e5e7eb; max-width: 150px; word-wrap: break-word;">
-                      ${customFieldsText}
+                      ${esc(customFieldsText)}
                     </td>
                   </tr>
                 `;

@@ -50,7 +50,9 @@ export async function sendPushNotification(userId: string, title: string, body: 
       ).catch(async (err: any) => {
         if (err.statusCode === 410 || err.statusCode === 404) {
           // Subscription has expired or is no longer valid
-          await prisma.pushSubscription.delete({ where: { endpoint: sub.endpoint } });
+          await prisma.pushSubscription.deleteMany({
+            where: { userId: sub.userId, endpoint: sub.endpoint },
+          });
         }
         console.error("Error sending push notification:", err);
       });
