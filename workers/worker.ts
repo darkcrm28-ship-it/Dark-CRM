@@ -46,7 +46,7 @@ async function runScheduledJobs() {
       console.error(`[Cron Trigger] Unhandled error in job ${job.id} type=${job.type} after ${duration}ms:`, error);
       // processJob should have already called failJob, but as a safety net:
       try {
-        await failJob(job.id, job.attempts, job.maxAttempts, error instanceof Error ? error.message : String(error), job.claimToken || "");
+        await failJob(job.id, job.attempts, job.maxAttempts, error instanceof Error ? error.message : String(error), job.claimToken);
       } catch (failError) {
         console.error(`[Cron Trigger] Critical: failJob also failed for job ${job.id}:`, failError);
       }
