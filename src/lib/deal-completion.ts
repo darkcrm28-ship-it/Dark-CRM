@@ -24,9 +24,10 @@ export type CompletedDealResult = {
 };
 
 /**
- * Shared deal-completion logic used by the legacy /api/deals endpoint and by
- * contract signing. Callers must run it inside a transaction and must have
- * already verified that a signed contract exists.
+ * Shared deal-completion logic used by contract signing (the single source of
+ * truth for creating a completed deal) and by the legacy contract-linked flow.
+ * Callers must run it inside a transaction and must have already verified that a
+ * signed contract exists.
  */
 export async function createCompletedDealInTx(
   tx: Tx,

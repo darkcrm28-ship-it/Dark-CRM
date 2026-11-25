@@ -170,7 +170,7 @@ export function serializeContract(row: ContractRow) {
     startDate: row.startDate?.toISOString() ?? null,
     endDate: row.endDate?.toISOString() ?? null,
     documentKey: row.documentKey,
-    terms: row.terms ?? null,
+    terms: (row.terms as Record<string, unknown> | null) ?? null,
     createdById: row.createdById,
     approvedById: row.approvedById,
     createdAt: row.createdAt.toISOString(),

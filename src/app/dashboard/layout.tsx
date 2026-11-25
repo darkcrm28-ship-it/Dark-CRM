@@ -146,13 +146,6 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
     // Sales & Management
     {
-      href: "/dashboard/deals",
-      icon: <Handshake size={18} />,
-      label: "إدارة الصفقات",
-      show: isManager,
-      section: "sales",
-    },
-    {
       href: "/dashboard/reports",
       icon: <BarChart3 size={18} />,
       label: "التقارير والإحصائيات",

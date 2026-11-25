@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { getSession, ROLE, SALES_MANAGER_ROLES, SALES_ROLES } from "@/lib/auth";
-import { scopedCustomerWhere } from "@/lib/access-scope";
 import { prisma } from "@/lib/db";
+import { scopedCustomerWhere } from "@/lib/access-scope";
 import {
   contractScopeWhere,
   reservationScopeWhere,
@@ -61,7 +61,7 @@ export default async function DealCyclePage() {
         property: { select: { id: true, title: true, projectName: true, unitNumber: true, status: true } },
         customer: { select: { id: true, name: true, phone: true } },
         reservation: { select: { id: true, status: true, amount: true } },
-        deal: { select: { id: true, status: true, finalPrice: true } },
+        deal: { select: { id: true, status: true, finalPrice: true, commissionAmt: true } },
       },
     }),
     prisma.reservation.findMany({

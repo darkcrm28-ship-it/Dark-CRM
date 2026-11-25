@@ -84,6 +84,10 @@ export async function PATCH(request: NextRequest, { params }: Context) {
       return NextResponse.json({ error: "حالة العقد غير صالحة" }, { status: 400 });
     }
     const reason = typeof body.reason === "string" ? body.reason.trim() : "";
+    const documentKey =
+      typeof body.documentKey === "string" && body.documentKey.trim()
+        ? body.documentKey.trim().slice(0, 255)
+        : null;
 
     if (contract.status === target) {
       const current = await prisma.contract.findUnique({
@@ -198,13 +202,22 @@ export async function PATCH(request: NextRequest, { params }: Context) {
         }
       }
 
+      const updateData: {
+        status: string;
+        signedAt: Date | null;
+        approvedById: string | null;
+        documentKey?: string | null;
+      } = {
+        status: target,
+        signedAt: target === "SIGNED" ? new Date() : contract.signedAt,
+        approvedById: target === "APPROVED" ? session.id : contract.approvedById,
+      };
+      if (documentKey !== null) {
+        updateData.documentKey = documentKey;
+      }
       const updated = await tx.contract.update({
         where: { id },
-        data: {
-          status: target,
-          signedAt: target === "SIGNED" ? new Date() : contract.signedAt,
-          approvedById: target === "APPROVED" ? session.id : contract.approvedById,
-        },
+        data: updateData as any,
         include: CONTRACT_INCLUDE,
       });
 
