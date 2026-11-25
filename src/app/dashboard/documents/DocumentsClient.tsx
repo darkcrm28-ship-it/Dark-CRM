@@ -1,21 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { ACCESS_LABELS, DOCUMENT_TYPE_OPTIONS, formatSize, TYPE_LABELS } from "@/lib/document-ui";
+import { useEntityDocuments } from "@/lib/use-entity-documents";
 
 type Option = { id: string; label: string };
-type DocumentRow = {
-  id: string;
-  entityType: string;
-  entityId: string;
-  type: string;
-  title: string | null;
-  fileName: string;
-  mimeType: string;
-  sizeBytes: number;
-  accessLevel: string;
-  createdAt: string;
-};
 
 const ENTITY_TYPES: { value: string; label: string }[] = [
   { value: "PROPERTY", label: "عقار" },
@@ -29,94 +19,46 @@ const ENTITY_TYPES: { value: string; label: string }[] = [
   { value: "INSTALLMENT", label: "قسط" },
 ];
 
-const DOCUMENT_TYPES: { value: string; label: string }[] = [
-  { value: "OWNERSHIP_PROOF", label: "إثبات ملكية" },
-  { value: "TITLE_DEED", label: "صك" },
-  { value: "IDENTIFICATION", label: "مستند تعريف" },
-  { value: "CONTRACT", label: "عقد" },
-  { value: "RECEIPT", label: "إيصال" },
-  { value: "INVOICE", label: "فاتورة" },
-  { value: "VALUATION", label: "تقييم" },
-  { value: "OTHER", label: "أخرى" },
-];
-
-const TYPE_LABELS: Record<string, string> = Object.fromEntries(
-  DOCUMENT_TYPES.map((item) => [item.value, item.label])
-);
 const ENTITY_LABELS: Record<string, string> = Object.fromEntries(
   ENTITY_TYPES.map((item) => [item.value, item.label])
 );
-const ACCESS_LABELS: Record<string, string> = {
-  INTERNAL: "داخلي",
-  RESTRICTED: "مقيّد",
-  CONFIDENTIAL: "سري",
-};
-
-function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} بايت`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} كيلوبايت`;
-  return `${(bytes / (1024 * 1024)).toFixed(2)} ميجابايت`;
-}
 
 export default function DocumentsClient({
   entities,
   initialEntityType,
   initialEntityId,
   canManage,
+  canManagePrivileged = false,
+  currentUserId,
 }: {
   entities: Record<string, Option[]>;
   initialEntityType: string;
   initialEntityId: string;
   canManage: boolean;
+  canManagePrivileged?: boolean;
+  currentUserId?: string;
 }) {
   const router = useRouter();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [entityType, setEntityType] = useState(
     ENTITY_TYPES.some((item) => item.value === initialEntityType) ? initialEntityType : "PROPERTY"
   );
   const [entityId, setEntityId] = useState(initialEntityId);
-  const [documents, setDocuments] = useState<DocumentRow[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [documentType, setDocumentType] = useState("OTHER");
   const [title, setTitle] = useState("");
   const [accessLevel, setAccessLevel] = useState("RESTRICTED");
+  const { documents, loading, busy, message, upload, download, remove } = useEntityDocuments(
+    entityType,
+    entityId
+  );
 
   const options = entities[entityType];
   const hasPicker = Array.isArray(options);
 
-  const load = useCallback(async () => {
-    if (!entityId) {
-      setDocuments([]);
-      return;
-    }
-    setLoading(true);
-    setMessage("");
-    try {
-      const response = await fetch(
-        `/api/documents?entityType=${encodeURIComponent(entityType)}&entityId=${encodeURIComponent(entityId)}`,
-        { cache: "no-store" }
-      );
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "تعذّر تحميل المستندات");
-      setDocuments(data.documents || []);
-    } catch (error) {
-      setDocuments([]);
-      setMessage(error instanceof Error ? error.message : "تعذّر تحميل المستندات");
-    } finally {
-      setLoading(false);
-    }
-  }, [entityType, entityId]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
   const changeEntityType = (value: string) => {
     setEntityType(value);
     setEntityId("");
-    setDocuments([]);
     const params = new URLSearchParams();
     params.set("entityType", value);
     router.replace(`/dashboard/documents?${params.toString()}`);
@@ -132,60 +74,12 @@ export default function DocumentsClient({
 
   const handleUpload = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!file || !entityId) return;
-    setBusy(true);
-    setMessage("");
-    try {
-      const body = new FormData();
-      body.append("file", file);
-      body.append("entityType", entityType);
-      body.append("entityId", entityId);
-      body.append("type", documentType);
-      body.append("title", title);
-      body.append("accessLevel", accessLevel);
-      const response = await fetch("/api/documents", { method: "POST", body });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "تعذّر رفع المستند");
+    if (!file) return;
+    const uploaded = await upload({ file, type: documentType, title, accessLevel });
+    if (uploaded) {
       setFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
       setTitle("");
-      setMessage("تم رفع المستند بنجاح.");
-      await load();
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "تعذّر رفع المستند");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const handleDownload = async (id: string) => {
-    setBusy(true);
-    setMessage("");
-    try {
-      const response = await fetch(`/api/documents/${id}?expires=120`, { cache: "no-store" });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "تعذّر إنشاء رابط التحميل");
-      window.open(data.downloadUrl, "_blank", "noopener,noreferrer");
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "تعذّر إنشاء رابط التحميل");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const handleDelete = async (id: string) => {
-    if (!confirm("هل تريد حذف هذا المستند؟")) return;
-    setBusy(true);
-    setMessage("");
-    try {
-      const response = await fetch(`/api/documents/${id}`, { method: "DELETE" });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "تعذّر حذف المستند");
-      setMessage("تم حذف المستند.");
-      await load();
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "تعذّر حذف المستند");
-    } finally {
-      setBusy(false);
     }
   };
 
@@ -247,6 +141,7 @@ export default function DocumentsClient({
             <div className="form-group">
               <label className="form-label">الملف (PDF / JPG / PNG / DOCX — حتى 5MB)</label>
               <input
+                ref={fileInputRef}
                 className="input"
                 type="file"
                 accept=".pdf,.jpg,.jpeg,.png,.docx"
@@ -261,7 +156,7 @@ export default function DocumentsClient({
                 value={documentType}
                 onChange={(event) => setDocumentType(event.target.value)}
               >
-                {DOCUMENT_TYPES.map((item) => (
+                {DOCUMENT_TYPE_OPTIONS.map((item) => (
                   <option key={item.value} value={item.value}>{item.label}</option>
                 ))}
               </select>
@@ -282,9 +177,11 @@ export default function DocumentsClient({
                 value={accessLevel}
                 onChange={(event) => setAccessLevel(event.target.value)}
               >
-                {Object.entries(ACCESS_LABELS).map(([value, label]) => (
-                  <option key={value} value={value}>{label}</option>
-                ))}
+                {Object.entries(ACCESS_LABELS)
+                  .filter(([value]) => canManagePrivileged || value !== "CONFIDENTIAL")
+                  .map(([value, label]) => (
+                    <option key={value} value={value}>{label}</option>
+                  ))}
               </select>
             </div>
             <div style={{ gridColumn: "span 2", textAlign: "left" }}>
@@ -338,18 +235,20 @@ export default function DocumentsClient({
                     <div style={{ display: "flex", gap: 8 }}>
                       <button
                         className="btn btn-secondary btn-sm"
-                        onClick={() => handleDownload(doc.id)}
+                        onClick={() => download(doc.id)}
                         disabled={busy}
                       >
                         تحميل
                       </button>
-                      <button
-                        className="btn btn-danger btn-sm"
-                        onClick={() => handleDelete(doc.id)}
-                        disabled={busy}
-                      >
-                        حذف
-                      </button>
+                      {canManage && (canManagePrivileged || doc.uploadedById === currentUserId) && (
+                        <button
+                          className="btn btn-danger btn-sm"
+                          onClick={() => remove(doc.id)}
+                          disabled={busy}
+                        >
+                          حذف
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

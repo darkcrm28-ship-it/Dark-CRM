@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { requirePageRole, ROLE, SALES_ROLES } from "@/lib/auth";
+import { requirePageRole, ROLE, SALES_MANAGER_ROLES, SALES_ROLES } from "@/lib/auth";
 import CustomerDetailsClient from "./CustomerDetailsClient";
 
 export default async function CustomerPage({ params }: { params: Promise<{ id: string }> }) {
@@ -26,5 +26,13 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
     return <div className="text-center p-8">العميل غير موجود</div>;
   }
 
-  return <CustomerDetailsClient initialCustomer={customer} currentUser={session} />;
+  return (
+    <CustomerDetailsClient
+      initialCustomer={customer}
+      currentUser={session}
+      canManageDocuments={SALES_ROLES.includes(session.role)}
+      canManagePrivilegedDocuments={SALES_MANAGER_ROLES.includes(session.role)}
+      currentUserId={session.id}
+    />
+  );
 }

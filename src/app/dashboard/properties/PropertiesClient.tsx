@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import DynamicFields from "@/components/DynamicFields";
 import UnitImageManager from "@/components/UnitImageManager";
+import EntityDocumentsPanel from "@/components/EntityDocumentsPanel";
 import {
   Building2,
   Plus,
@@ -565,6 +566,17 @@ export default function PropertiesClient({
               </button>
             </div>
           </form>
+
+          {editing && (
+            <EntityDocumentsPanel
+              entityType="PROPERTY"
+              entityId={editing}
+              canManage={isManager}
+              canManagePrivileged={isManager}
+              currentUserId={session?.id}
+              title={`مستندات وأوراق الوحدة: ${form.projectName || ""} ${form.unitNumber || ""}`}
+            />
+          )}
         </div>
       )}
 

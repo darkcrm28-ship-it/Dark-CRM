@@ -526,6 +526,10 @@ export default function CustomersClient({
         setNewDesiredAreas("");
         setNewCustomData({});
         showToast(`تم حفظ العميل بنجاح ✓`, "success");
+        if (responseData?.id) {
+          router.push(`/dashboard/customers/${responseData.id}`);
+          return;
+        }
       }
       router.refresh();
     } catch (err) {

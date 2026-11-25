@@ -83,6 +83,8 @@ export default async function DocumentsPage({
       initialEntityType={query.entityType || ""}
       initialEntityId={query.entityId || ""}
       canManage={isManager}
+      canManagePrivileged={isManager}
+      currentUserId={session.id}
     />
   );
 }

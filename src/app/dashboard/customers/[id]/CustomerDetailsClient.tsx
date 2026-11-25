@@ -3,6 +3,7 @@
 import { useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import EntityDocumentsPanel from "@/components/EntityDocumentsPanel";
 
 // ─── Shared Toast (same pattern as CustomersClient) ───────────────────────────
 type ToastType = "success" | "error" | "info" | "warning";
@@ -61,7 +62,18 @@ const STATUS_OPTIONS = [
 const INTERACTION_ICONS: Record<string, string> = { CALL: "📞", VIEWING: "🏠", NOTE: "📝" };
 const INTERACTION_LABELS: Record<string, string> = { CALL: "مكالمة هاتفية", VIEWING: "موعد معاينة", NOTE: "ملاحظة عامة" };
 
-export default function CustomerDetailsClient({ initialCustomer }: { initialCustomer: any; currentUser?: any }) {
+export default function CustomerDetailsClient({
+  initialCustomer,
+  canManageDocuments = false,
+  canManagePrivilegedDocuments = false,
+  currentUserId,
+}: {
+  initialCustomer: any;
+  currentUser?: any;
+  canManageDocuments?: boolean;
+  canManagePrivilegedDocuments?: boolean;
+  currentUserId?: string;
+}) {
   const [customer] = useState(initialCustomer);
   const [status, setStatus] = useState(initialCustomer.status);
   const [askingPrice, setAskingPrice] = useState(initialCustomer.askingPrice || "");
@@ -554,6 +566,15 @@ export default function CustomerDetailsClient({ initialCustomer }: { initialCust
           )}
         </div>
       </div>
+
+      <EntityDocumentsPanel
+        entityType="CUSTOMER"
+        entityId={customer.id}
+        canManage={canManageDocuments}
+        canManagePrivileged={canManagePrivilegedDocuments}
+        currentUserId={currentUserId}
+        title={`مستندات وصور العميل: ${customer.name || ""}`}
+      />
     </div>
   );
 }
