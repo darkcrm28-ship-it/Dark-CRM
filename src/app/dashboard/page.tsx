@@ -72,18 +72,6 @@ export default async function DashboardPage() {
   const totalDeals = deals.length;
   const totalSalesValue = deals.reduce((sum, d) => sum + (d.finalPrice || d.value || 0), 0);
 
-  // Group deals by month for the chart
-  const salesByMonth: Record<string, number> = {};
-  deals.forEach((d) => {
-    const month = new Date(d.createdAt).toLocaleString('ar-EG', { month: 'short' });
-    salesByMonth[month] = (salesByMonth[month] || 0) + (d.finalPrice || d.value || 0);
-  });
-  
-  const salesOverTime = Object.keys(salesByMonth).map(month => ({
-    month,
-    value: salesByMonth[month]
-  }));
-
   // Team Performance Table for Managers
   const teamPerformance = isManager ? await prisma.user.findMany({
     where: { role: { in: ["SALES_EMPLOYEE", "SALES_MANAGER"] } },
@@ -123,7 +111,6 @@ export default async function DashboardPage() {
       }}
       recentInteractions={recentInteractions}
       neglectedCount={neglectedCount}
-      chartData={salesOverTime}
       teamPerformance={teamPerformance}
     />
   );

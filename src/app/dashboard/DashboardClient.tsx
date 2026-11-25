@@ -2,9 +2,6 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer
-} from "recharts";
 import DatabaseBackupModal from "@/components/DatabaseBackupModal";
 
 export default function DashboardClient({ 
@@ -13,7 +10,6 @@ export default function DashboardClient({
   stats, 
   recentInteractions, 
   neglectedCount,
-  chartData,
   teamPerformance
 }: any) {
   const [backupOpen, setBackupOpen] = useState(false);
@@ -242,51 +238,6 @@ export default function DashboardClient({
         </Link>
       </div>
       
-      {/* Sales & Deals Chart Section */}
-      {chartData && chartData.length > 0 && (
-        <div className="card animate-in-1" style={{ padding: "24px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-            <div>
-              <h3 style={{ fontSize: 16, fontWeight: 900, color: "var(--gold-primary)", margin: 0 }}>
-                📊 تحليل المبيعات والصفقات الشهرية
-              </h3>
-              <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4 }}>
-                تطور مبيعات العقارات وإجمالي قيم الصفقات المكتملة
-              </div>
-            </div>
-            <span className="badge badge-gold">محدث تلقائياً</span>
-          </div>
-
-          <div style={{ width: "100%", height: 320 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.06)" />
-                <XAxis dataKey="month" stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
-                <YAxis
-                  stroke="#94a3b8"
-                  fontSize={12}
-                  tickLine={false}
-                  axisLine={false}
-                  tickFormatter={(val) => `${(val / 1000).toLocaleString()}k`}
-                />
-                <RechartsTooltip 
-                  contentStyle={{
-                    background: "rgba(15, 23, 42, 0.95)",
-                    border: "1px solid rgba(212, 175, 55, 0.3)",
-                    borderRadius: "12px",
-                    color: "#fff",
-                    boxShadow: "0 10px 30px rgba(0, 0, 0, 0.6)",
-                  }}
-                  itemStyle={{ color: "var(--gold-primary)", fontWeight: 700 }}
-                  formatter={(val: any) => [`${Number(val).toLocaleString()} ج.م`, "قيمة الصفقات"]}
-                />
-                <Bar dataKey="value" fill="var(--gold-primary)" radius={[6, 6, 0, 0]} name="قيمة الصفقات" />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      )}
-
       {/* Team Performance Table for Managers */}
       {isManager && teamPerformance.length > 0 && (
         <div className="card animate-in-1" style={{ borderTop: "4px solid var(--accent-blue)", padding: 24 }}>
