@@ -21,4 +21,7 @@ enabled = false
 head_sampling_rate = 1
 persist = true
 
+[observability.issues]
+enabled = false
+
 # Store sensitive variables as Cloudflare Secrets, not here.
