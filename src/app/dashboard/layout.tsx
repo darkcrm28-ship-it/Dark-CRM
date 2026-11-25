@@ -28,6 +28,7 @@ import {
   Settings,
   Wallet,
   Cpu,
+  FileText,
 } from "lucide-react";
 
 const ROLE_LABELS: Record<string, string> = {
@@ -104,6 +105,13 @@ export default async function DashboardLayout({ children }: { children: React.Re
       icon: <FolderKanban size={18} />,
       label: "المشاريع العقارية",
       show: isManager,
+      section: "main",
+    },
+    {
+      href: "/dashboard/documents",
+      icon: <FileText size={18} />,
+      label: "المستندات",
+      show: isSales || session.role === ROLE.ACCOUNTING_MANAGER,
       section: "main",
     },
     {
