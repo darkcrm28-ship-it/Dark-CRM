@@ -352,14 +352,17 @@ model PushDeliveryLog {
   notificationId String?
   userId         String
   endpoint       String
-  outcome        String    // PROVIDER_ACCEPTED, DELIVERED, EXPIRED, FAILED, UNKNOWN
+  outcome        String    // PROVIDER_ACCEPTED, EXPIRED, FAILED, UNKNOWN, SKIPPED_NO_KEYS
   statusCode     Int?
   errorDetails   String?
-  dispatchKey   String?   @unique
+  dispatchKey    String?
   createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
+  @@unique([dispatchKey, endpoint])
   @@index([userId])
   @@index([outcome])
   @@index([createdAt])
+  @@index([dispatchKey])
 }
 

@@ -21,7 +21,16 @@ function ensureVapidConfigured(): boolean {
   }
 }
 
-export type PushDeliveryOutcome = "PROVIDER_ACCEPTED" | "EXPIRED" | "FAILED" | "UNKNOWN" | "SKIPPED_NO_KEYS";
+function isUniqueViolation(error: unknown): boolean {
+  return (error as { code?: string })?.code === "P2002";
+}
+
+export type PushDeliveryOutcome =
+  | "PROVIDER_ACCEPTED"
+  | "EXPIRED"
+  | "FAILED"
+  | "UNKNOWN"
+  | "SKIPPED_NO_KEYS";
 
 export interface DispatchNotificationOptions {
   userId: string;
@@ -33,21 +42,36 @@ export interface DispatchNotificationOptions {
   dispatchKey?: string;
 }
 
-/**
- * Dispatches an in-app notification and attempts push delivery to all registered subscriptions.
- * Distinguishes in-app records from push provider acceptance and records delivery logs.
- */
-export async function dispatchNotification(options: DispatchNotificationOptions): Promise<{
-  notificationId?: string;
-  pushOutcomes: Array<{ endpoint: string; outcome: PushDeliveryOutcome; statusCode?: number }>;
-}> {
-  const { userId, title, body, link, type = "INFO", createInAppRecord = true, dispatchKey } = options;
+type OutcomeRow = {
+  id: string;
+  outcome: string;
+  statusCode: number | null;
+};
 
-  let inAppNotificationId: string | undefined;
+const TERMINAL_OUTCOMES = new Set(["PROVIDER_ACCEPTED", "EXPIRED"]);
 
-  // 1. Create In-App Notification Record (idempotent if dispatchKey provided)
-  if (createInAppRecord) {
-    const notif = await prisma.notification.create({
+async function findOrCreateNotification(params: {
+  userId: string;
+  title: string;
+  body: string;
+  link?: string;
+  type: string;
+  dispatchKey?: string;
+}): Promise<string | undefined> {
+  const { userId, title, body, link, type, dispatchKey } = params;
+
+  if (dispatchKey) {
+    const existing = await prisma.notification.findUnique({ where: { dedupKey: dispatchKey } });
+    if (existing) {
+      if (existing.userId !== userId) {
+        throw new Error("dispatchKey already belongs to a different user");
+      }
+      return existing.id;
+    }
+  }
+
+  try {
+    const created = await prisma.notification.create({
       data: {
         userId,
         title,
@@ -59,95 +83,198 @@ export async function dispatchNotification(options: DispatchNotificationOptions)
         dedupAt: dispatchKey ? new Date() : null,
       },
     });
-    inAppNotificationId = notif.id;
+    return created.id;
+  } catch (err) {
+    if (!dispatchKey || !isUniqueViolation(err)) throw err;
+    const existing = await prisma.notification.findUnique({ where: { dedupKey: dispatchKey } });
+    if (!existing || existing.userId !== userId) throw err;
+    return existing.id;
   }
-
-  // 2. Fetch User's Push Subscriptions
-  const subscriptions = await prisma.pushSubscription.findMany({
-    where: { userId },
-  });
-
-  if (subscriptions.length === 0) {
-    return { notificationId: inAppNotificationId, pushOutcomes: [] };
-  }
-
-  if (!ensureVapidConfigured()) {
-    console.warn("[Push Dispatch] VAPID keys not configured; skipped push.");
-    return {
-      notificationId: inAppNotificationId,
-      pushOutcomes: subscriptions.map((s) => ({
-        endpoint: s.endpoint,
-        outcome: "SKIPPED_NO_KEYS",
-      })),
-    };
-  }
-
-  // 3. Dispatch to Push Provider & Log Outcomes
-  const pushOutcomes: Array<{ endpoint: string; outcome: PushDeliveryOutcome; statusCode?: number }> = [];
-
-  for (const sub of subscriptions) {
-    const pushConfig = {
-      endpoint: sub.endpoint,
-      keys: { auth: sub.auth, p256dh: sub.p256dh },
-    };
-
-    try {
-      const response = await webpush.sendNotification(
-        pushConfig,
-        JSON.stringify({ title, body, url: link })
-      );
-
-      const statusCode = response.statusCode;
-      // PROVIDER_ACCEPTED: the push provider accepted the message for delivery.
-      // This does NOT prove the device received it, only that the provider accepted it.
-      const outcome: PushDeliveryOutcome = statusCode >= 200 && statusCode < 300 ? "PROVIDER_ACCEPTED" : "UNKNOWN";
-
-      pushOutcomes.push({ endpoint: sub.endpoint, outcome, statusCode });
-
-      // Log delivery attempt with dispatchKey for idempotency
-      await prisma.pushDeliveryLog.create({
-        data: {
-          notificationId: inAppNotificationId || null,
-          userId,
-          endpoint: sub.endpoint,
-          outcome,
-          statusCode,
-          dispatchKey: dispatchKey || null,
-        },
-      }).catch(() => {});
-    } catch (err: any) {
-      const statusCode = err?.statusCode;
-      let outcome: PushDeliveryOutcome = "FAILED";
-
-      if (statusCode === 410 || statusCode === 404) {
-        // Subscription expired or invalid; prune from database
-        outcome = "EXPIRED";
-        await prisma.pushSubscription.delete({ where: { endpoint: sub.endpoint } }).catch(() => {});
-      }
-
-      pushOutcomes.push({ endpoint: sub.endpoint, outcome, statusCode });
-
-      // Log failure/expiration with dispatchKey
-      await prisma.pushDeliveryLog.create({
-        data: {
-          notificationId: inAppNotificationId || null,
-          userId,
-          endpoint: sub.endpoint,
-          outcome,
-          statusCode: statusCode || null,
-          errorDetails: String(err?.message || err).slice(0, 500),
-          dispatchKey: dispatchKey || null,
-        },
-      }).catch(() => {});
-    }
-  }
-
-  return { notificationId: inAppNotificationId, pushOutcomes };
 }
 
 /**
- * Handles reminder state transitions (creation, completion, and reopening).
- * Reopening generates a distinct notification and audit event, preventing duplicate processing.
+ * Reserves an outbox slot for (dispatchKey, endpoint). Returns null when the
+ * slot is already in a terminal state and no delivery should be attempted.
+ */
+async function reserveOutbox(params: {
+  dispatchKey?: string;
+  endpoint: string;
+  notificationId?: string;
+  userId: string;
+}): Promise<OutcomeRow | null> {
+  const { dispatchKey, endpoint, notificationId, userId } = params;
+  if (!dispatchKey) {
+    return await prisma.pushDeliveryLog.create({
+      data: { notificationId: notificationId || null, userId, endpoint, outcome: "UNKNOWN" },
+    });
+  }
+
+  let row = await prisma.pushDeliveryLog.findFirst({
+    where: { dispatchKey, endpoint },
+  });
+  if (row && TERMINAL_OUTCOMES.has(row.outcome)) return null;
+
+  if (!row) {
+    try {
+      row = await prisma.pushDeliveryLog.create({
+        data: {
+          notificationId: notificationId || null,
+          userId,
+          endpoint,
+          outcome: "UNKNOWN",
+          dispatchKey,
+        },
+      });
+    } catch (err) {
+      if (!isUniqueViolation(err)) throw err;
+      row = await prisma.pushDeliveryLog.findFirst({ where: { dispatchKey, endpoint } });
+      if (!row) throw err;
+      if (TERMINAL_OUTCOMES.has(row.outcome)) return null;
+    }
+  }
+
+  // Claim the unresolved slot conditionally so competing workers cannot both send.
+  const claimed = await prisma.pushDeliveryLog.updateMany({
+    where: {
+      id: row.id,
+      outcome: { in: ["UNKNOWN", "FAILED", "SKIPPED_NO_KEYS"] },
+    },
+    data: { outcome: "UNKNOWN", statusCode: null, errorDetails: null, updatedAt: new Date() },
+  });
+  if (claimed.count === 1) {
+    return { ...row, outcome: "UNKNOWN", statusCode: null };
+  }
+
+  const current = await prisma.pushDeliveryLog.findUnique({ where: { id: row.id } });
+  if (!current || TERMINAL_OUTCOMES.has(current.outcome)) return null;
+  return { ...current, statusCode: current.statusCode ?? null };
+}
+
+async function settleOutbox(params: {
+  id: string;
+  dispatchKey?: string;
+  endpoint: string;
+  outcome: PushDeliveryOutcome;
+  statusCode?: number;
+  errorDetails?: string;
+}): Promise<void> {
+  const { id, dispatchKey, endpoint, outcome, statusCode, errorDetails } = params;
+  const updated = await prisma.pushDeliveryLog.updateMany({
+    where: { id, outcome: "UNKNOWN" },
+    data: {
+      outcome,
+      statusCode: statusCode ?? null,
+      errorDetails: errorDetails ? errorDetails.slice(0, 500) : null,
+      updatedAt: new Date(),
+    },
+  });
+
+  if (updated.count !== 1) {
+    const current = await prisma.pushDeliveryLog.findFirst({
+      where: dispatchKey ? { dispatchKey, endpoint } : { id },
+    });
+    if (!current) throw new Error("Push delivery log row disappeared before settlement");
+  }
+}
+
+/**
+ * Dispatches an in-app notification (optionally deduplicated by dispatchKey)
+ * and attempts push delivery to every subscription, recording one outbox row
+ * per (dispatchKey, endpoint).
+ */
+export async function dispatchNotification(options: DispatchNotificationOptions): Promise<{
+  notificationId?: string;
+  pushOutcomes: Array<{ endpoint: string; outcome: PushDeliveryOutcome; statusCode?: number }>;
+}> {
+  const {
+    userId,
+    title,
+    body,
+    link,
+    type = "INFO",
+    createInAppRecord = true,
+    dispatchKey,
+  } = options;
+
+  const notificationId = createInAppRecord
+    ? await findOrCreateNotification({ userId, title, body, link, type, dispatchKey })
+    : undefined;
+
+  const subscriptions = await prisma.pushSubscription.findMany({ where: { userId } });
+  if (subscriptions.length === 0) {
+    return { notificationId, pushOutcomes: [] };
+  }
+
+  const vapidReady = ensureVapidConfigured();
+  const pushOutcomes: Array<{ endpoint: string; outcome: PushDeliveryOutcome; statusCode?: number }> = [];
+
+  for (const sub of subscriptions) {
+    const reserved = await reserveOutbox({
+      dispatchKey,
+      endpoint: sub.endpoint,
+      notificationId,
+      userId,
+    });
+    if (!reserved) {
+      const terminal = await prisma.pushDeliveryLog.findFirst({
+        where: dispatchKey ? { dispatchKey, endpoint: sub.endpoint } : { id: sub.id },
+      });
+      const outcome = (terminal?.outcome as PushDeliveryOutcome) || "PROVIDER_ACCEPTED";
+      pushOutcomes.push({ endpoint: sub.endpoint, outcome, statusCode: terminal?.statusCode ?? undefined });
+      continue;
+    }
+
+    if (!vapidReady) {
+      await settleOutbox({
+        id: reserved.id,
+        dispatchKey,
+        endpoint: sub.endpoint,
+        outcome: "SKIPPED_NO_KEYS",
+      });
+      pushOutcomes.push({ endpoint: sub.endpoint, outcome: "SKIPPED_NO_KEYS" });
+      continue;
+    }
+
+    try {
+      const response = await webpush.sendNotification(
+        { endpoint: sub.endpoint, keys: { auth: sub.auth, p256dh: sub.p256dh } },
+        JSON.stringify({ title, body, url: link })
+      );
+      const outcome: PushDeliveryOutcome =
+        response.statusCode >= 200 && response.statusCode < 300 ? "PROVIDER_ACCEPTED" : "UNKNOWN";
+      await settleOutbox({
+        id: reserved.id,
+        dispatchKey,
+        endpoint: sub.endpoint,
+        outcome,
+        statusCode: response.statusCode,
+      });
+      pushOutcomes.push({ endpoint: sub.endpoint, outcome, statusCode: response.statusCode });
+    } catch (err: any) {
+      const statusCode = typeof err?.statusCode === "number" ? err.statusCode : undefined;
+      const expired = statusCode === 410 || statusCode === 404;
+      const outcome: PushDeliveryOutcome = expired ? "EXPIRED" : "FAILED";
+      await settleOutbox({
+        id: reserved.id,
+        dispatchKey,
+        endpoint: sub.endpoint,
+        outcome,
+        statusCode,
+        errorDetails: String(err?.message || err),
+      });
+      if (expired) {
+        await prisma.pushSubscription.deleteMany({ where: { endpoint: sub.endpoint } });
+      }
+      pushOutcomes.push({ endpoint: sub.endpoint, outcome, statusCode });
+    }
+  }
+
+  return { notificationId, pushOutcomes };
+}
+
+/**
+ * Handles reminder state transitions (completion and reopening) atomically.
+ * Reopening generates a distinct notification and audit event.
  */
 export async function handleReminderStatusChange(params: {
   reminderId: string;
@@ -159,17 +286,12 @@ export async function handleReminderStatusChange(params: {
   return await prisma.$transaction(async (tx) => {
     const existing = await tx.reminder.findUnique({
       where: { id: reminderId },
-      include: {
-        customer: { select: { id: true, name: true, assignedToId: true } },
-      },
+      include: { customer: { select: { id: true, name: true, assignedToId: true } } },
     });
-
     if (!existing) throw new Error("التذكير غير موجود.");
 
     const newStatus = isDone ? "COMPLETED" : "PENDING";
-    if (existing.status === newStatus) {
-      return existing; // Idempotent no-op
-    }
+    if (existing.status === newStatus) return existing;
 
     const updated = await tx.reminder.update({
       where: { id: reminderId },
@@ -177,8 +299,6 @@ export async function handleReminderStatusChange(params: {
     });
 
     const isReopening = existing.status === "COMPLETED" && newStatus === "PENDING";
-
-    // Reopening generates a distinct event
     if (isReopening) {
       const targetUserId = existing.userId || existing.customer?.assignedToId;
       if (targetUserId) {
@@ -189,10 +309,11 @@ export async function handleReminderStatusChange(params: {
             body: `تم إعادة فتح التذكير للعميل ${existing.customer?.name || ""}`,
             type: "WARNING",
             link: `/dashboard/customers/${existing.customerId}`,
+            dedupKey: `REMINDER_REOPENED:${reminderId}:${Date.now()}`,
+            dedupAt: new Date(),
           },
         });
       }
-
       await tx.auditLog.create({
         data: {
           userId: operatorUserId,

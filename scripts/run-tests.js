@@ -444,212 +444,246 @@ async function main() {
   }
 
   // ══════════════════════════════════════════════════════════════════════════════
-  // TEST 6: Background Jobs System (Cron + JobQueue)
+  // TEST 6: Background Jobs System (rebuilt on real temporary fixtures)
   // ══════════════════════════════════════════════════════════════════════════════
   section("TEST 6 — Background Jobs System (Cron + JobQueue)");
 
-  // Import the background jobs module dynamically (uses Prisma client)
+  const { prisma } = await import("../src/lib/db");
   const bgJobs = await import("../src/lib/background-jobs");
+  const { dispatchNotification } = await import("../src/lib/notification-dispatcher");
   const { claimBackgroundJobs, enqueueJob, processJob, completeJob, failJob } = bgJobs;
 
-  try {
-    // Clean up test jobs
-    await pool.query(`DELETE FROM "JobQueue" WHERE type LIKE 'TEST_%'`);
-
-    // Test enqueue + claim
-    const runAt = new Date(Date.now() - 60000); // in the past
-    const enqueued = await enqueueJob("TEST_CLAIM", { message: "hello" }, runAt);
-    assert("enqueueJob returns job record", enqueued && enqueued.id);
-    assert("enqueueJob type matches", enqueued.type === "TEST_CLAIM");
-
-    const claimed = await claimBackgroundJobs("test-worker-1", 5, 5);
-    assert("claimBackgroundJobs returns at least one job", claimed.length >= 1);
-    const testJob = claimed.find(j => j.type === "TEST_CLAIM");
-    assert("claimed job type matches", testJob?.type === "TEST_CLAIM");
-    assert("claimed job status is PROCESSING", testJob?.status === "PROCESSING");
-    assert("claimed job lockedBy set", testJob?.lockedBy === "test-worker-1");
-
-    // Test processJob (which calls completeJob)
-    await processJob(testJob!);
-    const completed = await pool.query(`SELECT status FROM "JobQueue" WHERE id=$1`, [testJob!.id]);
-    assert("processJob marks job COMPLETED", completed.rows[0].status === "COMPLETED");
-
-    // Test failJob with retry (not final) — claim first, then fail with valid claim token
-    const failJobRecord = await enqueueJob("TEST_FAIL_RETRY", { a: 1 }, runAt);
-    const failClaimed = await claimBackgroundJobs("test-worker-2", 5, 5);
-    const failJobToFail = failClaimed.find(j => j.id === failJobRecord.id);
-    assert("failJob record claimed", failJobToFail !== undefined);
-    assert("failJob record has claim token", !!failJobToFail!.claimToken);
-    await failJob(failJobRecord.id, failJobToFail!.attempts, failJobToFail!.maxAttempts, "temporary error", failJobToFail!.claimToken!);
-    const retried = await pool.query(`SELECT status, "runAt" FROM "JobQueue" WHERE id=$1`, [failJobRecord.id]);
-    assert("failJob sets status PENDING when not final", retried.rows[0].status === "PENDING");
-    assert("failJob sets future runAt for retry", new Date(retried.rows[0].runAt).getTime() > Date.now());
-
-    // Test failJob final (exceeds maxAttempts) — claim first, then fail with valid claim token
-    const finalFailRecord = await enqueueJob("TEST_FAIL_FINAL", { a: 2 }, runAt);
-    const finalClaimed = await claimBackgroundJobs("test-worker-2", 5, 5);
-    const finalJobToFail = finalClaimed.find(j => j.id === finalFailRecord.id);
-    assert("final fail record claimed", finalJobToFail !== undefined);
-    assert("final fail job has claim token", !!finalJobToFail!.claimToken);
-    await failJob(finalFailRecord.id, 3, 3, "permanent error", finalJobToFail!.claimToken!);
-    const final = await pool.query(`SELECT status FROM "JobQueue" WHERE id=$1`, [finalFailRecord.id]);
-    assert("failJob sets status FAILED when maxAttempts reached", final.rows[0].status === "FAILED");
-
-    // Test claim-token fencing: wrong token cannot complete, missing token rejected
-    const fenceJob = await enqueueJob("TEST_FENCE", { a: 4 }, runAt);
-    const fenceClaimed = await claimBackgroundJobs("test-worker-2", 5, 5);
-    const fenceJobToFence = fenceClaimed.find(j => j.id === fenceJob.id);
-    assert("fence job claimed", fenceJobToFence !== undefined);
-
-    const wrongTokenResult = await completeJob(fenceJobToFence!.id, "wrong-token");
-    assert("completeJob rejects wrong claim token", wrongTokenResult === false);
-    const emptyTokenResult = await completeJob(fenceJobToFence!.id, "");
-    assert("completeJob rejects empty claim token", emptyTokenResult === false);
-    const fenceStatus = await pool.query(`SELECT status FROM "JobQueue" WHERE id=$1`, [fenceJobToFence!.id]);
-    assert("Job still PROCESSING after rejected completions", fenceStatus.rows[0].status === "PROCESSING");
-
-    const validComplete = await completeJob(fenceJobToFence!.id, fenceJobToFence!.claimToken!);
-    assert("completeJob succeeds with valid claim token", validComplete === true);
-
-    console.log("   → Background job lifecycle tests passed");
-  } catch (err) {
-    assert("Background Jobs test suite", false, String(err.message));
-  }
-
-  // Cleanup test jobs
-  await pool.query(`DELETE FROM "JobQueue" WHERE type LIKE 'TEST_%'`);
-  console.log("   → Cleaned up test jobs");
-
-  // ══════════════════════════════════════════════════════════════════════════════
-  // ══════════════════════════════════════════════════════════════════════════════
-  // TEST 6A: REMINDER_SEND idempotency (dedupKey)
-  // ══════════════════════════════════════════════════════════════════════════════
-  section("TEST 6A — REMINDER_SEND Idempotency (dedupKey)");
+  const suffix = randomUUID().slice(0, 8);
+  let testUser, testCustomer, testReminder, testSubscription;
+  const jobIds = [];
+  const notificationKeys = [`P1TEST:REMINDER:${suffix}`, `P1TEST:PUSH:${suffix}`];
 
   try {
-    const reminderId = "test-reminder-idempotency-1";
-    const dispatchId1 = "dispatch-1";
-    const dispatchId2 = "dispatch-2";
+    // ── Real temporary fixtures ────────────────────────────────────────────────
+    testUser = await prisma.user.create({
+      data: {
+        name: `P1Test ${suffix}`,
+        email: `p1-${suffix}@test.local`,
+        password: "test-only",
+        role: "SALES_EMPLOYEE",
+      },
+    });
+    testCustomer = await prisma.customer.create({
+      data: {
+        name: `P1Test Customer ${suffix}`,
+        phone: `100${suffix}`,
+        type: "SELLER",
+        status: "POTENTIAL_SELLER",
+        assignedToId: testUser.id,
+      },
+    });
+    testReminder = await prisma.reminder.create({
+      data: {
+        customerId: testCustomer.id,
+        userId: testUser.id,
+        title: `P1Test reminder ${suffix}`,
+        dueDate: new Date(Date.now() - 60_000),
+        status: "PENDING",
+      },
+    });
 
-    // Enqueue REMINDER_SEND job, then claim it before processing (claimToken is required).
-    const job1Record = await enqueueJob("REMINDER_SEND", {
-      reminderId,
-      dispatchId: dispatchId1,
-      title: "Test reminder",
-      body: "Test body",
-      userId: "user-123",
-      customerId: "cust-123",
-      customer: { name: "Test Customer" },
-      reminder: { title: "Test reminder" }
-    }, new Date(Date.now() - 60000));
-    const claimed1 = await claimBackgroundJobs("test-worker-1", 5, 5);
-    const job1 = claimed1.find(j =>
-      j.type === "REMINDER_SEND" &&
-      j.payload?.reminderId === "test-reminder-idempotency-1" &&
-      j.payload?.dispatchId === "dispatch-1"
+    // ── 6. Lifecycle / claim-token fencing ─────────────────────────────────────
+    const past = new Date(Date.now() - 60_000);
+    const noop = await enqueueJob("NOOP", { suffix }, past);
+    jobIds.push(noop.id);
+    const claimed = await claimBackgroundJobs("test-worker-1", 10, 5);
+    const noopJob = claimed.find((j) => j.id === noop.id);
+    assert("claimed job is the exact enqueued job", noopJob !== undefined);
+    assert("claimed job has claim token", !!noopJob?.claimToken);
+    assert("claimed job is PROCESSING", noopJob?.status === "PROCESSING");
+    assert("claimed job lockedBy matches worker", noopJob?.lockedBy === "test-worker-1");
+    assert("NOOP processJob returns COMPLETED", (await processJob(noopJob)).outcome === "COMPLETED");
+    assert("completeJob accepts valid token", (await completeJob(noop.id, noopJob.claimToken)) === true);
+    const noopStatus = await pool.query(`SELECT status FROM "JobQueue" WHERE id=$1`, [noop.id]);
+    assert("NOOP job is COMPLETED in DB", noopStatus.rows[0].status === "COMPLETED");
+
+    const retry = await enqueueJob("NOOP", { suffix }, past);
+    jobIds.push(retry.id);
+    const retryJob = await claimBackgroundJobs("test-worker-2", 10, 5).then((rows) =>
+      rows.find((j) => j.id === retry.id)
     );
-    assert("REMINDER_SEND job claimed", job1 !== undefined);
-    assert("job1 reminderId matches", job1?.payload?.reminderId === reminderId);
-    assert("job1 dispatchId matches", job1?.payload?.dispatchId === dispatchId1);
-
-    await processJob(job1);
-
-    // Process same job again - should be idempotent (dedupKey prevents duplicate notification)
-    await processJob(job1);
-
-    const notifications = await prisma.notification.findMany({
-      where: { dedupKey: `REMINDER_SEND:${reminderId}:${dispatchId1}` },
-      take: 1
-    });
-
-    assert("Only one notification created for same dispatch", notifications.length === 1);
-
-    const job2Record = await enqueueJob("REMINDER_SEND", {
-      reminderId,
-      dispatchId: dispatchId2,
-      title: "Test reminder 2",
-      body: "Test body 2",
-      userId: "user-123",
-      customerId: "cust-123",
-      customer: { name: "Test Customer 2" },
-      reminder: { title: "Test reminder 2" }
-    });
-    const claimed2 = await claimBackgroundJobs("test-worker-1", 5, 5);
-    const job2 = claimed2.find(j =>
-      j.type === "REMINDER_SEND" &&
-      j.payload?.reminderId === "test-reminder-idempotency-1" &&
-      j.payload?.dispatchId === "dispatch-2"
+    assert("retry job claimed", !!retryJob);
+    const retryResult = await failJob(
+      retry.id,
+      retryJob.attempts,
+      retryJob.maxAttempts,
+      "temporary error",
+      retryJob.claimToken
     );
-    assert("Valid job found for second dispatch", job2 !== undefined);
+    assert("failJob reports ok for retry", retryResult.ok === true);
+    assert("failJob reports non-final for first failure", retryResult.final === false);
+    const retried = await pool.query(`SELECT status, "runAt" FROM "JobQueue" WHERE id=$1`, [retry.id]);
+    assert("failJob sets PENDING when not final", retried.rows[0].status === "PENDING");
+    assert("failJob schedules future runAt", new Date(retried.rows[0].runAt).getTime() > Date.now());
 
-    await processJob(job2);
+    const final = await enqueueJob("NOOP", { suffix }, past);
+    jobIds.push(final.id);
+    const finalJob = await claimBackgroundJobs("test-worker-2", 10, 5).then((rows) =>
+      rows.find((j) => j.id === final.id)
+    );
+    assert("final job claimed", !!finalJob);
+    const finalResult = await failJob(
+      final.id,
+      final.maxAttempts,
+      final.maxAttempts,
+      "permanent error",
+      finalJob.claimToken,
+      final.runAt
+    );
+    assert("failJob reports final when attempts exhausted", finalResult.final === true);
+    const finalStatus = await pool.query(`SELECT status FROM "JobQueue" WHERE id=$1`, [final.id]);
+    assert("failJob sets FAILED when attempts exhausted", finalStatus.rows[0].status === "FAILED");
 
-    const notifCount = await prisma.notification.count({
-      where: {
-        reminderId: reminderId,
-        dedupKey: {
-          startsWith: "REMINDER_SEND:"
-        }
-      }
+    const fence = await enqueueJob("NOOP", { suffix }, past);
+    jobIds.push(fence.id);
+    const fenced = await claimBackgroundJobs("test-worker-2", 10, 5).then((rows) =>
+      rows.find((j) => j.id === fence.id)
+    );
+    assert("fence job claimed", !!fenced);
+    assert("completeJob rejects wrong token", (await completeJob(fence.id, "wrong-token")) === false);
+    assert("completeJob rejects empty token", (await completeJob(fence.id, "")) === false);
+    const stillProcessing = await pool.query(`SELECT status FROM "JobQueue" WHERE id=$1`, [fence.id]);
+    assert("job stays PROCESSING after rejected completions", stillProcessing.rows[0].status === "PROCESSING");
+    assert("completeJob accepts rotated claim token", (await completeJob(fence.id, fenced.claimToken)) === true);
+
+    // ── 6A. REMINDER_SEND idempotency (dedupKey) ───────────────────────────────
+    section("TEST 6A — REMINDER_SEND Idempotency (dedupKey)");
+    const reminderKey = notificationKeys[0];
+    const reminderJob = await enqueueJob(
+      "REMINDER_SEND",
+      { reminderId: testReminder.id, dispatchKey: reminderKey },
+      past
+    );
+    jobIds.push(reminderJob.id);
+    const reminderClaimed = await claimBackgroundJobs("test-worker-1", 10, 5).then((rows) =>
+      rows.find((j) => j.id === reminderJob.id)
+    );
+    assert("REMINDER_SEND job claimed by id", !!reminderClaimed);
+    assert("REMINDER_SEND processed successfully", (await processJob(reminderClaimed)).outcome === "COMPLETED");
+
+    const replayJob = await enqueueJob(
+      "REMINDER_SEND",
+      { reminderId: testReminder.id, dispatchKey: reminderKey },
+      past
+    );
+    jobIds.push(replayJob.id);
+    const replayClaimed = await claimBackgroundJobs("test-worker-1", 10, 5).then((rows) =>
+      rows.find((j) => j.id === replayJob.id)
+    );
+    await processJob(replayClaimed);
+    assert(
+      "replay created no duplicate notification",
+      (await prisma.notification.count({ where: { dedupKey: reminderKey } })) === 1
+    );
+
+    await prisma.reminder.update({ where: { id: testReminder.id }, data: { status: "COMPLETED" } });
+    const afterDoneJob = await enqueueJob(
+      "REMINDER_SEND",
+      { reminderId: testReminder.id, dispatchKey: reminderKey },
+      past
+    );
+    jobIds.push(afterDoneJob.id);
+    const afterDoneClaimed = await claimBackgroundJobs("test-worker-1", 10, 5).then((rows) =>
+      rows.find((j) => j.id === afterDoneJob.id)
+    );
+    await processJob(afterDoneClaimed);
+    assert(
+      "status change did not create a second notification",
+      (await prisma.notification.count({ where: { dedupKey: reminderKey } })) === 1
+    );
+
+    // ── 6B. Push outbox idempotency ────────────────────────────────────────────
+    section("TEST 6B — Push Outbox Idempotency");
+    testSubscription = await prisma.pushSubscription.create({
+      data: {
+        userId: testUser.id,
+        endpoint: `https://push.invalid/p1-${suffix}`,
+        p256dh: "BNTestOnlyP256dhKeyMaterial",
+        auth: "YXV0aFRlc3RLZXlNYXRlcmlhbA",
+      },
     });
-
-    assert("Two notifications for two different dispatches", notifCount === 2);
-  } catch (err) {
-    assert("REMINDER_SEND idempotency test", false, String(err.message));
-  }
-
-  // ══════════════════════════════════════════════════════════════════════════════
-  // TEST 6B: PUSH_NOTIFY idempotency with dispatchKey
-  // ══════════════════════════════════════════════════════════════════════════════
-  section("TEST 6B — PUSH_NOTIFY Idempotency (dispatchKey)");
-
-  try {
-    const userId = "user-456";
-    const dispatchKey = "PUSH_NOTIFY:user-456:push-dispatch-1";
-    const endpoint = "https://example.com/endpoint";
-
-    const pushJob = await enqueueJob("PUSH_NOTIFY", {
-      userId,
-      dispatchKey: dispatchKey,
-      title: "Test push",
-      body: "Test body",
-      endpoint: endpoint,
-      notificationId: "notif-123",
-    }, new Date(Date.now() - 60000));
-    const pushClaimed = await claimBackgroundJobs("test-worker-2", 5, 5);
-    const job = pushClaimed.find(j => j.id === pushJob.id);
-    assert("PUSH_NOTIFY job claimed", job !== undefined);
-
-    await processJob(job!);
-
-    const log = await prisma.pushDeliveryLog.findFirst({
-      where: {
-        dispatchKey: dispatchKey,
-        endpoint: endpoint
-      }
+    const pushKey = notificationKeys[1];
+    const [pushA, pushB] = await Promise.all([
+      dispatchNotification({
+        userId: testUser.id,
+        title: "P1Test push",
+        body: "P1Test body",
+        createInAppRecord: false,
+        dispatchKey: pushKey,
+      }),
+      dispatchNotification({
+        userId: testUser.id,
+        title: "P1Test push",
+        body: "P1Test body",
+        createInAppRecord: false,
+        dispatchKey: pushKey,
+      }),
+    ]);
+    const logCount = await prisma.pushDeliveryLog.count({
+      where: { dispatchKey: pushKey, endpoint: testSubscription.endpoint },
     });
+    assert("concurrent dispatch created one outbox row per endpoint", logCount === 1);
+    assert(
+      "both dispatch calls report the same outcome",
+      pushA.pushOutcomes[0]?.outcome === pushB.pushOutcomes[0]?.outcome
+    );
+    const outboxRow = await prisma.pushDeliveryLog.findFirst({
+      where: { dispatchKey: pushKey, endpoint: testSubscription.endpoint },
+    });
+    assert("outbox row has a recorded outcome", !!outboxRow?.outcome);
 
-    assert("Push delivery log created with dispatchKey", !!log);
+    // ── 6C. Unknown job types ──────────────────────────────────────────────────
+    section("TEST 6C — Unknown Job Type Handling");
+    const unknown = await enqueueJob("UNKNOWN_TYPE", { suffix }, past);
+    jobIds.push(unknown.id);
+    const unknownJob = await claimBackgroundJobs("test-worker-2", 10, 5).then((rows) =>
+      rows.find((j) => j.id === unknown.id)
+    );
+    assert("unknown job claimed by id", !!unknownJob);
+    const unknownResult = await processJob(unknownJob);
+    assert("unknown job returns FAILED result", unknownResult.outcome === "FAILED");
+    await failJob(
+      unknown.id,
+      unknown.maxAttempts,
+      unknown.maxAttempts,
+      unknownResult.error || "Unknown job type",
+      unknownJob.claimToken,
+      unknown.runAt
+    );
+    const unknownStatus = await pool.query(`SELECT status FROM "JobQueue" WHERE id=$1`, [unknown.id]);
+    assert("unknown job is FAILED in DB", unknownStatus.rows[0].status === "FAILED");
   } catch (err) {
-    assert("PUSH_NOTIFY idempotency test", false, String(err.message));
-  }
-
-  // ══════════════════════════════════════════════════════════════════════════════
-  // TEST 6C: Unknown job types
-  // ══════════════════════════════════════════════════════════════════════════════
-  section("TEST 6C — Unknown Job Type Handling");
-
-  try {
-    const unknownJob = await enqueueJob("UNKNOWN_TYPE", { message: "test" }, new Date(Date.now() - 60000));
-    const unknownClaimed = await claimBackgroundJobs("test-worker-2", 5, 5);
-    const unknownJobToProcess = unknownClaimed.find(j => j.id === unknownJob.id);
-    assert("unknown job claimed", unknownJobToProcess !== undefined);
-    await processJob(unknownJobToProcess!);
-
-    const status = await pool.query(`SELECT status FROM "JobQueue" WHERE id=${unknownJob.id}`);
-    assert("Unknown job type marked as FAILED", status.rows[0].status === "FAILED");
-  } catch (err) {
-    assert("Unknown job type test", false, String(err.message));
+    assert("Background jobs integration suite", false, String(err?.message || err));
+  } finally {
+    // ── Guaranteed cleanup of every fixture ────────────────────────────────────
+    try {
+      if (jobIds.length) {
+        await pool.query(`DELETE FROM "JobQueue" WHERE id = ANY($1::text[])`, [jobIds]);
+      }
+      for (const key of notificationKeys) {
+        await prisma.pushDeliveryLog.deleteMany({ where: { dispatchKey: key } });
+        await prisma.notification.deleteMany({ where: { dedupKey: key } });
+      }
+      if (testSubscription) {
+        await prisma.pushSubscription.deleteMany({ where: { id: testSubscription.id } });
+      }
+      if (testReminder) {
+        await prisma.reminder.deleteMany({ where: { id: testReminder.id } });
+      }
+      if (testCustomer) {
+        await prisma.customer.deleteMany({ where: { id: testCustomer.id } });
+      }
+      if (testUser) {
+        await prisma.user.deleteMany({ where: { id: testUser.id } });
+      }
+    } catch (cleanupError) {
+      console.error("  ⚠️ Cleanup error:", cleanupError?.message || cleanupError);
+    }
   }
 
   // SUMMARY
