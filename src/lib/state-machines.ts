@@ -18,7 +18,7 @@ export type StatusTransition = {
 };
 
 export type StatusHistoryEvent = {
-  entity: "Property" | "Deal" | "Customer" | "Reminder" | "Commission" | "FinancialTransaction";
+  entity: "Property" | "Deal" | "Customer" | "Reminder" | "Commission" | "FinancialTransaction" | "Reservation" | "Contract";
   entityId: string;
   fromStatus: string | null;
   toStatus: string;
@@ -31,27 +31,31 @@ export type StatusHistoryEvent = {
 
 export class InvalidStatusTransitionError extends Error {
   readonly code = "INVALID_STATUS_TRANSITION";
+  readonly entity: StatusHistoryEvent["entity"];
+  readonly from: string;
+  readonly to: string;
 
-  constructor(
-    public readonly entity: StatusHistoryEvent["entity"],
-    public readonly from: string,
-    public readonly to: string,
-  ) {
+  constructor(entity: StatusHistoryEvent["entity"], from: string, to: string) {
     super(`Invalid ${entity} status transition: ${from} -> ${to}`);
     this.name = "InvalidStatusTransitionError";
+    this.entity = entity;
+    this.from = from;
+    this.to = to;
   }
 }
 
 export class StatusReasonRequiredError extends Error {
   readonly code = "STATUS_REASON_REQUIRED";
+  readonly entity: StatusHistoryEvent["entity"];
+  readonly from: string;
+  readonly to: string;
 
-  constructor(
-    public readonly entity: StatusHistoryEvent["entity"],
-    public readonly from: string,
-    public readonly to: string,
-  ) {
+  constructor(entity: StatusHistoryEvent["entity"], from: string, to: string) {
     super(`Reason is required for ${entity} status transition: ${from} -> ${to}`);
     this.name = "StatusReasonRequiredError";
+    this.entity = entity;
+    this.from = from;
+    this.to = to;
   }
 }
 
@@ -119,6 +123,24 @@ export const FINANCIAL_TRANSACTION_STATUS_TRANSITIONS: StatusTransition[] = [
   { from: "PENDING", to: "CANCELLED", reasonRequired: true },
 ];
 
+export const RESERVATION_STATUS_TRANSITIONS: StatusTransition[] = [
+  { from: "PENDING", to: "APPROVED", reasonRequired: true, roles: ["GENERAL_MANAGER", "SALES_MANAGER"] },
+  { from: "PENDING", to: "CANCELLED", reasonRequired: true },
+  { from: "APPROVED", to: "RELEASED", reasonRequired: true, roles: ["GENERAL_MANAGER", "SALES_MANAGER"] },
+  { from: "APPROVED", to: "EXPIRED", reasonRequired: true, roles: ["GENERAL_MANAGER", "SALES_MANAGER"] },
+  { from: "APPROVED", to: "CONVERTED", reasonRequired: true, roles: ["GENERAL_MANAGER", "SALES_MANAGER"] },
+];
+
+export const CONTRACT_STATUS_TRANSITIONS: StatusTransition[] = [
+  { from: "DRAFT", to: "PENDING_APPROVAL", reasonRequired: false },
+  { from: "DRAFT", to: "CANCELLED", reasonRequired: true },
+  { from: "PENDING_APPROVAL", to: "APPROVED", reasonRequired: false, roles: ["GENERAL_MANAGER", "SALES_MANAGER"] },
+  { from: "PENDING_APPROVAL", to: "REJECTED", reasonRequired: true, roles: ["GENERAL_MANAGER", "SALES_MANAGER"] },
+  { from: "APPROVED", to: "SIGNED", reasonRequired: false, roles: ["GENERAL_MANAGER", "SALES_MANAGER"] },
+  { from: "APPROVED", to: "CANCELLED", reasonRequired: true, roles: ["GENERAL_MANAGER", "SALES_MANAGER"] },
+  { from: "SIGNED", to: "TERMINATED", reasonRequired: true, roles: ["GENERAL_MANAGER"] },
+];
+
 const TRANSITIONS_BY_ENTITY: Record<StatusHistoryEvent["entity"], Map<string, StatusTransition>> = {
   Property: makeIndex(PROPERTY_STATUS_TRANSITIONS),
   Deal: makeIndex(DEAL_STATUS_TRANSITIONS),
@@ -126,6 +148,8 @@ const TRANSITIONS_BY_ENTITY: Record<StatusHistoryEvent["entity"], Map<string, St
   Reminder: makeIndex(REMINDER_STATUS_TRANSITIONS),
   Commission: makeIndex(COMMISSION_STATUS_TRANSITIONS),
   FinancialTransaction: makeIndex(FINANCIAL_TRANSACTION_STATUS_TRANSITIONS),
+  Reservation: makeIndex(RESERVATION_STATUS_TRANSITIONS),
+  Contract: makeIndex(CONTRACT_STATUS_TRANSITIONS),
 };
 
 export function canTransition(

@@ -2,6 +2,20 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireRole, ROLE, SALES_ROLES } from "@/lib/auth";
 import { parseCurrency, calculateCommission } from "@/lib/financial";
+import {
+  createCompletedDealInTx,
+  notifyDealCompleted,
+} from "@/lib/deal-completion";
+import { describeCycleError } from "@/lib/deal-cycle";
+
+export const dynamic = "force-dynamic";
+
+type SignedContractRef = {
+  id: string;
+  customerId: string;
+  propertyId: string | null;
+  dealId: string | null;
+};
 
 export async function GET() {
   const session = await requireRole(SALES_ROLES);
@@ -40,16 +54,14 @@ export async function POST(request: NextRequest) {
     const nominalValue = parsedNominalValue ?? finalPrice;
 
     const commissionPercent = body.commission !== undefined ? Math.max(0, parseFloat(body.commission) || 0) : 0;
-    const commissionAmt = body.commissionAmt !== undefined 
-      ? Math.max(0, parseCurrency(body.commissionAmt) || 0) 
+    const commissionAmt = body.commissionAmt !== undefined
+      ? Math.max(0, parseCurrency(body.commissionAmt) || 0)
       : calculateCommission(finalPrice, commissionPercent);
 
-    // Verify Customer exists
     const customer = await prisma.customer.findUnique({
       where: { id: customerId },
       select: { id: true, name: true, assignedToId: true, status: true },
     });
-
     if (!customer) {
       return NextResponse.json({ error: "العميل غير موجود" }, { status: 404 });
     }
@@ -57,7 +69,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "العميل غير موجود" }, { status: 404 });
     }
 
-    // Verify Property exists if provided
     if (propertyId) {
       const property = await prisma.property.findUnique({
         where: { id: propertyId },
@@ -68,128 +79,80 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Determine the true Sales Representative:
-    // 1. Explicit valid salesRepId from body
-    // 2. Customer's assigned sales agent
-    // 3. Fallback to creator's session id
-    let targetSalesRepId = session.role === ROLE.SALES_EMPLOYEE ? session.id : (customer.assignedToId || session.id);
-    if (requestedSalesRepId && session.role !== ROLE.SALES_EMPLOYEE) {
-      const repExists = await prisma.user.findFirst({
-        where: { id: requestedSalesRepId, role: { in: [ROLE.SALES_EMPLOYEE, ROLE.SALES_MANAGER] }, isActive: true },
-        select: { id: true },
+    // A completed deal must be backed by a signed contract. Contract signing is
+    // the normal path and creates the deal itself; this endpoint remains as a
+    // repair path and will only accept a signed, unused contract.
+    const requestedContractId = typeof body.contractId === "string" && body.contractId
+      ? body.contractId
+      : null;
+    let signedContract: SignedContractRef | null;
+    if (requestedContractId) {
+      signedContract = await prisma.contract.findFirst({
+        where: { id: requestedContractId, status: "SIGNED" },
+        select: { id: true, customerId: true, propertyId: true, dealId: true },
       });
-      if (!repExists) return NextResponse.json({ error: "مندوب المبيعات المحدد غير صالح" }, { status: 400 });
-      targetSalesRepId = repExists.id;
+      if (!signedContract) {
+        return NextResponse.json({ error: "لا يمكن إتمام صفقة بدون عقد موقّع" }, { status: 409 });
+      }
+      if (signedContract.customerId !== customerId || (propertyId && signedContract.propertyId !== propertyId)) {
+        return NextResponse.json({ error: "العقد المحدد لا يطابق العميل أو الوحدة" }, { status: 400 });
+      }
+      if (signedContract.dealId) {
+        return NextResponse.json(
+          { error: "تم إتمام صفقة لهذا العقد بالفعل", dealId: signedContract.dealId },
+          { status: 409 }
+        );
+      }
+    } else {
+      signedContract = await prisma.contract.findFirst({
+        where: {
+          status: "SIGNED",
+          customerId,
+          ...(propertyId ? { propertyId } : {}),
+          dealId: null,
+        },
+        orderBy: { signedAt: "desc" },
+        select: { id: true, customerId: true, propertyId: true, dealId: true },
+      });
+      if (!signedContract) {
+        return NextResponse.json({
+          error: "لا يمكن إتمام صفقة بدون عقد موقّع. أنشئ عقداً ووقّعه من دورة الصفقات أولاً.",
+          code: "CONTRACT_REQUIRED",
+        }, { status: 409 });
+      }
     }
 
-    // Atomic Transaction: Duplicate check + Deal creation + Customer update + Commission + AuditLog
     const result = await prisma.$transaction(async (tx) => {
-      const currentCustomer = await tx.customer.findFirst({
-        where: session.role === ROLE.SALES_EMPLOYEE
-          ? { id: customerId, assignedToId: session.id }
-          : { id: customerId },
-        select: { id: true, name: true },
-      });
-      if (!currentCustomer) throw new Error("DEAL_CUSTOMER_ACCESS_DENIED");
-
-      // 1. Check for duplicate deal submission within the last 30 seconds for the same customer
-      const recentDuplicate = await tx.deal.findFirst({
-        where: {
-          customerId,
-          propertyId: propertyId || null,
-          value: finalPrice,
-          createdAt: { gte: new Date(Date.now() - 30 * 1000) },
-        },
+      const created = await createCompletedDealInTx(tx, {
+        session,
+        customerId,
+        propertyId: propertyId || null,
+        finalPrice,
+        nominalValue,
+        commissionPercent,
+        commissionAmt,
+        requestedSalesRepId,
+        contractId: signedContract!.id,
       });
 
-      if (recentDuplicate) {
-        throw new Error("DUPLICATE_DEAL_DETECTED");
-      }
-
-      // 2. Create the Deal
-      const deal = await tx.deal.create({
-        data: {
-          customerId,
-          propertyId: propertyId || null,
-          salesRepId: targetSalesRepId,
-          status: "COMPLETED",
-          value: nominalValue,
-          finalPrice,
-          commission: commissionPercent,
-          commissionAmt,
-        },
-        include: {
-          customer: { select: { id: true, name: true } },
-          salesRep: { select: { id: true, name: true } },
-          property: { select: { id: true, title: true } },
-        },
+      await tx.contract.update({
+        where: { id: signedContract!.id },
+        data: { dealId: created.deal.id },
       });
 
-      // 3. Update Customer Status to COMPLETED
-      await tx.customer.update({
-        where: { id: customerId },
-        data: { status: "COMPLETED" },
-      });
-
-      // 4. Create Commission for the designated Sales Representative (NOT necessarily the manager who clicked)
-      if (commissionAmt > 0) {
-        await tx.commission.create({
-          data: {
-            userId: targetSalesRepId,
-            amount: commissionAmt,
-            notes: `عمولة صفقة العميل ${currentCustomer.name} (قيمة الصفقة: ${finalPrice.toLocaleString()} ج.م)`,
-            status: "PENDING",
-          },
-        });
-      }
-
-      // 5. Create AuditLog
-      await tx.auditLog.create({
-        data: {
-          userId: session.id,
-          action: "CREATE",
-          entity: "DEAL",
-          entityId: deal.id,
-          details: `إتمام صفقة بقيمة ${finalPrice.toLocaleString()} ج.م للعميل ${currentCustomer.name} - عمولة المندوب: ${commissionAmt.toLocaleString()} ج.م (المندوب: ${deal.salesRep?.name || targetSalesRepId})`,
-        },
-      });
-
-      return deal;
+      return created;
     });
 
-    // Notify the Sales Representative (if different from manager who created the deal)
-    if (targetSalesRepId !== session.id) {
-      await prisma.notification.create({
-        data: {
-          userId: targetSalesRepId,
-          title: "🎉 تم تسجيل صفقة وعمولة جديدة لك!",
-          body: `تم إتمام صفقة لعميلك ${customer.name} بقيمة ${finalPrice.toLocaleString()} ج.م. عمولتك المسجلة: ${commissionAmt.toLocaleString()} ج.م`,
-          type: "SUCCESS",
-          link: `/dashboard/deals`,
-        },
-      }).catch(() => {});
-    }
+    await notifyDealCompleted(session, result);
 
-    // Notify the creator
-    await prisma.notification.create({
-      data: {
-        userId: session.id,
-        title: "🎉 صفقة جديدة مكتملة",
-        body: `تم إتمام صفقة مع ${customer.name} بقيمة ${finalPrice.toLocaleString()} جنيه`,
-        type: "SUCCESS",
-        link: `/dashboard/deals`,
-      },
-    }).catch(() => {});
-
-    return NextResponse.json({ success: true, deal: result });
-  } catch (error: any) {
-    if (error?.message === "DEAL_CUSTOMER_ACCESS_DENIED") {
-      return NextResponse.json({ error: "العميل غير موجود" }, { status: 404 });
+    return NextResponse.json({ success: true, deal: result.deal });
+  } catch (error) {
+    const rawMessage = error instanceof Error ? error.message : String(error ?? "");
+    if (rawMessage === "INVALID_SALES_REP") {
+      return NextResponse.json({ error: "مندوب المبيعات المحدد غير صالح" }, { status: 400 });
     }
-    if (error?.message === "DUPLICATE_DEAL_DETECTED") {
-      return NextResponse.json({ error: "تم إرسال هذه الصفقة مسبقاً، منعاً للتكرار يرجى عدم إعادة الإرسال سريعاً." }, { status: 409 });
-    }
-    console.error("Create Deal Error:", error);
-    return NextResponse.json({ error: "فشل إنشاء الصفقة. تحقق من صحة البيانات المدخلة." }, { status: 500 });
+    const mapped = describeCycleError(error);
+    if (mapped.status === 500) console.error("Create Deal Error:", error);
+    return NextResponse.json({ error: mapped.error }, { status: mapped.status });
   }
 }

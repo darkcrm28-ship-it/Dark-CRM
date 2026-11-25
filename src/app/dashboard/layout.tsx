@@ -115,6 +115,13 @@ export default async function DashboardLayout({ children }: { children: React.Re
       section: "main",
     },
     {
+      href: "/dashboard/deal-cycle",
+      icon: <Handshake size={18} />,
+      label: "دورة الصفقات",
+      show: isSales || session.role === ROLE.ACCOUNTING_MANAGER,
+      section: "main",
+    },
+    {
       href: "/dashboard/calendar",
       icon: <Calendar size={18} />,
       label: "التقويم والمواعيد",
