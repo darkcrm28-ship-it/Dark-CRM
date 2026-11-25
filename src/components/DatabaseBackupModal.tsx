@@ -71,11 +71,11 @@ export default function DatabaseBackupModal({ isOpen, onClose }: { isOpen: boole
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <span style={{ fontSize: 24 }}>🛡️</span>
               <h2 style={{ fontSize: 20, fontWeight: 900, color: "var(--gold-primary)", margin: 0 }}>
-                نسخ وسحب قاعدة البيانات الشاملة
+                تصدير بيانات النظام
               </h2>
             </div>
             <p style={{ fontSize: 13, color: "var(--text-secondary)", marginTop: 6, lineHeight: 1.5 }}>
-              قم بسحب نسخة كاملة ومستقلة من جميع بيانات المؤسسة لحفظها على جهازك أو نقلها لأي مزود قواعد بيانات آخر.
+              نزّل مجموعة مختارة من بيانات النظام بصيغة SQL أو JSON أو Excel.
             </p>
           </div>
           <button
@@ -102,7 +102,7 @@ export default function DatabaseBackupModal({ isOpen, onClose }: { isOpen: boole
         >
           <span style={{ fontSize: 22 }}>⚡</span>
           <div style={{ fontSize: 12.5, color: "#a7f3d0", lineHeight: 1.5 }}>
-            <strong>أمان كامل ضد إيقاف المزود:</strong> النسخ الاحتياطية المصدرة متوافقة تماماً مع أي سيرفر PostgreSQL خارجي (مثل Supabase أو Neon أو Railway أو سيرفر خاص).
+            لاستعادة النظام بالكامل، استخدم نسخة قاعدة بيانات من مزود PostgreSQL ونسخة منفصلة من المرفقات.
           </div>
         </div>
 
@@ -140,10 +140,10 @@ export default function DatabaseBackupModal({ isOpen, onClose }: { isOpen: boole
               </div>
               <div>
                 <div style={{ fontWeight: 800, fontSize: 14, color: "var(--gold-primary)" }}>
-                  تصدير كود SQL جاهز للترحيل (.sql)
+                  تصدير أوامر SQL (.sql)
                 </div>
                 <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>
-                  أوامر INSERT كاملة لجميع الجداول جاهزة للتشغيل الفوري في Supabase أو أي Postgres
+                  أوامر إدخال لجداول محددة تتطلب مخططًا مطابقًا.
                 </div>
               </div>
             </div>
@@ -188,10 +188,10 @@ export default function DatabaseBackupModal({ isOpen, onClose }: { isOpen: boole
               </div>
               <div>
                 <div style={{ fontWeight: 800, fontSize: 14, color: "var(--accent-blue)" }}>
-                  نسخة احتياطية رقمية برمجية (.json)
+                  تصدير بيانات منظم (.json)
                 </div>
                 <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>
-                  ملف JSON خام منظم يحوي جميع الجداول والعلاقات والحقول المخصصة
+                  ملف منظم يوضح نطاق البيانات المُصدّرة.
                 </div>
               </div>
             </div>

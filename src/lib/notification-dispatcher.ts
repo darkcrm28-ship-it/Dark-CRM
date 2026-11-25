@@ -1,5 +1,6 @@
 import webpush from "web-push";
 import { prisma } from "./db";
+import { isSupportedPushEndpoint } from "./push-endpoint";
 
 let vapidConfigured = false;
 
@@ -221,6 +222,12 @@ export async function dispatchNotification(options: DispatchNotificationOptions)
       });
       const outcome = (terminal?.outcome as PushDeliveryOutcome) || "PROVIDER_ACCEPTED";
       pushOutcomes.push({ endpoint: sub.endpoint, outcome, statusCode: terminal?.statusCode ?? undefined });
+      continue;
+    }
+
+    if (!isSupportedPushEndpoint(sub.endpoint)) {
+      await settleOutbox({ id: reserved.id, dispatchKey, endpoint: sub.endpoint, outcome: "FAILED" });
+      pushOutcomes.push({ endpoint: sub.endpoint, outcome: "FAILED" });
       continue;
     }
 

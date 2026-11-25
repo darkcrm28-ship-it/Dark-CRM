@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireRole, COMMISSION_ROLES, FINANCE_ROLES } from "@/lib/auth";
+import { parseCurrency } from "@/lib/financial";
 
 export async function GET() {
   try {
@@ -27,9 +28,9 @@ export async function POST(request: NextRequest) {
     if (session instanceof NextResponse) return session;
 
     const { userId, amount, description } = await request.json();
-    const parsedAmount = typeof amount === "number" ? amount : parseFloat(amount);
+    const parsedAmount = parseCurrency(amount);
 
-    if (!userId || !parsedAmount || isNaN(parsedAmount) || parsedAmount <= 0) {
+    if (!userId || !parsedAmount || parsedAmount <= 0 || parsedAmount >= 1e13) {
       return NextResponse.json({ error: "الرجاء إدخال موظف ومبلغ صحيح أكبر من الصفر" }, { status: 400 });
     }
 
@@ -46,6 +47,7 @@ export async function POST(request: NextRequest) {
         data: {
           userId,
           amount: parsedAmount,
+          amountDecimal: parsedAmount,
           notes: description ? String(description).trim() : null,
           status: "PENDING",
         },

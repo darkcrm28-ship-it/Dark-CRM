@@ -16,6 +16,12 @@ export function roundCurrency(amount: number): number {
   return Math.round((amount + Number.EPSILON) * FACTOR) / FACTOR;
 }
 
+/** Use the persisted decimal when present, with a legacy fallback during migration. */
+export function readMoney(decimal: { toString(): string } | null | undefined, legacy: number | null | undefined) {
+  const exact = decimal == null ? NaN : Number(decimal.toString());
+  return Number.isFinite(exact) ? exact : roundCurrency(legacy ?? 0);
+}
+
 /**
  * Parses a string, number, or form input safely into a bounded positive currency amount.
  */

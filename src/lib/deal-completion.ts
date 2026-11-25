@@ -32,6 +32,12 @@ export async function createCompletedDealInTx(
   tx: Tx,
   input: CompletedDealInput
 ): Promise<CompletedDealResult> {
+  const amounts = [input.nominalValue, input.finalPrice, input.commissionAmt];
+  if (amounts.some((value) => !Number.isFinite(value) || value < 0 || value >= 1e13) ||
+      input.finalPrice <= 0 || !Number.isFinite(input.commissionPercent) ||
+      input.commissionPercent < 0 || input.commissionPercent > 100 || input.commissionAmt > input.finalPrice) {
+    throw new Error("INVALID_CONTRACT_AMOUNTS");
+  }
   const currentCustomer = await tx.customer.findFirst({
     where: input.session.role === ROLE.SALES_EMPLOYEE
       ? { id: input.customerId, assignedToId: input.session.id }
@@ -73,9 +79,13 @@ export async function createCompletedDealInTx(
       salesRepId,
       status: "COMPLETED",
       value: input.nominalValue,
+      valueDecimal: input.nominalValue,
       finalPrice: input.finalPrice,
+      finalPriceDecimal: input.finalPrice,
       commission: input.commissionPercent,
+      commissionRateDecimal: input.commissionPercent,
       commissionAmt: input.commissionAmt,
+      commissionAmtDecimal: input.commissionAmt,
       contractDate: new Date(),
     },
     include: {
@@ -93,7 +103,9 @@ export async function createCompletedDealInTx(
     await tx.commission.create({
       data: {
         userId: salesRepId,
+        dealId: deal.id,
         amount: input.commissionAmt,
+        amountDecimal: input.commissionAmt,
         notes: `عمولة صفقة العميل ${currentCustomer.name} (قيمة الصفقة: ${input.finalPrice.toLocaleString()} ج.م)`,
         status: "PENDING",
       },
@@ -132,8 +144,9 @@ export async function completeLinkedDealInTx(
   });
   if (!deal) throw new Error("DEAL_NOT_FOUND");
 
+  let completedDeal: Deal = deal;
   if (deal.status !== "COMPLETED") {
-    await tx.deal.update({
+    completedDeal = await tx.deal.update({
       where: { id: deal.id },
       data: { status: "COMPLETED", contractDate: new Date() },
     });
@@ -153,7 +166,7 @@ export async function completeLinkedDealInTx(
   }
 
   return {
-    deal,
+    deal: completedDeal,
     salesRepId: deal.salesRepId || input.actorId,
     customerName: deal.customer?.name || "العميل",
     created: false,
@@ -170,8 +183,9 @@ export async function notifyDealCompleted(
     await prisma.notification.create({
       data: {
         userId: result.salesRepId,
-        title: "🎉 تم تسجيل صفقة وعمولة جديدة لك!",
-        body: `تم إتمام صفقة لعميلك ${result.customerName} بقيمة ${Number(finalPrice).toLocaleString()} ج.م. عمولتك المسجلة: ${Number(commissionAmt ?? 0).toLocaleString()} ج.م`,
+        title: "🎉 تم إتمام صفقة لعميلك",
+        body: `تم إتمام صفقة لعميلك ${result.customerName} بقيمة ${Number(finalPrice).toLocaleString()} ج.م.` +
+          (result.created && Number(commissionAmt) > 0 ? ` عمولتك المسجلة: ${Number(commissionAmt).toLocaleString()} ج.م` : ""),
         type: "SUCCESS",
         link: "/dashboard/deals",
       },

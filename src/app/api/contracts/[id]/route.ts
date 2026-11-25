@@ -157,6 +157,13 @@ export async function PATCH(request: NextRequest, { params }: Context) {
         }
 
         if (fresh.dealId) {
+          const linkedDeal = await tx.deal.findUnique({
+            where: { id: fresh.dealId },
+            select: { customerId: true, propertyId: true },
+          });
+          if (!linkedDeal || linkedDeal.customerId !== fresh.customerId || linkedDeal.propertyId !== fresh.propertyId) {
+            throw new Error("CONTRACT_DEAL_MISMATCH");
+          }
           dealResult = await completeLinkedDealInTx(tx, {
             dealId: fresh.dealId,
             actorId: session.id,

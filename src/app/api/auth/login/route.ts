@@ -3,95 +3,79 @@ import { prisma } from "@/lib/db";
 import { ALLOWED_ROLES, encrypt, type AppRole } from "@/lib/auth";
 import { verifyPassword } from "@/lib/auth-server";
 
+const NO_USER_PASSWORD_HASH = "$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy";
+
 export async function POST(request: NextRequest) {
   try {
-    const { email, password } = await request.json();
+    const { email, password } = (await request.json().catch(() => null)) ?? {};
 
-    if (!email || !password) {
+    if (typeof email !== "string" || !email.trim() || email.length > 254 ||
+        typeof password !== "string" || !password || password.length > 1024) {
       return NextResponse.json(
         { error: "البريد الإلكتروني وكلمة المرور مطلوبان" },
         { status: 400 }
       );
     }
 
-    const cleanEmail = String(email).trim().toLowerCase();
-    const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
-    const ua = request.headers.get("user-agent") ?? "";
+    const login = email.trim().toLowerCase();
+    const alias = /^([^@]+)@(?:dark|darak)\.com$/.exec(login)?.[1];
+    const username = alias ?? (!login.includes("@") ? login : null);
+    const attemptsKey = username ?? login;
+    const matches = username
+      ? [...new Set([login, `${username}@darak.com`, `${username}@dark.com`])]
+      : [login];
+    const historicalKeys = [...new Set([attemptsKey, ...matches])];
+    const header = request.headers.get("cf-connecting-ip")?.trim();
+    const ip = header && /^[a-f\d:.]{3,45}$/i.test(header) ? header : "unknown";
+    const ua = request.headers.get("user-agent")?.slice(0, 512) ?? "";
 
-    const maxEmailFailures = 15;    // failed attempts per email per window
-    const maxIpAttempts = 25;       // total attempts per IP per window
+    const auth = await prisma.$transaction(async (tx) => {
+      // Always acquire IP before email to keep the lock order consistent.
+      if (ip !== "unknown") {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(829003::int, hashtext(${ip}))`;
+      }
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(829004::int, hashtext(${attemptsKey}))`;
 
-    // --- Rate limiting (DB-backed, shared across Cloudflare Workers) ---
-    // Email-based: count FAILED attempts only, to avoid locking a legit user
-    // merely because an attacker targets their email address.
-    const emailFailureCount = await prisma.$queryRawUnsafe<{ cnt: number }[]>(
-      `SELECT COUNT(*)::int AS cnt FROM "LoginAttempt"
-       WHERE "email" = $1 AND "success" = false AND "createdAt" >= now() - interval '5 minutes'`,
-      cleanEmail
-    );
-    const emailFailures = emailFailureCount?.[0]?.cnt ?? 0;
+      const since = new Date(Date.now() - 5 * 60 * 1000);
+      const emailFailures = await tx.loginAttempt.count({
+        where: { email: { in: historicalKeys }, success: false, createdAt: { gte: since } },
+      });
+      const ipAttempts = ip === "unknown" ? 0 : await tx.loginAttempt.count({
+        where: { ip, createdAt: { gte: since } },
+      });
+      if (emailFailures >= 15 || ipAttempts >= 25) return { kind: "limited" } as const;
 
-    // IP-based: count ALL attempts from the same IP to block brute-force /
-    // credential-stuffing irrespective of which email is targeted.
-    const ipAttemptCount = await prisma.$queryRawUnsafe<{ cnt: number }[]>(
-      `SELECT COUNT(*)::int AS cnt FROM "LoginAttempt"
-       WHERE "ip" = $1 AND "createdAt" >= now() - interval '5 minutes'`,
-      ip
-    );
-    const ipAttempts = ipAttemptCount?.[0]?.cnt ?? 0;
+      const users = await tx.user.findMany({
+        where: { email: { in: matches, mode: "insensitive" } },
+        orderBy: { id: "asc" },
+        select: { id: true, email: true, password: true, role: true, isActive: true },
+      });
+      const user = matches.map((emailAddress) =>
+        users.find((candidate) => candidate.email.toLowerCase() === emailAddress)
+      ).find(Boolean);
+      // A missing user still incurs a bcrypt comparison of similar cost.
+      const validPassword = await verifyPassword(password, user?.password ?? NO_USER_PASSWORD_HASH);
+      const valid = Boolean(user?.isActive && validPassword);
+      const allowed = Boolean(user && ALLOWED_ROLES.has(user.role as AppRole));
+      await tx.loginAttempt.create({ data: { email: attemptsKey, ip, userAgent: ua, success: valid && allowed } });
+      if (!user || !valid) return { kind: "invalid" } as const;
+      if (!allowed) return { kind: "denied" } as const;
+      return { kind: "valid", id: user.id } as const;
+    }, { maxWait: 5000, timeout: 12000 });
 
-    if (emailFailures >= maxEmailFailures || ipAttempts >= maxIpAttempts) {
-      return NextResponse.json(
-        { error: "محاولة تسجيل دخول مكثفة، يرجى المحاولة لاحقاً." },
-        {
-          status: 429,
-          headers: { "Retry-After": "300" },
-        }
-      );
+    if (auth.kind === "limited") {
+      return NextResponse.json({ error: "محاولة تسجيل دخول مكثفة، يرجى المحاولة لاحقاً." }, {
+        status: 429, headers: { "Retry-After": "300" },
+      });
     }
-
-    // --- Normal login ---
-    const user = await prisma.user.findFirst({
-      where: {
-        OR: [
-          { email: { equals: cleanEmail, mode: "insensitive" } },
-          { email: { equals: `${cleanEmail}@darak.com`, mode: "insensitive" } },
-          { email: { equals: `${cleanEmail}@dark.com`, mode: "insensitive" } },
-          { email: { equals: cleanEmail.replace("@dark.com", "@darak.com"), mode: "insensitive" } },
-        ],
-      },
-    });
-
-    let isValid = false;
-    if (user) {
-      isValid = await verifyPassword(password, user.password);
+    if (auth.kind === "invalid") {
+      return NextResponse.json({ error: "بيانات الدخول غير صحيحة" }, { status: 401 });
     }
-
-    // Record the attempt with its REAL result: success or failure.
-    // Never record a successful login as a failure.
-    try {
-      await prisma.$executeRaw`
-        INSERT INTO "LoginAttempt" ("email", "ip", "userAgent", "success")
-        VALUES (${cleanEmail}, ${ip}, ${ua}, ${isValid})
-      `.catch(() => {});
-    } catch {
-      // Login attempt table best-effort; do not block login if it fails.
-    }
-
-    // Generic error regardless of why login failed — no account enumeration.
-    if (!user || !user.isActive || !isValid) {
-      return NextResponse.json(
-        { error: "بيانات الدخول غير صحيحة" },
-        { status: 401 }
-      );
-    }
-
-    if (!ALLOWED_ROLES.has(user.role as AppRole)) {
+    if (auth.kind === "denied") {
       return NextResponse.json({ error: "هذا الدور غير مفعّل لتسجيل الدخول" }, { status: 403 });
     }
 
-    // --- Success ---
-    const sessionData = { id: user.id };
+    const sessionData = { id: auth.id };
     const sessionToken = await encrypt(sessionData);
 
     const response = NextResponse.json({ success: true, user: sessionData });

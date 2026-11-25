@@ -1,7 +1,5 @@
 "use client";
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import * as XLSX from "xlsx";
+import Link from "next/link";
 
 const STATUS_MAP: Record<string, { label: string; badge: string }> = {
   PENDING:   { label: "قيد المراجعة", badge: "badge-orange" },
@@ -10,54 +8,12 @@ const STATUS_MAP: Record<string, { label: string; badge: string }> = {
   CANCELLED: { label: "ملغاة",        badge: "badge-red" },
 };
 
-export default function DealsClient({ deals, customers, properties, isManager }: { deals: any[]; customers: any[]; properties: any[]; isManager: boolean }) {
-  const [list, setList] = useState(deals);
-  const [showForm, setShowForm] = useState(false);
-  const [customerId, setCustomerId] = useState("");
-  const [propertyId, setPropertyId] = useState("");
-  const [finalPrice, setFinalPrice] = useState("");
-  const [commissionPct, setCommissionPct] = useState("2");
-  const [manualCommissionAmt, setManualCommissionAmt] = useState("");
-  const [paymentType, setPaymentType] = useState("CASH");
-  const [downPayment, setDownPayment] = useState("");
-  const [installmentMonths, setInstallmentMonths] = useState("");
-  const [notes, setNotes] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const router = useRouter();
-
-  const commissionAmt = manualCommissionAmt ? parseFloat(manualCommissionAmt) : (finalPrice && commissionPct ? ((+finalPrice * +commissionPct) / 100) : 0);
-
-  const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true); setError("");
-    try {
-      const res = await fetch("/api/deals", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          customerId, propertyId: propertyId || null,
-          finalPrice: +finalPrice, 
-          commission: manualCommissionAmt ? null : +commissionPct,
-          commissionAmt: +commissionAmt,
-          paymentType, downPayment: downPayment ? +downPayment : null,
-          installmentMonths: installmentMonths ? +installmentMonths : null,
-          notes,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "فشل إنشاء الصفقة");
-      setList([data.deal, ...list]);
-      setShowForm(false);
-      router.refresh();
-    } catch (err: any) { setError(err.message); }
-    finally { setLoading(false); }
-  };
-
+export default function DealsClient({ deals: list, isManager }: { deals: any[]; isManager: boolean }) {
   const totalRevenue = list.filter((d) => d.status === "COMPLETED").reduce((acc, d) => acc + d.finalPrice, 0);
   const totalCommission = list.filter((d) => d.status === "COMPLETED").reduce((acc, d) => acc + d.commissionAmt, 0);
 
-  const exportToExcel = () => {
+  const exportToExcel = async () => {
+    const XLSX = await import("xlsx");
     const dataToExport = list.map((d) => ({
       "العميل": d.customer?.name || "",
       "رقم الهاتف": d.customer?.phone || "",
@@ -86,9 +42,7 @@ export default function DealsClient({ deals, customers, properties, isManager }:
         </div>
         <div style={{ display: "flex", gap: 10 }}>
           {isManager && <button onClick={exportToExcel} className="btn btn-secondary">تصدير لـ Excel 📥</button>}
-          <button onClick={() => setShowForm(!showForm)} className="btn btn-primary">
-            {showForm ? "✕ إغلاق" : "🤝 صفقة جديدة"}
-          </button>
+          <Link href="/dashboard/deal-cycle" className="btn btn-primary">🤝 دورة الصفقات</Link>
         </div>
       </div>
 
@@ -107,79 +61,6 @@ export default function DealsClient({ deals, customers, properties, isManager }:
           <div className="stat-value" style={{ color: "var(--accent-blue)", fontSize: 22 }}>{list.filter((d) => d.status === "PENDING" || d.status === "ACTIVE").length}</div>
         </div>
       </div>
-
-      {showForm && (
-        <div className="card animate-in" style={{ marginBottom: 20, borderTop: "2px solid var(--accent-green)" }}>
-          <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 16 }}>🤝 إنشاء صفقة جديدة</div>
-          {error && <div className="alert alert-error" style={{ marginBottom: 12 }}>{error}</div>}
-          <form onSubmit={handleCreate}>
-            <div className="grid-2" style={{ marginBottom: 12 }}>
-              <div className="form-group">
-                <label className="form-label">العميل *</label>
-                <select className="input" value={customerId} onChange={(e) => setCustomerId(e.target.value)} required>
-                  <option value="">اختر العميل...</option>
-                  {customers.map((c) => <option key={c.id} value={c.id}>{c.name} — {c.phone}</option>)}
-                </select>
-              </div>
-              <div className="form-group">
-                <label className="form-label">الوحدة العقارية (اختياري)</label>
-                <select className="input" value={propertyId} onChange={(e) => setPropertyId(e.target.value)}>
-                  <option value="">بدون وحدة محددة</option>
-                  {properties.map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}
-                </select>
-              </div>
-              <div className="form-group">
-                <label className="form-label">السعر النهائي *</label>
-                <input type="number" className="input" value={finalPrice} onChange={(e) => setFinalPrice(e.target.value)} required placeholder="1,500,000" />
-              </div>
-              <div className="form-group">
-                <label className="form-label">نسبة العمولة %</label>
-                <input type="number" step="0.1" className="input" value={commissionPct} onChange={(e) => { setCommissionPct(e.target.value); setManualCommissionAmt(""); }} />
-              </div>
-              <div className="form-group">
-                <label className="form-label">مبلغ العمولة (يدوي)</label>
-                <input type="number" className="input" value={manualCommissionAmt} onChange={(e) => { setManualCommissionAmt(e.target.value); setCommissionPct(""); }} placeholder="أو أدخل المبلغ المقطوع" />
-              </div>
-            </div>
-
-            {finalPrice && (
-              <div className="card card-gold" style={{ padding: "10px 14px", marginBottom: 12 }}>
-                <span style={{ fontSize: 13 }}>💰 قيمة العمولة المعتمدة: <strong style={{ color: "var(--gold-primary)" }}>{commissionAmt.toLocaleString()} جنيه</strong></span>
-              </div>
-            )}
-
-            <div className="grid-2" style={{ marginBottom: 12 }}>
-              <div className="form-group">
-                <label className="form-label">طريقة الدفع</label>
-                <select className="input" value={paymentType} onChange={(e) => setPaymentType(e.target.value)}>
-                  <option value="CASH">كاش</option>
-                  <option value="INSTALLMENT">تقسيط</option>
-                </select>
-              </div>
-              {paymentType === "INSTALLMENT" && (
-                <>
-                  <div className="form-group">
-                    <label className="form-label">المقدم</label>
-                    <input type="number" className="input" value={downPayment} onChange={(e) => setDownPayment(e.target.value)} placeholder="300,000" />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">عدد الأشهر</label>
-                    <input type="number" className="input" value={installmentMonths} onChange={(e) => setInstallmentMonths(e.target.value)} placeholder="36" />
-                  </div>
-                </>
-              )}
-              <div className="form-group" style={{ gridColumn: "1 / -1" }}>
-                <label className="form-label">ملاحظات</label>
-                <textarea className="input" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} style={{ resize: "vertical" }} />
-              </div>
-            </div>
-
-            <button type="submit" disabled={loading} className="btn btn-primary">
-              {loading ? "جاري الحفظ..." : "✅ إتمام الصفقة"}
-            </button>
-          </form>
-        </div>
-      )}
 
       {/* Deals Table */}
       <div className="card animate-in-2" style={{ padding: 0 }}>

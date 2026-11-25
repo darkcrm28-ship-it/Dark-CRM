@@ -10,8 +10,8 @@ export async function GET(request: NextRequest) {
     const isManager = session.role === ROLE.GENERAL_MANAGER || session.role === ROLE.SALES_MANAGER;
     const { searchParams } = request.nextUrl;
 
-    const page = Math.max(1, parseInt(searchParams.get("page") || "1"));
-    const limit = Math.min(25, Math.max(1, parseInt(searchParams.get("limit") || "25")));
+    const page = Math.min(100000, Math.max(1, parseInt(searchParams.get("page") || "", 10) || 1));
+    const limit = Math.min(25, Math.max(1, parseInt(searchParams.get("limit") || "", 10) || 25));
     const view = searchParams.get("view") || "ALL";
     const q = (searchParams.get("q") || "").trim();
     const status = searchParams.get("status") || "";
@@ -105,7 +105,7 @@ export async function GET(request: NextRequest) {
       prisma.customer.count({ where }),
       prisma.customer.findMany({
         where,
-        orderBy: { createdAt: "desc" },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         skip: (page - 1) * limit,
         take: limit,
         include: {

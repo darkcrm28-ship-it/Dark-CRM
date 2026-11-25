@@ -41,6 +41,7 @@ model User {
   deals                 Deal[]           @relation("SalesRep")
   interactions          Interaction[]
   notifications         Notification[]
+  pushSubscriptions     PushSubscription[]
   reminders             Reminder[]
   assignedTasks         Task[]           @relation("TaskAssignee")
   createdTasks          Task[]           @relation("TaskCreator")
@@ -225,6 +226,7 @@ model Deal {
   salesRep              User?         @relation("SalesRep", fields: [salesRepId], references: [id])
   reservations          Reservation[]
   contracts             Contract[]
+  commissionRecord      Commission?
   paymentPlans          PaymentPlan[]
   payments              Payment[]
   tasks                 Task[]
@@ -270,12 +272,14 @@ model Reminder {
 model Commission {
   id            String   @id @default(uuid())
   userId        String
+  dealId        String?  @unique
   amount        Float
   amountDecimal Decimal? @db.Decimal(15, 2)
   status        String   @default("PENDING")
   notes         String?
   createdAt     DateTime @default(now())
   user          User     @relation(fields: [userId], references: [id])
+  deal          Deal?    @relation(fields: [dealId], references: [id], onDelete: Restrict)
 
   @@index([userId])
   @@index([status])
@@ -302,6 +306,8 @@ model LoginAttempt {
 
   @@index([email])
   @@index([createdAt])
+  @@index([ip, createdAt])
+  @@index([email, success, createdAt])
 }
 
 model SystemSettings {
@@ -322,6 +328,7 @@ model PushSubscription {
   p256dh    String
   auth      String
   createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, endpoint])
   @@index([endpoint])

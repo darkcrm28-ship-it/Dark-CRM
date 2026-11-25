@@ -195,7 +195,7 @@ export default function PublicPortalClient({
               </p>
             </div>
             <Link href="/properties" className="btn-consultation-gold">
-              عرض الكتالوج بالكامل ({featuredProperties.length} وحدة) &larr;
+              عرض الكتالوج بالكامل &larr;
             </Link>
           </div>
 

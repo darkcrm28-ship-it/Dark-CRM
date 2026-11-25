@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireRole, FINANCE_ROLES } from "@/lib/auth";
-import { resolveEffectiveDealPrice } from "@/lib/financial";
 
 const ACCOUNTING_LOCK_ID = 74839210;
 export async function POST() {
@@ -12,64 +11,43 @@ export async function POST() {
     const syncResult = await prisma.$transaction(
       async (tx) => {
         // حجز قفل متزامن لمنع تشغيل عمليتين متزامنتين من إنشاء معاملات مالية مكررة
-        await tx.$queryRaw`SELECT pg_advisory_xact_lock(${ACCOUNTING_LOCK_ID});`;
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(${ACCOUNTING_LOCK_ID}::bigint);`;
 
-        let syncedCommissionsCount = 0;
-        let syncedDealsCount = 0;
-
-        // 1. Sync PENDING Commissions (to Expenses)
-        const pendingCommissions = await tx.commission.findMany({
-          where: { status: "PENDING" },
-        });
-
-        for (const comm of pendingCommissions) {
-          const existing = await tx.financialTransaction.findFirst({
-            where: { relatedId: comm.id },
-            select: { id: true },
-          });
-
-          if (!existing) {
-            await tx.financialTransaction.create({
-              data: {
-                type: "EXPENSE",
-                category: "COMMISSION",
-                amount: comm.amount,
-                description: `عمولة موظف - ${comm.notes || ""}`,
-                status: "PENDING",
-                relatedId: comm.id,
-                date: comm.createdAt,
-              },
-            });
-            syncedCommissionsCount++;
-          }
-        }
-
-        // 2. Sync Completed Deals (to Revenue)
-        const completedDeals = await tx.deal.findMany({
-          where: { status: { in: ["CLOSED", "COMPLETED"] } },
-        });
-
-        for (const deal of completedDeals) {
-          const existing = await tx.financialTransaction.findFirst({
-            where: { relatedId: deal.id },
-            select: { id: true },
-          });
-
-          if (!existing) {
-            await tx.financialTransaction.create({
-              data: {
-                type: "INCOME",
-                category: "REVENUE",
-                amount: resolveEffectiveDealPrice(deal),
-                description: `إيراد صفقة مكتملة - القيمة المحققة`,
-                status: "COMPLETED",
-                relatedId: deal.id,
-                date: deal.closedAt || deal.createdAt,
-              },
-            });
-            syncedDealsCount++;
-          }
-        }
+        const syncedCommissionsCount = await tx.$executeRaw`
+          INSERT INTO "FinancialTransaction"
+            (id, type, category, amount, "amountDecimal", description, status, "relatedId", date, "updatedAt")
+          SELECT gen_random_uuid()::text, 'EXPENSE', 'COMMISSION', commission.value::double precision, commission.value,
+            'عمولة موظف - ' || COALESCE(c.notes, ''), 'PENDING', c.id, c."createdAt", CURRENT_TIMESTAMP
+          FROM "Commission" c
+          CROSS JOIN LATERAL (SELECT COALESCE(c."amountDecimal", ROUND(c.amount::numeric, 2)) AS value) commission
+          WHERE c.status = 'PENDING'
+          AND commission.value > 0 AND commission.value < 10000000000000
+          AND NOT EXISTS (
+            SELECT 1 FROM "FinancialTransaction" f
+            WHERE f.category = 'COMMISSION' AND f."relatedId" = c.id
+          )
+        `;
+        const syncedDealsCount = await tx.$executeRaw`
+          INSERT INTO "FinancialTransaction"
+            (id, type, category, amount, "amountDecimal", description, status, "relatedId", date, "updatedAt")
+          SELECT gen_random_uuid()::text, 'INCOME', 'REVENUE', price.value::double precision,
+            price.value, 'إيراد صفقة مكتملة - القيمة المحققة', 'COMPLETED', d.id,
+            COALESCE(d."closedAt", d."contractDate", d."createdAt"), CURRENT_TIMESTAMP
+          FROM "Deal" d
+          CROSS JOIN LATERAL (
+            SELECT COALESCE(
+              CASE WHEN COALESCE(d."finalPriceDecimal", d."finalPrice"::numeric) > 0
+                THEN COALESCE(d."finalPriceDecimal", ROUND(d."finalPrice"::numeric, 2))
+              END,
+              d."valueDecimal", ROUND(d.value::numeric, 2)
+            ) AS value
+          ) price
+          WHERE d.status IN ('CLOSED', 'COMPLETED') AND price.value > 0 AND price.value < 10000000000000
+          AND NOT EXISTS (
+            SELECT 1 FROM "FinancialTransaction" f
+            WHERE f.category = 'REVENUE' AND f."relatedId" = d.id
+          )
+        `;
 
         if (syncedCommissionsCount > 0 || syncedDealsCount > 0) {
           await tx.auditLog.create({

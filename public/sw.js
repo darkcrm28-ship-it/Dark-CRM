@@ -17,7 +17,6 @@ self.addEventListener("install", (event) => {
   );
   self.skipWaiting();
 });
-
 // ─── ACTIVATE ───
 self.addEventListener("activate", (event) => {
   event.waitUntil(
@@ -141,15 +140,3 @@ self.addEventListener("notificationclick", (event) => {
     })
   );
 });
-
-// ─── BACKGROUND SYNC (for offline actions) ───
-self.addEventListener("sync", (event) => {
-  if (event.tag === "sync-interactions") {
-    event.waitUntil(syncPendingInteractions());
-  }
-});
-
-async function syncPendingInteractions() {
-  // Reads pending interactions from IndexedDB and sends them when online
-  console.log("[SW] Syncing pending interactions...");
-}

@@ -1,5 +1,6 @@
 -- Phase 0.2 Architecture Migration Rollback Script
--- Safe and completely reversible without affecting existing customer/deal data.
+-- Destructive rollback: dropping these tables removes stored ownership, jobs and delivery history.
+-- Export the affected tables and validate recovery on a separate database before use.
 
 BEGIN;
 

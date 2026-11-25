@@ -84,9 +84,12 @@ export async function POST(request: NextRequest) {
     if (dealId) {
       const deal = await prisma.deal.findFirst({
         where: scopedDealWhere(session, { id: dealId }),
-        select: { id: true },
+        select: { id: true, customerId: true, propertyId: true },
       });
       if (!deal) return NextResponse.json({ error: "الصفقة غير موجودة" }, { status: 404 });
+      if (deal.customerId !== customerId || deal.propertyId !== propertyId) {
+        return NextResponse.json({ error: "الصفقة لا تطابق العميل والوحدة" }, { status: 409 });
+      }
 
       const activeContract = await prisma.contract.findFirst({
         where: { dealId, status: { notIn: ["CANCELLED", "REJECTED", "TERMINATED"] } },

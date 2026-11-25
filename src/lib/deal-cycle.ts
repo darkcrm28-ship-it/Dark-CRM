@@ -41,8 +41,14 @@ export function describeCycleError(error: unknown): { status: number; error: str
   if (message === "CONTRACT_ALREADY_USED") {
     return { status: 409, error: "تم إتمام صفقة لهذا العقد بالفعل" };
   }
+  if (message === "CONTRACT_DEAL_MISMATCH") {
+    return { status: 409, error: "الصفقة المرتبطة لا تطابق العميل والوحدة في العقد" };
+  }
   if (message === "CONTRACT_AMOUNT_REQUIRED") {
     return { status: 400, error: "يجب تحديد قيمة العقد قبل التوقيع" };
+  }
+  if (message === "INVALID_CONTRACT_AMOUNTS") {
+    return { status: 400, error: "راجع السعر وقيمة العمولة ونسبتها في العقد" };
   }
   if (message === "DUPLICATE_DEAL_DETECTED") {
     return { status: 409, error: "تم إرسال هذه الصفقة مسبقاً، منعاً للتكرار" };

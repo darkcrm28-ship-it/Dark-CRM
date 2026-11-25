@@ -14,6 +14,9 @@
     "test": "node --experimental-strip-types scripts/run-tests.js",
     "test:security": "node scripts/run-security-tests.js",
     "test:backup": "node scripts/test-backup-restore.js",
+    "db:backup": "node scripts/database-backup.mjs backup",
+    "db:backup:verify": "node scripts/database-backup.mjs verify",
+    "db:restore:local": "node scripts/database-backup.mjs restore",
     "seed:admin": "node scripts/seed-admin.js"
   },
   "dependencies": {
@@ -35,7 +38,7 @@
     "recharts": "^3.8.1",
     "web-push": "^3.6.7",
     "ws": "^8.23.0",
-    "xlsx": "^0.18.5"
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "devDependencies": {
     "@opennextjs/cloudflare": "^1.20.17",
@@ -58,5 +61,17 @@
     "esbuild@0.28.2": true,
     "unrs-resolver@1.11.1": true,
     "workerd@1.20261118.1": true
+  },
+  "overrides": {
+    "jspdf": {
+      "dompurify": "3.5.0"
+    },
+    "next": {
+      "postcss": "8.5.33"
+    },
+    "postcss": {
+      "nanoid": "3.3.20",
+      "source-map-js": "1.2.4"
+    }
   }
 }

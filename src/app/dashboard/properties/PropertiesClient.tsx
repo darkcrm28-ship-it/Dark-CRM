@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import * as XLSX from "xlsx";
 import DynamicFields from "@/components/DynamicFields";
 import UnitImageManager from "@/components/UnitImageManager";
 import {
@@ -53,15 +52,20 @@ const EMPTY_FORM = {
 };
 
 export default function PropertiesClient({
-  properties,
+  inventory,
   isManager,
   session,
 }: {
-  properties: any[];
+  inventory: { properties: any[]; total: number; page: number; pageSize: number };
   isManager: boolean;
   session?: any;
 }) {
-  const [list, setList] = useState(properties);
+  const [list, setList] = useState(inventory.properties);
+  const [total, setTotal] = useState(inventory.total);
+  const [page, setPage] = useState(inventory.page);
+  const [reload, setReload] = useState(0);
+  const [loadingList, setLoadingList] = useState(false);
+  const [listError, setListError] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<any>(EMPTY_FORM);
   const [editing, setEditing] = useState<string | null>(null);
@@ -125,45 +129,43 @@ export default function PropertiesClient({
     fetchDefs();
   }, []);
 
-  const filtered = list.filter((p) => {
-    const {
-      search: q,
-      filterStatus: fStatus,
-      filterUnitType: fUnitType,
-      filterBedrooms: fBeds,
-      filterBathrooms: fBaths,
-      filterFinishing: fFinishing,
-      filterPriceMin: fPMin,
-      filterPriceMax: fPMax,
-    } = appliedFilters;
+  useEffect(() => {
+    const controller = new AbortController();
+    const params = new URLSearchParams({
+      page: String(page),
+      q: appliedFilters.search,
+      status: appliedFilters.filterStatus,
+      unitType: appliedFilters.filterUnitType,
+      bedrooms: appliedFilters.filterBedrooms,
+      bathrooms: appliedFilters.filterBathrooms,
+      finishing: appliedFilters.filterFinishing,
+      minPrice: appliedFilters.filterPriceMin,
+      maxPrice: appliedFilters.filterPriceMax,
+    });
+    setLoadingList(true);
+    setListError("");
+    fetch(`/api/properties?${params}`, { signal: controller.signal }).then(async (response) => {
+      if (!response.ok) throw new Error("Inventory unavailable");
+      const result = await response.json();
+      if (controller.signal.aborted) return;
+      setTotal(result.total);
+      if (page > 1 && result.properties.length === 0) {
+        setPage(Math.max(1, Math.ceil(result.total / inventory.pageSize)));
+      } else {
+        setList(result.properties);
+      }
+    }).catch(() => {
+      if (!controller.signal.aborted) setListError("تعذّر تحميل العقارات.");
+    }).finally(() => {
+      if (!controller.signal.aborted) setLoadingList(false);
+    });
+    return () => controller.abort();
+  }, [appliedFilters, inventory.pageSize, page, reload]);
 
-    const query = q.toLowerCase();
-    const matchSearch =
-      !query ||
-      p.projectName?.toLowerCase().includes(query) ||
-      p.unitNumber?.includes(query) ||
-      p.zone?.toLowerCase().includes(query);
-    const matchStatus = !fStatus || p.status === fStatus;
-    const matchUnitType = !fUnitType || p.unitType === fUnitType;
-    const matchBeds = !fBeds || p.bedrooms === parseInt(fBeds);
-    const matchBaths = !fBaths || p.bathrooms === parseInt(fBaths);
-    const matchFinishing = !fFinishing || p.finishing === fFinishing;
-    const matchPMin = !fPMin || (p.price && p.price >= parseFloat(fPMin));
-    const matchPMax = !fPMax || (p.price && p.price <= parseFloat(fPMax));
+  const filtered = list;
 
-    return (
-      matchSearch &&
-      matchStatus &&
-      matchUnitType &&
-      matchBeds &&
-      matchBaths &&
-      matchFinishing &&
-      matchPMin &&
-      matchPMax
-    );
-  });
-
-  const exportToExcel = () => {
+  const exportToExcel = async () => {
+    const XLSX = await import("xlsx");
     const data = filtered.map((p) => ({
       "اسم المشروع": p.projectName,
       "رقم الوحدة": p.unitNumber,
@@ -215,11 +217,7 @@ export default function PropertiesClient({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "فشل حفظ الوحدة");
 
-      if (editing) {
-        setList(list.map((p) => (p.id === editing ? data.property : p)));
-      } else {
-        setList([data.property, ...list]);
-      }
+      setReload((value) => value + 1);
       setShowForm(false);
       setEditing(null);
       setForm(EMPTY_FORM);
@@ -234,8 +232,13 @@ export default function PropertiesClient({
   const handleDelete = async (id: string) => {
     if (!confirm("هل أنت متأكد من حذف هذه الوحدة نهائياً؟")) return;
     try {
-      await fetch(`/api/properties/${id}`, { method: "DELETE" });
-      setList(list.filter((p) => p.id !== id));
+      const response = await fetch(`/api/properties/${id}`, { method: "DELETE" });
+      if (!response.ok) {
+        const result = await response.json().catch(() => null);
+        alert(result?.error || "تعذّر حذف العقار");
+        return;
+      }
+      setReload((value) => value + 1);
     } catch (err) {
       console.error(err);
     }
@@ -401,9 +404,9 @@ export default function PropertiesClient({
 
         <div className="flex items-center gap-2 flex-wrap">
           {session?.role === "GENERAL_MANAGER" && (
-            <button onClick={exportToExcel} className="btn btn-secondary flex items-center gap-1.5">
+            <button onClick={exportToExcel} disabled={loadingList} className="btn btn-secondary flex items-center gap-1.5">
               <Download size={16} />
-              <span>تصدير Excel</span>
+              <span>تصدير الصفحة إلى Excel</span>
             </button>
           )}
 
@@ -600,7 +603,8 @@ export default function PropertiesClient({
           </button>
 
           <button
-            onClick={() =>
+            onClick={() => {
+              setPage(1);
               setAppliedFilters({
                 search,
                 filterStatus,
@@ -610,8 +614,8 @@ export default function PropertiesClient({
                 filterFinishing,
                 filterPriceMin,
                 filterPriceMax,
-              })
-            }
+              });
+            }}
             className="btn btn-primary"
           >
             تطبيق البحث
@@ -814,17 +818,23 @@ export default function PropertiesClient({
           );
         })}
 
-        {filtered.length === 0 && (
+        {filtered.length === 0 && !loadingList && !listError && (
           <div className="empty-state col-span-full py-12 text-center card">
             <Building2 size={48} className="mx-auto text-gold opacity-40 mb-2" />
             <div className="text-base font-bold text-slate-300">لا توجد وحدات مطابقة للبحث</div>
             <p className="text-xs text-muted mt-1">
-              {list.length === 0
-                ? "ابدأ بإضافة أول وحدة عقارية من زر 'إضافة وحدة جديدة' في الأعلى."
-                : "جرب تغيير معايير البحث أو تصفية الحالات."}
+              جرب تغيير معايير البحث أو تصفية الحالات.
             </p>
           </div>
         )}
+        {listError && <p role="alert">{listError}</p>}
+        <nav className="col-span-full flex items-center gap-3" aria-label="صفحات العقارات">
+          <button type="button" className="btn btn-secondary btn-sm" disabled={loadingList || page === 1}
+            onClick={() => setPage(page - 1)}>السابق</button>
+          <span>{loadingList ? "جاري التحميل…" : `صفحة ${page} من ${Math.max(1, Math.ceil(total / inventory.pageSize))} · ${total} وحدة`}</span>
+          <button type="button" className="btn btn-secondary btn-sm" disabled={loadingList || page * inventory.pageSize >= total}
+            onClick={() => setPage(page + 1)}>التالي</button>
+        </nav>
         {showFieldSelector && (
           <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
             <div className="bg-white rounded-xl p-6 max-w-sm w-full border">

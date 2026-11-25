@@ -1,12 +1,12 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import * as XLSX from "xlsx";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import CustomerDrawer from "@/components/CustomerDrawer";
 import DynamicFields from "@/components/DynamicFields";
-import ImportWizardModal from "@/components/import/ImportWizardModal";
+const ImportWizardModal = dynamic(() => import("@/components/import/ImportWizardModal"));
 
 // ─── Toast System ──────────────────────────────────────────────────────────────
 type ToastType = "success" | "error" | "info" | "warning";
@@ -61,6 +61,10 @@ const STATUS_MAP: Record<string, { label: string; badge: string }> = {
 
 const PROPERTY_TYPES = ["شقة", "فيلا", "توين هاوس", "تاون هاوس", "دوبلكس", "بنتهاوس", "مكتب", "عيادة", "محل تجاري", "مصنع", "أرض مصنع", "أرض سكنية", "أرض صناعية", "مستودع"];
 const FACTORY_ACTIVITIES = ["غذائي", "صناعي", "طبي", "هندسي", "كيماوي", "ملابس/نسيج", "أخرى"];
+
+const BOARD_STATUSES = ["NEW", "POTENTIAL_SELLER", "BUYER", "MEETING_SCHEDULED"] as const;
+type BoardStatus = typeof BOARD_STATUSES[number];
+type BoardColumn = { customers: any[]; total: number; page: number };
 
 export default function CustomersClient({
   initialCustomers,
@@ -128,6 +132,8 @@ export default function CustomersClient({
   const [loading, setLoading] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [isKanban, setIsKanban] = useState(false);
+  const [board, setBoard] = useState<Partial<Record<BoardStatus, BoardColumn>>>({});
+  const customerRequest = useRef(0);
 
   // Import Modal State
   const [showImportModal, setShowImportModal] = useState(false);
@@ -291,8 +297,10 @@ export default function CustomersClient({
     targetPage = 1,
     currentFilters = appliedFilters,
     targetLimit = pageSize,
-    currentSubType = subTypeFilter
+    currentSubType = subTypeFilter,
+    boardOptions?: { enabled: boolean; column?: BoardStatus }
   ) => {
+    const requestId = ++customerRequest.current;
     setIsFetching(true);
     try {
       const safeLimit = Math.min(25, Math.max(1, targetLimit));
@@ -314,8 +322,29 @@ export default function CustomersClient({
       if (currentFilters.status) params.set("status", currentFilters.status);
       if (currentFilters.neglected) params.set("neglected", "true");
 
+      if (boardOptions?.enabled ?? isKanban) {
+        const columns = boardOptions?.column ? [boardOptions.column] : BOARD_STATUSES;
+        const result = await Promise.all(columns.map(async (column) => {
+          if (currentFilters.status && currentFilters.status !== column) {
+            return [column, { customers: [], total: 0, page: 1 }] as const;
+          }
+          const columnParams = new URLSearchParams(params);
+          columnParams.set("status", column);
+          const response = await fetch(`/api/customers?${columnParams}`);
+          if (!response.ok) throw new Error("تعذّر تحميل لوحة العملاء");
+          return [column, await response.json() as BoardColumn] as const;
+        }));
+        if (customerRequest.current === requestId) {
+          setBoard((previous) => ({
+            ...(boardOptions?.column ? previous : {}),
+            ...Object.fromEntries(result),
+          }));
+        }
+        return;
+      }
+
       const res = await fetch(`/api/customers?${params.toString()}`);
-      if (res.ok) {
+      if (res.ok && customerRequest.current === requestId) {
         const data = await res.json();
         setCustomers(data.customers || []);
         setTotalCount(data.total || 0);
@@ -324,9 +353,9 @@ export default function CustomersClient({
     } catch (err) {
       console.error("Error fetching customers:", err);
     } finally {
-      setIsFetching(false);
+      if (customerRequest.current === requestId) setIsFetching(false);
     }
-  }, [view, pageSize, appliedFilters, subTypeFilter]);
+  }, [view, pageSize, appliedFilters, subTypeFilter, isKanban]);
 
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
 
@@ -337,6 +366,7 @@ export default function CustomersClient({
 
   const handleCustomerUpdated = (updatedCustomer: any) => {
     setCustomers(prev => prev.map(c => c.id === updatedCustomer.id ? { ...c, ...updatedCustomer } : c));
+    if (isKanban) void fetchServerCustomers();
   };
 
   const filtered = customers;
@@ -397,14 +427,19 @@ export default function CustomersClient({
     
     setLoading(true);
     try {
-      await fetch("/api/customers/bulk-action", {
+      const response = await fetch("/api/customers/bulk-action", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ customerIds: selectedIds, action, value }),
       });
+      if (!response.ok) {
+        const result = await response.json().catch(() => null);
+        throw new Error(result?.error || "تعذّر تنفيذ الإجراء");
+      }
       fetchServerCustomers(currentPage);
       setSelectedIds([]);
-    } catch {
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "تعذّر تنفيذ الإجراء", "error");
     } finally { setLoading(false); }
   };
 
@@ -501,7 +536,8 @@ export default function CustomersClient({
   };
 
   // ─── Download empty template ─────────────────────────────────────────────
-  const downloadTemplate = () => {
+  const downloadTemplate = async () => {
+    const XLSX = await import("xlsx");
     const templateData = [{
       "الاسم": "",
       "رقم الهاتف": "",
@@ -524,7 +560,8 @@ export default function CustomersClient({
     XLSX.writeFile(wb, "نموذج_استيراد_عملاء_بائع_محتمل.xlsx");
   };
 
-  const exportToExcel = () => {
+  const exportToExcel = async () => {
+    const XLSX = await import("xlsx");
     const dataToExport = filtered.map(c => {
       // Flatten custom data
       const extraFields: any = {};
@@ -768,12 +805,15 @@ export default function CustomersClient({
         </div>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
           {view === "LEADS" && settings?.kanbanEnabled !== false && (
-            <button onClick={() => setIsKanban(!isKanban)} className="btn btn-ghost btn-sm">
+            <button onClick={() => {
+              setIsKanban(!isKanban);
+              void fetchServerCustomers(1, appliedFilters, pageSize, subTypeFilter, { enabled: !isKanban });
+            }} className="btn btn-ghost btn-sm">
               {isKanban ? "📋 عرض الجدول" : "📊 Kanban"}
             </button>
           )}
-          {session?.role === "GENERAL_MANAGER" && (
-            <button onClick={exportToExcel} className="btn btn-ghost">📥 تصدير Excel</button>
+          {session?.role === "GENERAL_MANAGER" && !isKanban && (
+            <button onClick={exportToExcel} disabled={isFetching} className="btn btn-ghost">📥 تصدير الصفحة إلى Excel</button>
           )}
           {view === "AVAILABLE_FOR_SALE" && (
             <button onClick={exportToPDF} className="btn btn-ghost" style={{ border: "1px solid var(--accent-green)", color: "var(--accent-green)" }}>
@@ -864,9 +904,11 @@ export default function CustomersClient({
 
               <div style={{ display: "flex", gap: 8 }}>
                 <button onClick={() => handleBulkAction("UNASSIGN")} disabled={loading} className="btn btn-secondary btn-sm" title="سحب من الموظف وإعادته للقاعدة">🔙 سحب</button>
-                <select onChange={(e) => handleBulkAction("STATUS", e.target.value)} className="input" style={{ width: 130, height: 36, fontSize: 12 }}>
+                <select value="" onChange={(e) => { if (e.target.value) handleBulkAction("STATUS", e.target.value); }} className="input" style={{ width: 130, height: 36, fontSize: 12 }}>
                   <option value="">تغيير الحالة...</option>
-                  {Object.entries(STATUS_MAP).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+                  {Object.entries(STATUS_MAP).filter(([key]) => key !== "COMPLETED").map(([key, status]) => (
+                    <option key={key} value={key}>{status.label}</option>
+                  ))}
                 </select>
                 <button onClick={() => handleBulkAction("RESET")} disabled={loading} className="btn btn-ghost btn-sm" style={{ color: "var(--color-danger)" }}>🧹 مسح البيانات</button>
               </div>
@@ -1010,14 +1052,14 @@ export default function CustomersClient({
 
       {isKanban ? (
         <div className="kanban-board animate-in">
-          {["NEW", "POTENTIAL_SELLER", "BUYER", "MEETING_SCHEDULED"].map(status => (
+          {BOARD_STATUSES.map(status => (
             <div key={status} className="kanban-column">
               <div className="kanban-column-header">
                 <span>{STATUS_MAP[status]?.label || status}</span>
-                <span className="badge badge-gray">{filtered.filter(c => c.status === status).length}</span>
+                <span className="badge badge-gray">{board[status]?.total ?? "—"}</span>
               </div>
               <div className="kanban-cards">
-                {filtered.filter(c => c.status === status).map(c => (
+                {board[status]?.customers.map(c => (
                   <div key={c.id} className="kanban-card" onClick={() => { setSelectedCustomer(c); setIsDrawerOpen(true); }}>
                     <div style={{ fontWeight: 800, marginBottom: 4 }}>{c.name}</div>
                     <div style={{ fontSize: 11, color: "var(--text-secondary)" }}>📞 {c.phone}</div>
@@ -1028,6 +1070,20 @@ export default function CustomersClient({
                     </div>
                   </div>
                 ))}
+                {board[status] && (
+                  <div>
+                    <button type="button" className="btn btn-ghost btn-sm"
+                      disabled={isFetching || board[status]!.page <= 1}
+                      onClick={() => void fetchServerCustomers(board[status]!.page - 1, appliedFilters, pageSize, subTypeFilter, { enabled: true, column: status })}>
+                      السابق
+                    </button>
+                    <button type="button" className="btn btn-ghost btn-sm"
+                      disabled={isFetching || board[status]!.page * pageSize >= board[status]!.total}
+                      onClick={() => void fetchServerCustomers(board[status]!.page + 1, appliedFilters, pageSize, subTypeFilter, { enabled: true, column: status })}>
+                      التالي
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           ))}
@@ -1161,7 +1217,7 @@ export default function CustomersClient({
       )}
 
       {/* Glassmorphism Server Pagination Bar */}
-      <div style={{
+      {!isKanban && <div style={{
         display: "flex",
         justifyContent: "space-between",
         alignItems: "center",
@@ -1239,6 +1295,7 @@ export default function CustomersClient({
         </div>
       </div>
 
+      }
       {/* Drawer */}
       <CustomerDrawer customer={selectedCustomer} isOpen={isDrawerOpen} onClose={() => setIsDrawerOpen(false)} onUpdated={handleCustomerUpdated} />
 
@@ -1687,12 +1744,12 @@ export default function CustomersClient({
       )}
 
       {/* ═══════ Smart Excel Import Wizard Modal ══════════════════════════ */}
-      <ImportWizardModal
+      {showImportModal && <ImportWizardModal
         isOpen={showImportModal}
         onClose={() => setShowImportModal(false)}
         projects={projects}
         customFieldDefs={customFieldDefs}
-      />
+      />}
 
     </div>
   );

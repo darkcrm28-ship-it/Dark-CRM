@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import type { Prisma } from "@prisma/client";
 
 const PUBLISHABLE_FIELDS = [
   "title", "projectName", "zone", "unitType", "finishing", "size",
@@ -22,12 +23,22 @@ export type PublicListingDto = {
   description?: string | null;
 };
 
+const approvedListing: Prisma.PropertyWhereInput = {
+  status: "AVAILABLE",
+  customData: { path: ["publicListing", "status"], equals: "APPROVED" },
+};
+
+function fieldIsPublished(field: PublishableField): Prisma.PropertyWhereInput {
+  return { customData: { path: ["publicListing", "fields"], array_contains: [field] } };
+}
+
 /** Public output is an allowlisted DTO. CRM fields are never spread into it. */
-export async function getApprovedPublicListings(limit?: number) {
+async function readApprovedListings(where: Prisma.PropertyWhereInput, limit: number, skip = 0) {
   const properties = await prisma.property.findMany({
-    where: { status: "AVAILABLE" },
-    orderBy: { createdAt: "desc" },
-    ...(limit ? { take: limit * 4 } : {}),
+    where,
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    take: limit,
+    skip,
     select: {
       id: true, status: true, customData: true, title: true, projectName: true,
       zone: true, unitType: true, finishing: true, size: true, bedrooms: true,
@@ -53,7 +64,49 @@ export async function getApprovedPublicListings(limit?: number) {
     return [dto];
   });
 
-  return limit ? approved.slice(0, limit) : approved;
+  return approved;
+}
+
+export function getApprovedPublicListings(limit = 24) {
+  return readApprovedListings(approvedListing, limit);
+}
+
+export async function getPublicCatalogPage(params = new URLSearchParams()) {
+  const page = Math.min(10000, Math.max(1, Number.parseInt(params.get("page") || "", 10) || 1));
+  const pageSize = 24;
+  const q = params.get("q")?.trim().slice(0, 120);
+  const type = params.get("type")?.slice(0, 60);
+  const zone = params.get("zone")?.slice(0, 120);
+  const rooms = params.get("rooms");
+  const filters: Prisma.PropertyWhereInput[] = [approvedListing];
+
+  if (q) {
+    filters.push({ OR: (["title", "projectName", "zone"] as const).map((field) => ({
+      AND: [fieldIsPublished(field), { [field]: { contains: q, mode: "insensitive" as const } }],
+    })) });
+  }
+  if (type) filters.push(fieldIsPublished("unitType"), { unitType: { contains: type, mode: "insensitive" } });
+  if (zone) filters.push(fieldIsPublished("zone"), { zone });
+  if (rooms && /^[1-5]$/.test(rooms)) filters.push(fieldIsPublished("bedrooms"), { bedrooms: Number(rooms) });
+  if (rooms === "5+") filters.push(fieldIsPublished("bedrooms"), { bedrooms: { gte: 5 } });
+
+  const where = { AND: filters };
+  const [properties, total] = await Promise.all([
+    readApprovedListings(where, pageSize, (page - 1) * pageSize),
+    prisma.property.count({ where }),
+  ]);
+  return { properties, total, page, pageSize };
+}
+
+export async function getPublicCatalogZones() {
+  const rows = await prisma.$queryRaw<{ zone: string }[]>`
+    SELECT DISTINCT zone FROM "Property"
+    WHERE status = 'AVAILABLE' AND zone IS NOT NULL AND BTRIM(zone) <> ''
+      AND "customData" #>> '{publicListing,status}' = 'APPROVED'
+      AND "customData" #> '{publicListing,fields}' @> '["zone"]'::jsonb
+    ORDER BY zone
+  `;
+  return rows.map(({ zone }) => zone);
 }
 
 export const PUBLIC_LISTING_FIELDS = PUBLISHABLE_FIELDS;

@@ -2,7 +2,7 @@
 
 Database-backed test and diagnostic scripts must use `.env.test`, which is ignored by Git. Create it from `.env.test.example` and configure `DATABASE_URL` and `DIRECT_URL` for the same dedicated Neon test branch. Use a test-only `JWT_SECRET` of at least 32 characters.
 
-The scripts load `.env.test` through `scripts/load-test-env.js` and stop before opening a connection when that file is missing, either URL is invalid, the two URLs identify different Neon branches, or the test database target matches `.env`, `.env.production`, or an inherited `DATABASE_URL`.
+The scripts load `.env.test` through `scripts/load-test-env.js`. They stop before connecting if the URLs do not identify the same test database or match a database endpoint used by an inherited setting or Next.js environment file. The guard treats pooled and direct addresses for the same Neon branch as one endpoint. Local databases must use the `dark_crm_test_*` or `dark_crm_restore_*` naming convention. Check independently that the branch or local server is disposable before running write tests.
 
 Guarded database scripts:
 
@@ -41,7 +41,7 @@ timestamp in the operational runbook after the drill is performed.
    security checks there. Record source branch, restore target, timestamp, tool
    result, and check output. Do not restore over the source branch or production.
 
-The current `test:backup` command uses in-memory fixtures and does not implement
-steps 1–4. No real restore drill has been completed yet.
+The current `test:backup` command uses in-memory fixtures. For a real PostgreSQL
+archive and local restore drill, follow [Operations recovery](./OPERATIONS-RECOVERY.md).
 
 Database credentials previously embedded in diagnostic scripts must be rotated in Neon and replaced in local environment files. Removing them from the working tree does not remove them from prior Git history.

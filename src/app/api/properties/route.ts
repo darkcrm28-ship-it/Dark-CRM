@@ -1,12 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireRole, SALES_ROLES, SALES_MANAGER_ROLES } from "@/lib/auth";
+import { getPropertyInventoryPage } from "@/lib/property-inventory";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const session = await requireRole(SALES_ROLES);
     if (session instanceof NextResponse) return session;
 
+    if (request.nextUrl.searchParams.has("page")) {
+      return NextResponse.json(await getPropertyInventoryPage(request.nextUrl.searchParams), {
+        headers: { "Cache-Control": "no-store" },
+      });
+    }
     const properties = await prisma.property.findMany({
       orderBy: { createdAt: "desc" },
     });

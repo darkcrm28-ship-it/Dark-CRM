@@ -1,14 +1,7 @@
 import { SignJWT, jwtVerify, type JWTPayload } from "jose";
 
-/**
- * Resolves the HMAC key used to sign session cookies.
- *
- * Security rule: a missing/weak JWT_SECRET must never fall back to a known
- * constant in production — that would let anyone forge a GENERAL_MANAGER
- * session. During Next.js builds (where secrets are intentionally absent) and
- * in local development we use a random per-process key instead, which is
- * fail-closed: a token signed with it cannot be forged or reused elsewhere.
- */
+let developmentKey: Uint8Array | undefined;
+
 function getSessionKey(): Uint8Array {
   let rawSecret = process.env.JWT_SECRET?.trim();
   if (
@@ -23,18 +16,9 @@ function getSessionKey(): Uint8Array {
     return new TextEncoder().encode(rawSecret);
   }
 
-  const isBuildPhase =
-    typeof process.env.NEXT_PHASE === "string" && process.env.NEXT_PHASE.startsWith("phase-");
-  const isLocalDev = process.env.NODE_ENV === "development";
-  const explicitBuildOptIn = process.env.ALLOW_EPHEMERAL_SESSION_KEY === "1";
-
-  if (isBuildPhase || isLocalDev || explicitBuildOptIn) {
-    if (rawSecret) {
-      console.warn("JWT_SECRET is shorter than 32 characters; using an ephemeral session key.");
-    }
-    const ephemeral = new Uint8Array(32);
-    globalThis.crypto.getRandomValues(ephemeral);
-    return ephemeral;
+  if (process.env.NODE_ENV === "development") {
+    developmentKey ??= globalThis.crypto.getRandomValues(new Uint8Array(32));
+    return developmentKey;
   }
 
   throw new Error(

@@ -17,8 +17,10 @@ export default async function SettingsPage() {
   });
 
   if (!settings) {
-    settings = await prisma.systemSettings.create({
-      data: { id: "GLOBAL" }
+    settings = await prisma.systemSettings.upsert({
+      where: { id: "GLOBAL" },
+      create: { id: "GLOBAL" },
+      update: {},
     });
   }
 

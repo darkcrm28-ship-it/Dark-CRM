@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { requirePageRole, ROLE, SALES_ROLES } from "@/lib/auth";
 import DealsClient from "./DealsClient";
+import { readMoney } from "@/lib/financial";
 
 export default async function DealsPage() {
   const session = await requirePageRole(SALES_ROLES);
@@ -16,17 +17,12 @@ export default async function DealsPage() {
     },
   });
 
-  const customers = await prisma.customer.findMany({
-    where: { 
-      status: { in: ["INTERESTED", "WANTS_TO_SELL", "MEETING_SCHEDULED"] },
-      ...(isManager ? {} : { assignedToId: session?.id })
-    },
-    select: { id: true, name: true, phone: true, askingPrice: true },
-  });
-  const properties = await prisma.property.findMany({
-    where: { status: "AVAILABLE" },
-    select: { id: true, title: true, zone: true, projectName: true, price: true },
-  });
-
-  return <DealsClient deals={deals} customers={customers} properties={properties} isManager={isManager} />;
+  return <DealsClient deals={deals.map(({ valueDecimal, finalPriceDecimal, commissionAmtDecimal, commissionRateDecimal, discountAmount, ...deal }) => ({
+    ...deal,
+    finalPrice: deal.finalPrice == null && finalPriceDecimal == null
+      ? readMoney(valueDecimal, deal.value) : readMoney(finalPriceDecimal, deal.finalPrice),
+    commissionAmt: readMoney(commissionAmtDecimal, deal.commissionAmt),
+    commission: readMoney(commissionRateDecimal, deal.commission),
+    discountAmount: discountAmount?.toString() ?? null,
+  }))} isManager={isManager} />;
 }

@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import ReportsClient from "./ReportsClient";
 import { redirect } from "next/navigation";
+import { Prisma } from "@prisma/client";
 
 export default async function ReportsPage() {
   const session = await getSession();
@@ -17,7 +18,11 @@ export default async function ReportsPage() {
   const [interactionGroups, commissionGroups, customerGroups] = employeeIds.length
     ? await Promise.all([
         prisma.interaction.groupBy({ by: ["userId", "type"], where: { userId: { in: employeeIds } }, _count: { _all: true } }),
-        prisma.commission.groupBy({ by: ["userId"], where: { userId: { in: employeeIds } }, _sum: { amount: true } }),
+        prisma.$queryRaw<{ userId: string; total: Prisma.Decimal }[]>`
+          SELECT "userId", SUM(COALESCE("amountDecimal", ROUND(amount::numeric, 2))) AS total
+          FROM "Commission" WHERE "userId" IN (${Prisma.join(employeeIds)})
+          GROUP BY "userId"
+        `,
         prisma.customer.groupBy({ by: ["assignedToId", "status"], where: { assignedToId: { in: employeeIds } }, _count: { _all: true } }),
       ])
     : [[], [], []];
@@ -27,7 +32,7 @@ export default async function ReportsPage() {
     completedCount: customerGroups.find((group) => group.assignedToId === employee.id && group.status === "COMPLETED")?._count._all ?? 0,
     callsCount: interactionGroups.find((group) => group.userId === employee.id && group.type === "CALL")?._count._all ?? 0,
     viewingsCount: interactionGroups.find((group) => group.userId === employee.id && group.type === "VIEWING")?._count._all ?? 0,
-    commissionTotal: commissionGroups.find((group) => group.userId === employee.id)?._sum.amount ?? 0,
+    commissionTotal: Number(commissionGroups.find((group) => group.userId === employee.id)?.total ?? 0),
   }));
 
   // Customer status distribution

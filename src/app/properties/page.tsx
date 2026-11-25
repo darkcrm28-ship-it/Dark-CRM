@@ -1,4 +1,4 @@
-import { getApprovedPublicListings } from "@/lib/public-listings";
+import { getPublicCatalogPage, getPublicCatalogZones } from "@/lib/public-listings";
 import PublicPropertiesClient from "./PublicPropertiesClient";
 
 export const dynamic = "force-dynamic";
@@ -9,7 +9,6 @@ export const metadata = {
 };
 
 export default async function PropertiesPublicCatalogPage() {
-  const properties = await getApprovedPublicListings();
-
-  return <PublicPropertiesClient initialProperties={properties} />;
+  const [catalog, zones] = await Promise.all([getPublicCatalogPage(), getPublicCatalogZones()]);
+  return <PublicPropertiesClient initialCatalog={catalog} zones={zones} />;
 }

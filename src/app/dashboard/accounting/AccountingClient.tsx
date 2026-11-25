@@ -17,8 +17,8 @@ const TYPE_LABELS: Record<string, string> = {
 };
 
 export default function AccountingClient({ initialTransactions, initialStats }: any) {
-  const [list, setList] = useState(initialTransactions);
-  const [stats, setStats] = useState(initialStats);
+  const list = initialTransactions;
+  const stats = initialStats;
   const [loading, setLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({
@@ -34,11 +34,10 @@ export default function AccountingClient({ initialTransactions, initialStats }: 
   const handleSync = async () => {
     setLoading(true);
     try {
-      await fetch("/api/accounting/sync", { method: "POST" });
+      const res = await fetch("/api/accounting/sync", { method: "POST" });
+      if (!res.ok) throw new Error("Sync failed");
       router.refresh();
-      // Reload page to get fresh data from server component
-      window.location.reload();
-    } catch (err) {
+    } catch {
       alert("فشل المزامنة");
     } finally {
       setLoading(false);
@@ -54,13 +53,15 @@ export default function AccountingClient({ initialTransactions, initialStats }: 
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
       });
-      if (res.ok) {
-        setShowForm(false);
-        setForm({ type: "EXPENSE", category: "OTHER_EXPENSE", amount: "", description: "", date: new Date().toISOString().split("T")[0] });
-        window.location.reload();
+      if (!res.ok) {
+        const result = await res.json().catch(() => null);
+        throw new Error(result?.error || "فشل الإضافة");
       }
-    } catch (err) {
-      alert("فشل الإضافة");
+      setShowForm(false);
+      setForm({ type: "EXPENSE", category: "OTHER_EXPENSE", amount: "", description: "", date: new Date().toISOString().split("T")[0] });
+      router.refresh();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "فشل الإضافة");
     } finally {
       setLoading(false);
     }
@@ -70,13 +71,14 @@ export default function AccountingClient({ initialTransactions, initialStats }: 
     if (!confirm("هل تريد تأكيد عملية الصرف/التحصيل؟")) return;
     setLoading(true);
     try {
-      await fetch("/api/accounting", {
+      const res = await fetch("/api/accounting", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id, status: "COMPLETED" }),
       });
-      window.location.reload();
-    } catch (err) {
+      if (!res.ok) throw new Error("Confirmation failed");
+      router.refresh();
+    } catch {
       alert("فشل التأكيد");
     } finally {
       setLoading(false);
@@ -88,7 +90,7 @@ export default function AccountingClient({ initialTransactions, initialStats }: 
       <div className="page-header animate-in">
         <div>
           <h1 className="page-title">النظام المحاسبي (الخزينة)</h1>
-          <p className="page-subtitle">إدارة المصروفات، المرتبات، والإيرادات - للمدير العام فقط</p>
+          <p className="page-subtitle">الإجماليات لكل الفترات، والجدول يعرض آخر 100 حركة مالية.</p>
         </div>
         <div style={{ display: "flex", gap: 10 }}>
           <button onClick={handleSync} className="btn btn-secondary" disabled={loading}>

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { requireRole, ROLE, SALES_ROLES } from "@/lib/auth";
-import { parseCurrency, calculateCommission } from "@/lib/financial";
+import { requireRole, ROLE, SALES_ROLES, SALES_MANAGER_ROLES } from "@/lib/auth";
+import { resolveContractAmounts } from "@/lib/deal-cycle-rules";
+import { propertyLockKey } from "@/lib/ownership";
 import {
   createCompletedDealInTx,
   notifyDealCompleted,
@@ -9,13 +10,6 @@ import {
 import { describeCycleError } from "@/lib/deal-cycle";
 
 export const dynamic = "force-dynamic";
-
-type SignedContractRef = {
-  id: string;
-  customerId: string;
-  propertyId: string | null;
-  dealId: string | null;
-};
 
 export async function GET() {
   const session = await requireRole(SALES_ROLES);
@@ -35,111 +29,54 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await requireRole(SALES_ROLES);
+    const session = await requireRole(SALES_MANAGER_ROLES);
     if (session instanceof NextResponse) return session;
 
-    const body = await request.json();
-    const { customerId, propertyId, salesRepId: requestedSalesRepId } = body;
-
-    if (!customerId || typeof customerId !== "string") {
-      return NextResponse.json({ error: "العميل مطلوب لإتمام الصفقة" }, { status: 400 });
+    const body = await request.json().catch(() => null);
+    const contractId = body?.contractId;
+    if (typeof contractId !== "string" || !contractId.trim() || contractId.length > 100) {
+      return NextResponse.json({ error: "معرّف العقد الموقّع مطلوب" }, { status: 400 });
     }
-
-    const parsedFinalPrice = parseCurrency(body.finalPrice);
-    const parsedNominalValue = parseCurrency(body.value);
-    const finalPrice = parsedFinalPrice ?? parsedNominalValue;
-    if (!finalPrice || finalPrice <= 0) {
-      return NextResponse.json({ error: "قيمة الصفقة يجب أن تكون رقماً موجباً" }, { status: 400 });
-    }
-    const nominalValue = parsedNominalValue ?? finalPrice;
-
-    const commissionPercent = body.commission !== undefined ? Math.max(0, parseFloat(body.commission) || 0) : 0;
-    const commissionAmt = body.commissionAmt !== undefined
-      ? Math.max(0, parseCurrency(body.commissionAmt) || 0)
-      : calculateCommission(finalPrice, commissionPercent);
-
-    const customer = await prisma.customer.findUnique({
-      where: { id: customerId },
-      select: { id: true, name: true, assignedToId: true, status: true },
+    const contract = await prisma.contract.findUnique({
+      where: { id: contractId },
+      select: { propertyId: true },
     });
-    if (!customer) {
-      return NextResponse.json({ error: "العميل غير موجود" }, { status: 404 });
-    }
-    if (session.role === ROLE.SALES_EMPLOYEE && customer.assignedToId !== session.id) {
-      return NextResponse.json({ error: "العميل غير موجود" }, { status: 404 });
-    }
-
-    if (propertyId) {
-      const property = await prisma.property.findUnique({
-        where: { id: propertyId },
-        select: { id: true, title: true },
-      });
-      if (!property) {
-        return NextResponse.json({ error: "العقار المحدد غير موجود" }, { status: 404 });
-      }
-    }
-
-    // A completed deal must be backed by a signed contract. Contract signing is
-    // the normal path and creates the deal itself; this endpoint remains as a
-    // repair path and will only accept a signed, unused contract.
-    const requestedContractId = typeof body.contractId === "string" && body.contractId
-      ? body.contractId
-      : null;
-    let signedContract: SignedContractRef | null;
-    if (requestedContractId) {
-      signedContract = await prisma.contract.findFirst({
-        where: { id: requestedContractId, status: "SIGNED" },
-        select: { id: true, customerId: true, propertyId: true, dealId: true },
-      });
-      if (!signedContract) {
-        return NextResponse.json({ error: "لا يمكن إتمام صفقة بدون عقد موقّع" }, { status: 409 });
-      }
-      if (signedContract.customerId !== customerId || (propertyId && signedContract.propertyId !== propertyId)) {
-        return NextResponse.json({ error: "العقد المحدد لا يطابق العميل أو الوحدة" }, { status: 400 });
-      }
-      if (signedContract.dealId) {
-        return NextResponse.json(
-          { error: "تم إتمام صفقة لهذا العقد بالفعل", dealId: signedContract.dealId },
-          { status: 409 }
-        );
-      }
-    } else {
-      signedContract = await prisma.contract.findFirst({
-        where: {
-          status: "SIGNED",
-          customerId,
-          ...(propertyId ? { propertyId } : {}),
-          dealId: null,
-        },
-        orderBy: { signedAt: "desc" },
-        select: { id: true, customerId: true, propertyId: true, dealId: true },
-      });
-      if (!signedContract) {
-        return NextResponse.json({
-          error: "لا يمكن إتمام صفقة بدون عقد موقّع. أنشئ عقداً ووقّعه من دورة الصفقات أولاً.",
-          code: "CONTRACT_REQUIRED",
-        }, { status: 409 });
-      }
-    }
+    if (!contract) return NextResponse.json({ error: "العقد غير موجود" }, { status: 404 });
 
     const result = await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(${propertyLockKey(contract.propertyId)})`;
+      const signed = await tx.contract.findUnique({
+        where: { id: contractId },
+        select: {
+          customerId: true, propertyId: true, status: true, dealId: true, terms: true,
+          property: { select: { status: true, price: true } },
+          reservation: { select: { amount: true } },
+        },
+      });
+      if (!signed || signed.status !== "SIGNED") throw new Error("CONTRACT_REQUIRED");
+      if (signed.dealId) throw new Error("CONTRACT_ALREADY_USED");
+      if (signed.property.status !== "SOLD") throw new Error("CONTRACT_PROPERTY_NOT_SOLD");
+
+      const amounts = resolveContractAmounts({
+        terms: signed.terms,
+        propertyPrice: signed.property.price,
+        reservationAmount: signed.reservation?.amount,
+      });
+      if (amounts.finalPrice <= 0) throw new Error("CONTRACT_AMOUNT_REQUIRED");
+
       const created = await createCompletedDealInTx(tx, {
         session,
-        customerId,
-        propertyId: propertyId || null,
-        finalPrice,
-        nominalValue,
-        commissionPercent,
-        commissionAmt,
-        requestedSalesRepId,
-        contractId: signedContract!.id,
+        customerId: signed.customerId,
+        propertyId: signed.propertyId,
+        ...amounts,
+        contractId,
       });
 
-      await tx.contract.update({
-        where: { id: signedContract!.id },
+      const claimed = await tx.contract.updateMany({
+        where: { id: contractId, dealId: null, status: "SIGNED" },
         data: { dealId: created.deal.id },
       });
-
+      if (claimed.count !== 1) throw new Error("CONTRACT_ALREADY_USED");
       return created;
     });
 
@@ -147,9 +84,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, deal: result.deal });
   } catch (error) {
-    const rawMessage = error instanceof Error ? error.message : String(error ?? "");
-    if (rawMessage === "INVALID_SALES_REP") {
-      return NextResponse.json({ error: "مندوب المبيعات المحدد غير صالح" }, { status: 400 });
+    if (error instanceof Error && error.message === "CONTRACT_PROPERTY_NOT_SOLD") {
+      return NextResponse.json({ error: "حالة الوحدة لا تطابق العقد الموقّع" }, { status: 409 });
     }
     const mapped = describeCycleError(error);
     if (mapped.status === 500) console.error("Create Deal Error:", error);

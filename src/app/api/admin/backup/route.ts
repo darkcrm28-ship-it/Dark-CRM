@@ -3,12 +3,20 @@ import { prisma } from "@/lib/db";
 import { requireRole, ROLE } from "@/lib/auth";
 import * as XLSX from "xlsx";
 import { createHash } from "crypto";
+import { Prisma } from "@prisma/client";
+
+const limits = {
+  projects: 500, campaigns: 10000, customers: 50000, properties: 10000, deals: 10000,
+  interactions: 25000, reminders: 10000, commissions: 10000, auditLogs: 10000,
+  financialTransactions: 20000, notifications: 5000, pushSubscriptions: 5000,
+};
 
 function escapeSqlValue(val: any): string {
   if (val === null || val === undefined) return "NULL";
   if (typeof val === "boolean") return val ? "TRUE" : "FALSE";
-  if (typeof val === "number") return isNaN(val) ? "NULL" : String(val);
+  if (typeof val === "number") return Number.isFinite(val) ? String(val) : `'${String(val)}'`;
   if (val instanceof Date) return `'${val.toISOString()}'`;
+  if (Prisma.Decimal.isDecimal(val)) return val.toString();
   if (typeof val === "object") {
     const jsonStr = JSON.stringify(val).replace(/'/g, "''");
     return `'${jsonStr}'::jsonb`;
@@ -31,18 +39,40 @@ function generateSqlInserts(tableName: string, rows: any[]): string {
   return sql;
 }
 
+function orderReversals<T extends { id: string; reversalOfId: string | null }>(rows: T[]): T[] | null {
+  const ids = new Set(rows.map(({ id }) => id));
+  const ordered: T[] = [];
+  const dependents = new Map<string, T[]>();
+  for (const row of rows) {
+    if (!row.reversalOfId) {
+      ordered.push(row);
+    } else {
+      if (!ids.has(row.reversalOfId)) return null;
+      const children = dependents.get(row.reversalOfId) ?? [];
+      children.push(row);
+      dependents.set(row.reversalOfId, children);
+    }
+  }
+  for (let i = 0; i < ordered.length; i++) ordered.push(...(dependents.get(ordered[i].id) ?? []));
+  return ordered.length === rows.length ? ordered : null;
+}
+
 export async function GET(request: NextRequest) {
   try {
     const session = await requireRole([ROLE.GENERAL_MANAGER]);
     if (session instanceof NextResponse) return session;
 
     const format = request.nextUrl.searchParams.get("format") || "json";
+    if (!["json", "sql", "xlsx"].includes(format)) {
+      return NextResponse.json({ error: "صيغة التصدير غير مدعومة" }, { status: 400 });
+    }
     const dateStr = new Date().toISOString().split("T")[0];
 
-    // Fetch all tables with bounded limits to prevent Out-Of-Memory on massive datasets
+    // Read the selected tables from one consistent snapshot.
     const [
       rawUsers,
       projects,
+      campaigns,
       customers,
       properties,
       deals,
@@ -55,7 +85,7 @@ export async function GET(request: NextRequest) {
       financialTransactions,
       notifications,
       pushSubscriptions
-    ] = await Promise.all([
+    ] = await prisma.$transaction([
       prisma.user.findMany({
         select: {
           id: true,
@@ -67,6 +97,7 @@ export async function GET(request: NextRequest) {
           address: true,
           dateJoined: true,
           salaryBase: true,
+          salaryBaseDecimal: true,
           isActive: true,
           expertAreas: true,
           birthDate: true,
@@ -82,47 +113,50 @@ export async function GET(request: NextRequest) {
           updatedAt: true,
         },
       }),
-      prisma.project.findMany({ take: 500 }),
-      prisma.customer.findMany({ take: 50000, orderBy: { createdAt: "desc" } }),
-      prisma.property.findMany({ take: 10000, orderBy: { createdAt: "desc" } }),
-      prisma.deal.findMany({ take: 10000, orderBy: { createdAt: "desc" } }),
-      prisma.interaction.findMany({ take: 25000, orderBy: { createdAt: "desc" } }),
-      prisma.reminder.findMany({ take: 10000, orderBy: { createdAt: "desc" } }),
-      prisma.commission.findMany({ take: 10000, orderBy: { createdAt: "desc" } }),
-      prisma.auditLog.findMany({ take: 10000, orderBy: { createdAt: "desc" } }),
-      (prisma as any).customFieldDefinition ? (prisma as any).customFieldDefinition.findMany() : Promise.resolve([]),
+      prisma.project.findMany({ take: limits.projects + 1 }),
+      prisma.campaign.findMany({ take: limits.campaigns + 1 }),
+      prisma.customer.findMany({ take: limits.customers + 1, orderBy: { createdAt: "desc" } }),
+      prisma.property.findMany({ take: limits.properties + 1, orderBy: { createdAt: "desc" } }),
+      prisma.deal.findMany({ take: limits.deals + 1, orderBy: { createdAt: "desc" } }),
+      prisma.interaction.findMany({ take: limits.interactions + 1, orderBy: { createdAt: "desc" } }),
+      prisma.reminder.findMany({ take: limits.reminders + 1, orderBy: { createdAt: "desc" } }),
+      prisma.commission.findMany({ take: limits.commissions + 1, orderBy: { createdAt: "desc" } }),
+      prisma.auditLog.findMany({ take: limits.auditLogs + 1, orderBy: { createdAt: "desc" } }),
+      prisma.customFieldDefinition.findMany(),
       prisma.systemSettings.findMany(),
-      prisma.financialTransaction.findMany({ take: 20000, orderBy: { date: "desc" } }),
-      prisma.notification.findMany({ take: 5000, orderBy: { createdAt: "desc" } }),
-      prisma.pushSubscription.findMany({ take: 5000 }),
-    ]);
+      prisma.financialTransaction.findMany({ take: limits.financialTransactions + 1, orderBy: { date: "desc" } }),
+      prisma.notification.findMany({ take: limits.notifications + 1, orderBy: { createdAt: "desc" } }),
+      prisma.pushSubscription.findMany({ take: limits.pushSubscriptions + 1 }),
+    ], { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
+    const limited = { projects, campaigns, customers, properties, deals, interactions, reminders, commissions,
+      auditLogs, financialTransactions, notifications, pushSubscriptions };
+    const exceeded = (Object.keys(limits) as (keyof typeof limits)[])
+      .filter((key) => limited[key].length > limits[key]);
+    if (exceeded.length) {
+      return NextResponse.json({ error: "حجم البيانات يتجاوز حد التصدير", tables: exceeded }, { status: 422 });
+    }
 
-    // Critical Security: Ensure password hashes are NEVER exported in backups
-    const users = rawUsers.map((u) => {
-      // Create safe object without password
-      const { ...safeUser } = u as any;
-      delete safeUser.password;
-      return safeUser;
-    });
+    // The explicit select above excludes password hashes from this application export.
+    const users = rawUsers;
 
-    // Compute cryptographic SHA-256 checksum for backup integrity verification
-    const checksumPayload = JSON.stringify({
-      userCount: users.length,
-      customerCount: customers.length,
-      dealCount: deals.length,
-      financialCount: financialTransactions.length,
-      sampleIds: [users[0]?.id, customers[0]?.id, deals[0]?.id],
-    });
-    const integrityChecksum = createHash("sha256").update(checksumPayload).digest("hex");
+    const exportedData = { users, ...limited, customFields, settings };
+    const integrityChecksum = createHash("sha256").update(JSON.stringify(exportedData)).digest("hex");
 
     // 1. SQL Dump
     if (format === "sql") {
-      let sqlContent = `-- Dark CRM Complete Database Backup & Migration Script\n`;
+      const orderedTransactions = orderReversals(financialTransactions);
+      const userIds = new Set(users.map(({ id }) => id));
+      if (!orderedTransactions || pushSubscriptions.some(({ userId }) => !userIds.has(userId))) {
+        return NextResponse.json({
+          error: "توجد علاقات تاريخية تحتاج مراجعة قبل تصدير SQL. استخدم أرشيف قاعدة البيانات لأغراض الاستعادة.",
+        }, { status: 409 });
+      }
+      let sqlContent = `-- Dark CRM application data export (selected tables; requires matching schema)\n`;
       sqlContent += `-- Generated: ${new Date().toISOString()}\n`;
       sqlContent += `-- Integrity Checksum (SHA256): ${integrityChecksum}\n`;
       sqlContent += `-- Security Notice: User password hashes are sanitized/excluded from this export.\n`;
-      sqlContent += `-- Target: Compatible with PostgreSQL, Neon, Supabase, Railway, Docker, Local Postgres\n\n`;
-      sqlContent += `BEGIN;\n\n`;
+      sqlContent += `-- Additional schema, tables and storage assets are outside this export.\n\n`;
+      sqlContent += `BEGIN;\nSET LOCAL standard_conforming_strings = on;\n\n`;
 
       // For SQL, provide empty placeholder password hash to satisfy NOT NULL constraints if restored
       const usersForSql = users.map((u) => ({
@@ -132,6 +166,7 @@ export async function GET(request: NextRequest) {
 
       sqlContent += generateSqlInserts("User", usersForSql);
       sqlContent += generateSqlInserts("Project", projects);
+      sqlContent += generateSqlInserts("Campaign", campaigns);
       sqlContent += generateSqlInserts("Customer", customers);
       sqlContent += generateSqlInserts("Property", properties);
       sqlContent += generateSqlInserts("Deal", deals);
@@ -140,7 +175,7 @@ export async function GET(request: NextRequest) {
       sqlContent += generateSqlInserts("Commission", commissions);
       sqlContent += generateSqlInserts("CustomFieldDefinition", customFields);
       sqlContent += generateSqlInserts("SystemSettings", settings);
-      sqlContent += generateSqlInserts("FinancialTransaction", financialTransactions);
+      sqlContent += generateSqlInserts("FinancialTransaction", orderedTransactions);
       sqlContent += generateSqlInserts("Notification", notifications);
       sqlContent += generateSqlInserts("PushSubscription", pushSubscriptions);
       sqlContent += generateSqlInserts("AuditLog", auditLogs);
@@ -154,7 +189,7 @@ export async function GET(request: NextRequest) {
           action: "BACKUP_EXPORT",
           entity: "DATABASE",
           entityId: "SQL_DUMP",
-          details: `تصدير نسخة احتياطية كاملة بصيغة SQL (SHA256: ${integrityChecksum.slice(0, 12)}...)`,
+          details: "تصدير بيانات محددة بصيغة SQL",
         },
       }).catch(() => {});
 
@@ -260,7 +295,7 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // 3. Complete JSON Dump (Default)
+    // 3. Selected JSON export (default)
     const backupPayload = {
       meta: {
         system: "Dark CRM",
@@ -268,10 +303,12 @@ export async function GET(request: NextRequest) {
         exportedAt: new Date().toISOString(),
         exportedBy: session.name,
         security: "PASSWORD_HASHES_REDACTED",
+        scope: "SELECTED_APPLICATION_TABLES",
         checksum: integrityChecksum,
         counts: {
           users: users.length,
           projects: projects.length,
+          campaigns: campaigns.length,
           customers: customers.length,
           properties: properties.length,
           deals: deals.length,
@@ -284,22 +321,7 @@ export async function GET(request: NextRequest) {
           auditLogs: auditLogs.length,
         },
       },
-      data: {
-        users, // Password hashes stripped
-        projects,
-        customers,
-        properties,
-        deals,
-        interactions,
-        reminders,
-        commissions,
-        financialTransactions,
-        notifications,
-        pushSubscriptions,
-        auditLogs,
-        customFields,
-        settings,
-      },
+      data: exportedData,
     };
 
     await prisma.auditLog.create({
@@ -308,7 +330,7 @@ export async function GET(request: NextRequest) {
         action: "BACKUP_EXPORT",
         entity: "DATABASE",
         entityId: "JSON_DUMP",
-        details: `تصدير نسخة احتياطية كاملة بصيغة JSON مع تحقق السلامة SHA-256`,
+        details: "تصدير بيانات محددة بصيغة JSON مع تحقق السلامة SHA-256",
       },
     }).catch(() => {});
 
@@ -316,11 +338,11 @@ export async function GET(request: NextRequest) {
       headers: {
         "Cache-Control": "no-store, private",
         "Content-Type": "application/json; charset=utf-8",
-        "Content-Disposition": `attachment; filename="dark_crm_full_backup_${dateStr}.json"`,
+        "Content-Disposition": `attachment; filename="dark_crm_export_${dateStr}.json"`,
       },
     });
   } catch (error: any) {
     console.error("Backup Export Error:", error);
-    return NextResponse.json({ error: "Failed to generate database backup: " + (error.message || "Unknown error") }, { status: 500 });
+    return NextResponse.json({ error: "تعذّر تجهيز تصدير البيانات" }, { status: 500 });
   }
 }

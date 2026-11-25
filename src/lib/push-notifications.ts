@@ -1,5 +1,6 @@
 import webpush from "web-push";
 import { prisma } from "./db";
+import { isSupportedPushEndpoint } from "./push-endpoint";
 
 let vapidConfigured = false;
 
@@ -35,7 +36,7 @@ export async function sendPushNotification(userId: string, title: string, body: 
       where: { userId },
     });
 
-    const notifications = subscriptions.map((sub) => {
+    const notifications = subscriptions.filter((sub) => isSupportedPushEndpoint(sub.endpoint)).map((sub) => {
       const pushConfig = {
         endpoint: sub.endpoint,
         keys: {

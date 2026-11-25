@@ -81,7 +81,7 @@ export async function registerPropertyOwnership(
 ) {
   const { propertyId, customerId, percentage, notes, transferReason } = params;
 
-  if (percentage <= 0 || percentage > 100) {
+  if (!Number.isFinite(percentage) || roundCurrency(percentage) <= 0 || percentage > 100) {
     throw new Error("نسبة الملكية يجب أن تكون أكبر من 0 وأقل من أو تساوي 100%.");
   }
 
@@ -120,6 +120,7 @@ export async function registerPropertyOwnership(
         propertyId,
         customerId,
         percentage: roundedPercentage,
+        percentageDecimal: roundedPercentage,
         isCurrent: true,
         effectiveFrom: new Date(),
         effectiveTo: null,
@@ -160,7 +161,7 @@ export async function transferPropertyOwnership(
 ) {
   const { propertyId, fromOwnershipId, toCustomerId, transferPercentage, reason, notes } = params;
 
-  if (transferPercentage <= 0) {
+  if (!Number.isFinite(transferPercentage) || roundCurrency(transferPercentage) <= 0 || transferPercentage > 100) {
     throw new Error("نسبة التنازل يجب أن تكون أكبر من 0%.");
   }
 
@@ -214,6 +215,7 @@ export async function transferPropertyOwnership(
           propertyId,
           customerId: sourceOwnership.customerId,
           percentage: remainingPercentage,
+          percentageDecimal: remainingPercentage,
           isCurrent: true,
           effectiveFrom: now,
           effectiveTo: null,
@@ -230,6 +232,7 @@ export async function transferPropertyOwnership(
         propertyId,
         customerId: toCustomerId,
         percentage: roundedTransfer,
+        percentageDecimal: roundedTransfer,
         isCurrent: true,
         effectiveFrom: now,
         effectiveTo: null,

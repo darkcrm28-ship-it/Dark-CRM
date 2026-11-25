@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireRole, FINANCE_ROLES } from "@/lib/auth";
+import { getAccountingSummary } from "@/lib/accounting-summary";
+import { parseCurrency } from "@/lib/financial";
 
 export async function GET(req: Request) {
   try {
@@ -8,22 +10,15 @@ export async function GET(req: Request) {
     if (session instanceof NextResponse) return session;
 
     const { searchParams } = new URL(req.url);
-    const startDate = searchParams.get("start") || new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
-    const endDate = searchParams.get("end") || new Date().toISOString();
-
-    const transactions = await prisma.financialTransaction.findMany({
-      where: {
-        date: { gte: new Date(startDate), lte: new Date(endDate) },
-      },
-      orderBy: { date: "desc" },
-    });
-
-    const stats = {
-      income: transactions.filter(t => t.type === "INCOME").reduce((sum, t) => sum + t.amount, 0),
-      expense: transactions.filter(t => t.type === "EXPENSE").reduce((sum, t) => sum + t.amount, 0),
-    };
-
-    return NextResponse.json({ transactions, stats });
+    const start = searchParams.get("start");
+    const end = searchParams.get("end");
+    const gte = start ? new Date(start) : undefined;
+    const lte = end ? new Date(end) : undefined;
+    if ((gte && !Number.isFinite(gte.getTime())) || (lte && !Number.isFinite(lte.getTime())) ||
+        (gte && lte && gte > lte)) {
+      return NextResponse.json({ error: "الفترة المحددة غير صالحة" }, { status: 400 });
+    }
+    return NextResponse.json(await getAccountingSummary({ gte, lte }));
   } catch {
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
@@ -34,9 +29,17 @@ export async function POST(req: Request) {
     const session = await requireRole(FINANCE_ROLES);
     if (session instanceof NextResponse) return session;
 
-    const data = await req.json();
-    const amount = typeof data.amount === "number" ? data.amount : parseFloat(data.amount);
-    if (!amount || isNaN(amount) || amount <= 0) {
+    const data = await req.json().catch(() => null);
+    if (!data || !["EXPENSE", "INCOME"].includes(data.type) ||
+        (data.status !== undefined && !["PENDING", "COMPLETED"].includes(data.status))) {
+      return NextResponse.json({ error: "نوع المعاملة أو حالتها غير صالح" }, { status: 400 });
+    }
+    const date = data.date ? new Date(data.date) : new Date();
+    if (!Number.isFinite(date.getTime())) {
+      return NextResponse.json({ error: "تاريخ المعاملة غير صالح" }, { status: 400 });
+    }
+    const amount = parseCurrency(data.amount);
+    if (!amount || amount <= 0 || amount >= 1e13) {
       return NextResponse.json({ error: "المبلغ يجب أن يكون رقماً موجباً" }, { status: 400 });
     }
 
@@ -49,10 +52,10 @@ export async function POST(req: Request) {
           type,
           category,
           amount,
+          amountDecimal: amount,
           description: data.description ? String(data.description).trim() : null,
           status: data.status || "COMPLETED",
-          date: data.date ? new Date(data.date) : new Date(),
-          relatedId: data.relatedId || null,
+          date,
         },
       });
 
@@ -81,25 +84,28 @@ export async function PATCH(req: Request) {
     const session = await requireRole(FINANCE_ROLES);
     if (session instanceof NextResponse) return session;
 
-    const data = await req.json();
-    if (!data.id || typeof data.id !== "string") {
+    const data = await req.json().catch(() => null);
+    if (!data || typeof data.id !== "string" || !data.id || data.status !== "COMPLETED") {
       return NextResponse.json({ error: "Transaction ID is required" }, { status: 400 });
     }
 
-    const amount = data.amount !== undefined ? (typeof data.amount === "number" ? data.amount : parseFloat(data.amount)) : undefined;
-    if (amount !== undefined && (isNaN(amount) || amount <= 0)) {
+    const amount = data.amount !== undefined ? parseCurrency(data.amount) : undefined;
+    if (amount !== undefined && (amount === null || amount <= 0 || amount >= 1e13)) {
       return NextResponse.json({ error: "المبلغ يجب أن يكون رقماً موجباً" }, { status: 400 });
     }
 
     const transaction = await prisma.$transaction(async (tx) => {
-      const updated = await tx.financialTransaction.update({
-        where: { id: data.id },
+      const claimed = await tx.financialTransaction.updateMany({
+        where: { id: data.id, status: "PENDING" },
         data: {
-          status: data.status,
-          amount,
+          status: "COMPLETED",
+          amount: amount ?? undefined,
+          amountDecimal: amount ?? undefined,
           description: data.description !== undefined ? String(data.description).trim() : undefined,
         },
       });
+      if (claimed.count !== 1) return null;
+      const updated = await tx.financialTransaction.findUniqueOrThrow({ where: { id: data.id } });
 
       // If it's a commission being confirmed, update the commission status too
       if (updated.category === "COMMISSION" && updated.relatedId && data.status === "COMPLETED") {
@@ -122,6 +128,9 @@ export async function PATCH(req: Request) {
       return updated;
     });
 
+    if (!transaction) {
+      return NextResponse.json({ error: "المعاملة غير موجودة أو لم تعد معلّقة" }, { status: 409 });
+    }
     return NextResponse.json(transaction);
   } catch (error) {
     console.error("Accounting PATCH Error:", error);

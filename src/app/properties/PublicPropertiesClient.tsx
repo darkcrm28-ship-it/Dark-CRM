@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   Building2,
@@ -50,9 +50,11 @@ const UNIT_TYPES = ["الكل", "شقة", "فيلا", "توين هاوس", "تا
 const BEDROOMS_OPTIONS = ["الكل", "1", "2", "3", "4", "5+"];
 
 export default function PublicPropertiesClient({
-  initialProperties = [],
+  initialCatalog,
+  zones,
 }: {
-  initialProperties: PropertyItem[];
+  initialCatalog: { properties: PropertyItem[]; total: number; page: number; pageSize: number };
+  zones: string[];
 }) {
   // Filter States
   const [searchQuery, setSearchQuery] = useState("");
@@ -69,59 +71,42 @@ export default function PublicPropertiesClient({
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [submitError, setSubmitError] = useState("");
 
-  // Extract unique zones
-  const uniqueZones = useMemo(() => {
-    const zones = new Set<string>();
-    initialProperties.forEach((p) => {
-      if (p.zone && p.zone.trim()) zones.add(p.zone.trim());
-    });
-    return ["الكل", ...Array.from(zones)];
-  }, [initialProperties]);
+  const [catalog, setCatalog] = useState(initialCatalog);
+  const [loadingCatalog, setLoadingCatalog] = useState(false);
+  const [catalogError, setCatalogError] = useState("");
+  const [page, setPage] = useState(1);
+  const uniqueZones = ["الكل", ...zones];
+  const filteredProperties = catalog.properties;
 
-  // Filtered Properties
-  const filteredProperties = useMemo(() => {
-    return initialProperties.filter((p) => {
-      // 1. Search Query
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase().trim();
-        const titleMatch = (p.title || "").toLowerCase().includes(q);
-        const projectMatch = (p.projectName || "").toLowerCase().includes(q);
-        const zoneMatch = (p.zone || "").toLowerCase().includes(q);
-        if (!titleMatch && !projectMatch && !zoneMatch) return false;
+  useEffect(() => {
+    const controller = new AbortController();
+    const params = new URLSearchParams({ page: String(page) });
+    if (searchQuery.trim()) params.set("q", searchQuery.trim());
+    if (selectedUnitType !== "الكل") params.set("type", selectedUnitType);
+    if (selectedBedrooms !== "الكل") params.set("rooms", selectedBedrooms);
+    if (selectedZone !== "الكل") params.set("zone", selectedZone);
+    setLoadingCatalog(true);
+    setCatalogError("");
+    const timer = setTimeout(async () => {
+      try {
+        const response = await fetch(`/api/public/properties?${params}`, { signal: controller.signal });
+        if (!response.ok) throw new Error("Catalog unavailable");
+        const result = await response.json();
+        if (!controller.signal.aborted) setCatalog(result);
+      } catch {
+        if (!controller.signal.aborted) setCatalogError("تعذّر تحديث الوحدات. جرّب تغيير الفلاتر أو إعادة تحميل الصفحة.");
+      } finally {
+        if (!controller.signal.aborted) setLoadingCatalog(false);
       }
-
-      // 2. Unit Type
-      if (selectedUnitType !== "الكل") {
-        if (!p.unitType || !p.unitType.toLowerCase().includes(selectedUnitType.toLowerCase())) {
-          return false;
-        }
-      }
-
-      // 3. Bedrooms
-      if (selectedBedrooms !== "الكل") {
-        if (selectedBedrooms === "5+") {
-          if (!p.bedrooms || p.bedrooms < 5) return false;
-        } else {
-          if (p.bedrooms !== parseInt(selectedBedrooms)) return false;
-        }
-      }
-
-      // 4. Zone
-      if (selectedZone !== "الكل") {
-        if (!p.zone || p.zone.trim() !== selectedZone.trim()) return false;
-      }
-
-      return true;
-    });
-  }, [
-    initialProperties,
-    searchQuery,
-    selectedUnitType,
-    selectedBedrooms,
-    selectedZone,
-  ]);
+    }, 250);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [page, searchQuery, selectedUnitType, selectedBedrooms, selectedZone]);
 
   const resetFilters = () => {
+    setPage(1);
     setSearchQuery("");
     setSelectedUnitType("الكل");
     setSelectedBedrooms("الكل");
@@ -233,7 +218,7 @@ export default function PublicPropertiesClient({
               type="text"
               placeholder="ابحث باسم المشروع، الكومباوند، أو المنطقة (مثل: مدينتي، ميفيدا، التجمع، زايد...)"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => { setPage(1); setSearchQuery(e.target.value); }}
               className="catalog-search-input"
             />
             {searchQuery && (
@@ -249,7 +234,7 @@ export default function PublicPropertiesClient({
               <label>نوع الوحدة</label>
               <select
                 value={selectedUnitType}
-                onChange={(e) => setSelectedUnitType(e.target.value)}
+                onChange={(e) => { setPage(1); setSelectedUnitType(e.target.value); }}
                 className="catalog-select"
               >
                 {UNIT_TYPES.map((t) => (
@@ -262,7 +247,7 @@ export default function PublicPropertiesClient({
               <label>المنطقة / الكومباوند</label>
               <select
                 value={selectedZone}
-                onChange={(e) => setSelectedZone(e.target.value)}
+                onChange={(e) => { setPage(1); setSelectedZone(e.target.value); }}
                 className="catalog-select"
               >
                 {uniqueZones.map((z) => (
@@ -275,7 +260,7 @@ export default function PublicPropertiesClient({
               <label>عدد الغرف</label>
               <select
                 value={selectedBedrooms}
-                onChange={(e) => setSelectedBedrooms(e.target.value)}
+                onChange={(e) => { setPage(1); setSelectedBedrooms(e.target.value); }}
                 className="catalog-select"
               >
                 {BEDROOMS_OPTIONS.map((b) => (
@@ -293,7 +278,7 @@ export default function PublicPropertiesClient({
                 <span>إعادة ضبط</span>
               </button>
               <div className="catalog-counter-pill">
-                عرض <strong>{filteredProperties.length}</strong> من أصل {initialProperties.length} وحدة
+                {loadingCatalog ? "جاري تحميل الوحدات…" : <>عرض <strong>{filteredProperties.length}</strong> من أصل {catalog.total} وحدة</>}
               </div>
             </div>
           </div>
@@ -431,7 +416,15 @@ export default function PublicPropertiesClient({
         </div>
 
         {/* Empty State */}
-        {filteredProperties.length === 0 && (
+        {catalogError && <p role="alert">{catalogError}</p>}
+        {catalog.total > catalog.pageSize && (
+          <nav aria-label="صفحات الكتالوج" className="catalog-filter-footer">
+            <button type="button" className="btn-reset-filters" disabled={loadingCatalog || page <= 1} onClick={() => setPage(page - 1)}>السابق</button>
+            <span>صفحة {catalog.page} من {Math.ceil(catalog.total / catalog.pageSize)}</span>
+            <button type="button" className="btn-reset-filters" disabled={loadingCatalog || page * catalog.pageSize >= catalog.total} onClick={() => setPage(page + 1)}>التالي</button>
+          </nav>
+        )}
+        {filteredProperties.length === 0 && !catalogError && !loadingCatalog && (
           <div className="catalog-empty-card">
             <Building2 size={48} className="text-gold opacity-40 mx-auto mb-3" />
             <h3 className="text-lg font-bold text-white mb-2">لا توجد وحدات مطابقة للبحث حالياً</h3>

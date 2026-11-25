@@ -44,7 +44,32 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "حجم الطلب أكبر من المسموح." }, { status: 413 });
     }
 
-    const rawBody = await request.json().catch(() => null);
+    const reader = request.body?.getReader();
+    if (!reader) return NextResponse.json({ error: "صيغة الطلب غير صحيحة." }, { status: 400 });
+    const decoder = new TextDecoder();
+    let size = 0;
+    let text = "";
+    try {
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        size += value.byteLength;
+        if (size > MAX_BODY_BYTES) {
+          await reader.cancel().catch(() => undefined);
+          return NextResponse.json({ error: "حجم الطلب أكبر من المسموح." }, { status: 413 });
+        }
+        text += decoder.decode(value, { stream: true });
+      }
+      text += decoder.decode();
+    } finally {
+      reader.releaseLock();
+    }
+    let rawBody: unknown;
+    try {
+      rawBody = JSON.parse(text);
+    } catch {
+      return NextResponse.json({ error: "صيغة الطلب غير صحيحة." }, { status: 400 });
+    }
     if (!rawBody || typeof rawBody !== "object" || Array.isArray(rawBody)) {
       return NextResponse.json({ error: "صيغة الطلب غير صحيحة." }, { status: 400 });
     }
@@ -134,6 +159,8 @@ export async function POST(request: NextRequest) {
     // ─── 2. Execute in a single transaction ───────────────────────────────
     const result = await prisma.$transaction(
       async (tx) => {
+        // Serialize the rate check and WEB code allocation in the same transaction.
+        await tx.$queryRaw`SELECT pg_advisory_xact_lock(${WEB_SEQUENCE_LOCK});`;
         // Rate limit: count recent inquiries for the same normalized phone in the
         // window. Counting via the Customer table (createdAt) is portable across
         // runtimes and avoids unreliable in-memory counters on Cloudflare.
@@ -150,7 +177,6 @@ export async function POST(request: NextRequest) {
 
         // Generate WEB code atomically with an advisory lock so concurrent
         // inquiries can't produce the same count()+1 code.
-        await tx.$queryRaw`SELECT pg_advisory_xact_lock(${WEB_SEQUENCE_LOCK});`;
         const maxSeqRes = await tx.$queryRaw<Array<{ max_seq: number | null }>>`
           SELECT MAX(
             NULLIF(REGEXP_REPLACE(code, '^WEB-0*', ''), '')::integer

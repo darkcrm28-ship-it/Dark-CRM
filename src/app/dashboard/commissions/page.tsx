@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import { getSession, COMMISSION_ROLES } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import CommissionsClient from "./CommissionsClient";
+import { readMoney } from "@/lib/financial";
 
 export default async function CommissionsPage() {
   const session = await getSession();
@@ -32,7 +33,12 @@ export default async function CommissionsPage() {
         </div>
       </div>
 
-      <CommissionsClient employees={employees} />
+      <CommissionsClient employees={employees.map(({ commissions, ...employee }) => ({
+        ...employee,
+        commissions: commissions.map(({ amountDecimal, ...commission }) => ({
+          ...commission, amount: readMoney(amountDecimal, commission.amount),
+        })),
+      }))} />
     </div>
   );
 }
