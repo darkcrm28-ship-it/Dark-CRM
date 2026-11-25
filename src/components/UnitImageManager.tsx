@@ -1,5 +1,6 @@
 "use client";
 
+import { useSiteText } from "@/components/public/PublicSiteContent";
 import React, { useState, useRef } from "react";
 import { Upload, X, Image as ImageIcon, AlertCircle, CheckCircle2, Star } from "lucide-react";
 
@@ -17,6 +18,7 @@ export default function UnitImageManager({
   onChange,
   maxImages = MAX_IMAGE_COUNT,
 }: UnitImageManagerProps) {
+  const text = useSiteText();
   const [uploading, setUploading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -118,7 +120,7 @@ export default function UnitImageManager({
 
         const data = await res.json();
         if (!res.ok) {
-          throw new Error(data.error || "فشل رفع الصورة");
+          throw new Error(data.error || text("photos.text1", undefined, "فشل رفع الصورة"));
         }
 
         if (data.url) {
@@ -155,11 +157,11 @@ export default function UnitImageManager({
       <div className="unit-image-manager-header">
         <div className="flex items-center gap-2">
           <ImageIcon size={18} className="text-gold" />
-          <span className="font-bold text-sm text-slate-200">معرض صور الوحدة</span>
+          <span className="font-bold text-sm text-slate-200">{text("photos.text2", undefined, "معرض صور الوحدة")}</span>
         </div>
         <div className="image-counter-pill">
-          <span>{images.length} / {maxImages} صور</span>
-          {images.length === maxImages && <span className="text-gold font-bold">(الحد الأقصى)</span>}
+          <span>{images.length} / {maxImages} {text("photos.text3", undefined, "صور")}</span>
+          {images.length === maxImages && <span className="text-gold font-bold">{text("photos.text4", undefined, "(الحد الأقصى)")}</span>}
         </div>
       </div>
 
@@ -190,17 +192,13 @@ export default function UnitImageManager({
           {uploading ? (
             <div className="flex flex-col items-center gap-2">
               <span className="spinner-icon" />
-              <span className="text-xs text-gold">جاري معالجة ورفع الصور إلى Cloudflare...</span>
+              <span className="text-xs text-gold">{text("photos.text5", undefined, "جاري معالجة ورفع الصور إلى Cloudflare...")}</span>
             </div>
           ) : (
             <div className="flex flex-col items-center gap-1.5 text-center">
               <Upload size={24} className="text-gold mb-1" />
-              <span className="text-xs font-bold text-slate-200">
-                اضغط هنا لاختيار أو سحب صور الوحدة (حتى {maxImages - images.length} صور إضافية)
-              </span>
-              <span className="text-[11px] text-slate-400">
-                الحد الأقصى: 500 كيلوبايت لكل صورة &bull; الصيغ المدعومة: JPG, PNG, WebP
-              </span>
+              <span className="text-xs font-bold text-slate-200">{text("photos.text6", undefined, "اضغط هنا لاختيار أو سحب صور الوحدة (حتى")} {maxImages - images.length} {text("photos.text7", undefined, "صور إضافية)")}</span>
+              <span className="text-[11px] text-slate-400">{text("photos.text8", undefined, "الحد الأقصى: 500 كيلوبايت لكل صورة • الصيغ المدعومة: JPG, PNG, WebP")}</span>
             </div>
           )}
         </div>
@@ -211,23 +209,21 @@ export default function UnitImageManager({
         <div className="unit-thumbnails-grid">
           {images.map((url, idx) => (
             <div key={idx} className="thumbnail-card">
-              <img src={url} alt={`وحدة - صورة ${idx + 1}`} className="thumbnail-img" />
+              <img src={url} alt={text("photos.text9", [idx + 1], "وحدة - صورة {1}")} className="thumbnail-img" />
 
               {/* Primary Image Badge */}
               {idx === 0 ? (
-                <div className="primary-badge" title="الصورة الرئيسية للكتالوج">
+                <div className="primary-badge" title={text("photos.text10", undefined, "الصورة الرئيسية للكتالوج")}>
                   <Star size={10} fill="currentColor" />
-                  <span>الرئيسية</span>
+                  <span>{text("photos.text11", undefined, "الرئيسية")}</span>
                 </div>
               ) : (
                 <button
                   type="button"
                   onClick={() => handleSetPrimary(idx)}
                   className="set-primary-btn"
-                  title="تعيين كصورة رئيسية"
-                >
-                  اجعلها رئيسية
-                </button>
+                  title={text("photos.text12", undefined, "تعيين كصورة رئيسية")}
+                >{text("photos.text13", undefined, "اجعلها رئيسية")}</button>
               )}
 
               {/* Delete Button */}
@@ -235,7 +231,7 @@ export default function UnitImageManager({
                 type="button"
                 onClick={() => handleDeleteImage(idx)}
                 className="delete-img-btn"
-                title="حذف هذه الصورة"
+                title={text("photos.text14", undefined, "حذف هذه الصورة")}
               >
                 <X size={14} />
               </button>

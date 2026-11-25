@@ -1,7 +1,8 @@
 "use client";
 
+import { useSiteText, usePublicSite, usePublicHeroStyle, SiteLink as Link } from "@/components/public/PublicSiteContent";
 import React, { useState } from "react";
-import Link from "next/link";
+
 import { useRouter } from "next/navigation";
 import {
   Building2,
@@ -49,6 +50,9 @@ export default function PublicPortalClient({
 }: {
   featuredProperties: PropertyItem[];
 }) {
+  const text = useSiteText();
+  const { visibility } = usePublicSite();
+  const heroStyle = usePublicHeroStyle(false);
   const router = useRouter();
   const [heroSearch, setHeroSearch] = useState("");
 
@@ -73,12 +77,12 @@ export default function PublicPortalClient({
   };
 
   const topDevelopers = [
-    { name: "إعمار مصر", sub: "ميفيدا &bull; مراسي &bull; أبتاون" },
-    { name: "مجموعة طلعت مصطفى", sub: "مدينتي &bull; سيليا &bull; الرحاب" },
-    { name: "بالم هيلز للتعمير", sub: "بادية &bull; بالم هيلز التجمع" },
-    { name: "سوديك (SODIC)", sub: "فيليت &bull; إيست تاون &bull; كرمة" },
-    { name: "ماونتن فيو", sub: "آي سيتي &bull; هايد بارك &bull; رأس الحكمة" },
-    { name: "أورا ديفلوبرز", sub: "زد الشيخ زايد &bull; زد إيست" },
+    { name: text("partners.topDevelopers1_name"), sub: text("partners.topDevelopers1_sub") },
+    { name: text("partners.topDevelopers2_name"), sub: text("partners.topDevelopers2_sub") },
+    { name: text("partners.topDevelopers3_name"), sub: text("partners.topDevelopers3_sub") },
+    { name: text("partners.topDevelopers4_name"), sub: text("partners.topDevelopers4_sub") },
+    { name: text("partners.topDevelopers5_name"), sub: text("partners.topDevelopers5_sub") },
+    { name: text("partners.topDevelopers6_name"), sub: text("partners.topDevelopers6_sub") },
   ];
 
   return (
@@ -87,78 +91,68 @@ export default function PublicPortalClient({
 
       {/* ─── 1. CINEMATIC LUXURY LANDSCAPE HERO SECTION ─── */}
       <section className="cinematic-hero-wrapper">
-        <div className="hero-landscape-bg-img" />
+        <div className="hero-landscape-bg-img" style={heroStyle} />
         <div className="hero-dark-vignette-overlay" />
 
         <div className="portal-container hero-content-relative">
           <div className="hero-text-badge-pill">
             <Trees size={15} className="text-gold" />
-            <span>مجتمعات سكنية فاخرة &bull; إطلالات لاندسكيب وبحيرات طبيعية</span>
+            <span>{text("hero.text1")}</span>
           </div>
 
-          <h1 className="cinematic-hero-headline">
-            اختر منزل أحلامك في أرقى <br />
-            <span className="gold-shimmer-text">الكمبوندات العقارية</span> بمصر
-          </h1>
+          <h1 className="cinematic-hero-headline">{text("hero.text2")} <br />
+            <span className="gold-shimmer-text">{text("hero.text3")}</span> {text("hero.text4")}</h1>
 
-          <p className="cinematic-hero-subtext">
-            نساعدك في اقتناء أرقى الفيلات والوحدات السكنية ذات الإطلالات الخضراء المفتوحة في التجمع الخامس، الشيخ زايد، والساحل الشمالي، مع فحص قانوني دقيق وأسهل خطط سداد.
-          </p>
+          <p className="cinematic-hero-subtext">{text("hero.text5")}</p>
 
           {/* Embedded Floating Hero Search Box */}
-          <form onSubmit={handleSearchSubmit} className="hero-floating-search-box">
+          {visibility.properties && <form onSubmit={handleSearchSubmit} className="hero-floating-search-box">
             <div className="search-input-col">
               <Search size={18} className="text-gold" />
               <input
                 type="text"
-                placeholder="ابحث باسم المشروع، الكومباوند، أو المنطقة (مثل: ميفيدا، مدينتي، التجمع...)"
+                placeholder={text("hero.text6")}
                 value={heroSearch}
                 onChange={(e) => setHeroSearch(e.target.value)}
                 className="hero-search-inner-input"
               />
             </div>
             <button type="submit" className="hero-search-action-btn">
-              <span>بحث في الكتالوج</span>
+              <span>{text("hero.text7")}</span>
               <ChevronRight size={16} />
             </button>
-          </form>
+          </form>}
 
           {/* Quick Action Navigation Buttons */}
           <div className="hero-actions-row">
-            <Link href="/properties" className="btn-consultation-gold px-8 py-3.5 text-base font-extrabold">
-              تصفح الكتالوج العقاري المباشر &larr;
-            </Link>
-            <Link href="/sell" className="btn-secondary-white px-8 py-3.5 text-base">
-              اعرض وحدتك للبيع معنا
-            </Link>
-            <Link href="/portfolio" className="btn-secondary-white px-6 py-3.5 text-sm">
-              سابقة أعمالنا وشركاؤنا
-            </Link>
+            <Link href="/properties" className="btn-consultation-gold px-8 py-3.5 text-base font-extrabold">{text("hero.text8")}</Link>
+            <Link href="/sell" className="btn-secondary-white px-8 py-3.5 text-base">{text("hero.text9")}</Link>
+            <Link href="/portfolio" className="btn-secondary-white px-6 py-3.5 text-sm">{text("hero.text10")}</Link>
           </div>
 
           {/* Floating Glass Stats Ribbon */}
           <div className="hero-stats-floating-ribbon">
             <div className="ribbon-stat-item">
-              <div className="ribbon-stat-num">+1,500</div>
-              <div className="ribbon-stat-label">وحدة تم تسويقها بنجاح</div>
+              <div className="ribbon-stat-num">{text("hero.text11")}</div>
+              <div className="ribbon-stat-label">{text("hero.text12")}</div>
             </div>
             <div className="ribbon-stat-divider" />
 
             <div className="ribbon-stat-item">
-              <div className="ribbon-stat-num">+50</div>
-              <div className="ribbon-stat-label">مشروع ولاندسكيب معتمد</div>
+              <div className="ribbon-stat-num">{text("hero.text13")}</div>
+              <div className="ribbon-stat-label">{text("hero.text14")}</div>
             </div>
             <div className="ribbon-stat-divider" />
 
             <div className="ribbon-stat-item">
-              <div className="ribbon-stat-num">98%</div>
-              <div className="ribbon-stat-label">نسبة رضا المستثمرين</div>
+              <div className="ribbon-stat-num">{text("hero.text15")}</div>
+              <div className="ribbon-stat-label">{text("hero.text16")}</div>
             </div>
             <div className="ribbon-stat-divider" />
 
             <div className="ribbon-stat-item">
-              <div className="ribbon-stat-num">100%</div>
-              <div className="ribbon-stat-label">حفظ لسرية بيانات الملاك</div>
+              <div className="ribbon-stat-num">{text("hero.text17")}</div>
+              <div className="ribbon-stat-label">{text("hero.text18")}</div>
             </div>
           </div>
         </div>
@@ -169,14 +163,14 @@ export default function PublicPortalClient({
         <div className="developers-strip-card">
           <div className="developers-strip-title">
             <ShieldCheck size={18} className="text-gold" />
-            <span>شراكات معتمدة مع كبرى شركات التطوير العقاري في مصر</span>
+            <span>{text("partners.text1")}</span>
           </div>
 
           <div className="developers-strip-grid">
             {topDevelopers.map((dev, idx) => (
               <div key={idx} className="dev-strip-item">
                 <div className="font-extrabold text-white text-sm mb-1">{dev.name}</div>
-                <div className="text-[11px] text-slate-400" dangerouslySetInnerHTML={{ __html: dev.sub }} />
+                <div className="text-[11px] text-slate-400" >{dev.sub}</div>
               </div>
             ))}
           </div>
@@ -184,19 +178,15 @@ export default function PublicPortalClient({
       </section>
 
       {/* ─── 3. FEATURED SQUARES CATALOG PREVIEW ─── */}
-      <section className="portal-section">
+      {visibility.properties && <section className="portal-section">
         <div className="portal-container">
           <div className="flex items-end justify-between mb-10 flex-wrap gap-4">
             <div>
-              <span className="section-tag mb-2">مختارات الكتالوج العقاري</span>
-              <h2 className="section-title-large">أحدث الوحدات الحصرية المتاحة للبيع</h2>
-              <p className="section-subtitle">
-                عروض مميزة تم فحصها فنياً وقانونياً في كبرى الكمبوندات بإطلالات مفتوحة
-              </p>
+              <span className="section-tag mb-2">{text("listings.text1")}</span>
+              <h2 className="section-title-large">{text("listings.text2")}</h2>
+              <p className="section-subtitle">{text("listings.text3")}</p>
             </div>
-            <Link href="/properties" className="btn-consultation-gold">
-              عرض الكتالوج بالكامل &larr;
-            </Link>
+            <Link href="/properties" className="btn-consultation-gold">{text("listings.text4")}</Link>
           </div>
 
           {/* Squares Grid */}
@@ -210,60 +200,58 @@ export default function PublicPortalClient({
                   <div className="box-glowing-rim" />
                   <div className="square-cover-container">
                     {cover ? (
-                      <img src={cover} alt={p.projectName || "وحدة"} className="square-cover-img" />
+                      <img src={cover} alt={p.projectName || text("listings.text5")} className="square-cover-img" />
                     ) : (
                       <div className="square-no-img-box">
                         <Building2 size={38} className="text-gold opacity-50 mb-2" />
-                        <span>معاينة حصرية لدى المستشار</span>
+                        <span>{text("listings.text6")}</span>
                       </div>
                     )}
                     <div className="square-badges-top-row">
-                      <span className="badge-unit-type">{p.unitType || "شقة سكنية"}</span>
+                      <span className="badge-unit-type">{p.unitType || text("listings.text7")}</span>
                     </div>
                     <div className="square-code-pill">{unitCode}</div>
                   </div>
 
                   <div className="square-card-body">
-                    <h3 className="square-project-title" title={p.projectName || p.title || "مشروع متميز"}>
-                      {p.projectName || p.title || "مشروع عقاري متميز"}
+                    <h3 className="square-project-title" title={p.projectName || p.title || text("listings.text8")}>
+                      {p.projectName || p.title || text("listings.text9")}
                     </h3>
                     <div className="square-location-row">
                       <MapPin size={13} className="text-gold shrink-0" />
-                      <span>{p.zone || "القاهرة الكبرى"}</span>
+                      <span>{p.zone || text("listings.text10")}</span>
                     </div>
 
                     <div className="square-specs-strip">
                       {p.size && (
                         <div className="spec-badge">
                           <Maximize2 size={12} className="text-gold" />
-                          <span>{p.size} م²</span>
+                          <span>{p.size} {text("listings.text11")}</span>
                         </div>
                       )}
                       {p.bedrooms && (
                         <div className="spec-badge">
                           <BedDouble size={12} className="text-gold" />
-                          <span>{p.bedrooms} غرف</span>
+                          <span>{p.bedrooms} {text("listings.text12")}</span>
                         </div>
                       )}
                       {p.bathrooms && (
                         <div className="spec-badge">
                           <Bath size={12} className="text-gold" />
-                          <span>{p.bathrooms} حمام</span>
+                          <span>{p.bathrooms} {text("listings.text13")}</span>
                         </div>
                       )}
                     </div>
 
                     <div className="square-financials-row">
                       <div>
-                        <span className="financial-label">السعر المطلوب</span>
+                        <span className="financial-label">{text("listings.text14")}</span>
                         <div className="financial-price">
-                          {p.price ? `${p.price.toLocaleString()} ج.م` : "عند التواصل"}
+                          {p.price ? text("listings.text15", [p.price.toLocaleString()]) : text("listings.text16")}
                         </div>
                       </div>
                       {p.monthlyInstallment && (
-                        <div className="financial-installment-tag">
-                          قسط: {p.monthlyInstallment.toLocaleString()} ج.م
-                        </div>
+                        <div className="financial-installment-tag">{text("listings.text17")} {p.monthlyInstallment.toLocaleString()} {text("listings.text18")}</div>
                       )}
                     </div>
 
@@ -275,7 +263,7 @@ export default function PublicPortalClient({
                         className="btn-square-details w-full text-center"
                       >
                         <Eye size={14} />
-                        <span>معاينة تفاصيل الوحدة كاملة &larr;</span>
+                        <span>{text("listings.text19")}</span>
                       </a>
                     </div>
                   </div>
@@ -285,22 +273,18 @@ export default function PublicPortalClient({
           </div>
 
           <div className="text-center mt-12">
-            <Link href="/properties" className="btn-secondary-white px-10 py-3 text-base inline-flex">
-              استكشف جميع الوحدات بالكتالوج المربع &larr;
-            </Link>
+            <Link href="/properties" className="btn-secondary-white px-10 py-3 text-base inline-flex">{text("listings.text20")}</Link>
           </div>
         </div>
-      </section>
+      </section>}
 
       {/* ─── 4. FOUR DEDICATED PORTAL PILLARS ─── */}
       <section className="portal-section border-t border-white/5">
         <div className="portal-container">
           <div className="section-head text-center">
-            <span className="section-tag mb-2">خدمات شركة دارك العقارية</span>
-            <h2 className="section-title-large">منظومة عقارية متكاملة تلبي كافة احتياجاتك</h2>
-            <p className="section-subtitle">
-              نوفر لك أقساماً وخدمات متخصصة ومستقلة لتجربة عقارية استثنائية
-            </p>
+            <span className="section-tag mb-2">{text("services.text1")}</span>
+            <h2 className="section-title-large">{text("services.text2")}</h2>
+            <p className="section-subtitle">{text("services.text3")}</p>
           </div>
 
           <div className="four-pillars-grid">
@@ -308,36 +292,36 @@ export default function PublicPortalClient({
               <div className="pillar-icon-box gold">
                 <Compass size={24} />
               </div>
-              <h3 className="pillar-card-title">الكتالوج العقاري المباشر</h3>
-              <p className="pillar-card-desc">تصفح الفيلات والشقق المعروضة للبيع مع فلترة دقيقة بالمساحة والميزانية والغرف.</p>
-              <div className="pillar-card-link">دخول الكتالوج &larr;</div>
+              <h3 className="pillar-card-title">{text("services.text4")}</h3>
+              <p className="pillar-card-desc">{text("services.text5")}</p>
+              <div className="pillar-card-link">{text("services.text6")}</div>
             </Link>
 
             <Link href="/portfolio" className="pillar-glass-card group">
               <div className="pillar-icon-box blue">
                 <Building2 size={24} />
               </div>
-              <h3 className="pillar-card-title">سابقة أعمالنا والشركاء</h3>
-              <p className="pillar-card-desc">سجل مشاريعنا وإنجازاتنا مع كبرى المطورين العقاريين، وإحصائيات الثقة والإنجاز.</p>
-              <div className="pillar-card-link">عرض البورتفوليو &larr;</div>
+              <h3 className="pillar-card-title">{text("services.text7")}</h3>
+              <p className="pillar-card-desc">{text("services.text8")}</p>
+              <div className="pillar-card-link">{text("services.text9")}</div>
             </Link>
 
             <Link href="/sell" className="pillar-glass-card highlight group">
               <div className="pillar-icon-box emerald">
                 <Home size={24} />
               </div>
-              <h3 className="pillar-card-title">اعرض وحدتك للبيع معنا</h3>
-              <p className="pillar-card-desc">خدمة حصرية للملاك لتسويق وحداتهم بالصور مع حجب كامل لرقم الشقة والعناوين الحساسة.</p>
-              <div className="pillar-card-link gold">تسجيل وحدتك الآن &larr;</div>
+              <h3 className="pillar-card-title">{text("services.text10")}</h3>
+              <p className="pillar-card-desc">{text("services.text11")}</p>
+              <div className="pillar-card-link gold">{text("services.text12")}</div>
             </Link>
 
             <Link href="/contact" className="pillar-glass-card group">
               <div className="pillar-icon-box purple">
                 <Calendar size={24} />
               </div>
-              <h3 className="pillar-card-title">حجز استشارة وتواصل</h3>
-              <p className="pillar-card-desc">تحدث مباشرة مع مستشار عقاري متخصص لتحديد أنسب الفرص ومناقشة تفاصيل ميزانيتك.</p>
-              <div className="pillar-card-link">حجز جلسة استشارة &larr;</div>
+              <h3 className="pillar-card-title">{text("services.text13")}</h3>
+              <p className="pillar-card-desc">{text("services.text14")}</p>
+              <div className="pillar-card-link">{text("services.text15")}</div>
             </Link>
           </div>
         </div>
@@ -347,30 +331,24 @@ export default function PublicPortalClient({
       <section className="portal-container mb-24">
         <div className="sell-unit-glass-banner">
           <div className="sell-text-side">
-            <span className="section-tag gold">أمان وخصوصية الملاك</span>
-            <h2 className="sell-title">هل تملك وحدة في كمبوند وترغب في بيعها بأعلى عائد؟</h2>
-            <p className="sell-desc">
-              اعرض وحدتك الآن مع شركة دارك. نقوم بتسويق وحدتك لقاعدة مشترين جادة ومؤهلة مع حماية تامة لخصوصيتك: لا ننشر رقم الشقة أو رقم العمارة أو هاتفك في العلن. نحن نتولى التصفية المالية الكاملة قبل أي معاينة.
-            </p>
+            <span className="section-tag gold">{text("sell.text1")}</span>
+            <h2 className="sell-title">{text("sell.text2")}</h2>
+            <p className="sell-desc">{text("sell.text3")}</p>
             <div className="flex items-center gap-4 flex-wrap">
               <Link href="/sell" className="sell-submit-action-btn">
-                <span>سجل وحدتك وارفع صورها الآن &larr;</span>
+                <span>{text("sell.text4")}</span>
               </Link>
-              <Link href="/contact" className="btn-secondary-white py-3.5">
-                تحدث مع مستشار المبيعات
-              </Link>
+              <Link href="/contact" className="btn-secondary-white py-3.5">{text("sell.text5")}</Link>
             </div>
           </div>
 
           <div className="sell-visual-side">
             <div className="sell-preview-card">
-              <div className="preview-top-badge">نموذج العرض الآمن لدى دارك</div>
+              <div className="preview-top-badge">{text("sell.text6")}</div>
               <div className="preview-inner-box">
-                <div className="text-xs text-gold font-bold mb-1">✓ حماية مطلقة لبيانات المالك</div>
-                <div className="text-sm font-extrabold text-white mb-2">تسويق احترافي بالصور دون إفصاح العنوان الدقيق</div>
-                <div className="text-xs text-slate-400 leading-relaxed">
-                  نحن لا نعرض رقم الشقة أو بيانات التواصل الخاصة بك في العلن؛ نحن نتولى الفحص والفلترة الكاملة للمشترين الماليين قبل المعاينة.
-                </div>
+                <div className="text-xs text-gold font-bold mb-1">{text("sell.text7")}</div>
+                <div className="text-sm font-extrabold text-white mb-2">{text("sell.text8")}</div>
+                <div className="text-xs text-slate-400 leading-relaxed">{text("sell.text9")}</div>
               </div>
             </div>
           </div>

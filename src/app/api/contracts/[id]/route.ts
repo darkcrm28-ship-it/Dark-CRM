@@ -136,24 +136,24 @@ export async function PATCH(request: NextRequest, { params }: Context) {
           session,
         });
 
-        if (fresh.reservationId) {
-          const reservation = await tx.reservation.findUnique({
+        const reservation = fresh.reservationId
+          ? await tx.reservation.findUnique({
             where: { id: fresh.reservationId },
             select: { id: true, status: true, amount: true },
+          })
+          : null;
+        if (reservation?.status === "APPROVED") {
+          assertTransition({
+            entity: "Reservation",
+            from: reservation.status,
+            to: "CONVERTED",
+            reason: `تحويل الحجز بعد توقيع العقد ${id}`,
+            actorRole: session.role,
           });
-          if (reservation && reservation.status === "APPROVED") {
-            assertTransition({
-              entity: "Reservation",
-              from: reservation.status,
-              to: "CONVERTED",
-              reason: `تحويل الحجز بعد توقيع العقد ${id}`,
-              actorRole: session.role,
-            });
-            await tx.reservation.update({
-              where: { id: reservation.id },
-              data: { status: "CONVERTED" },
-            });
-          }
+          await tx.reservation.update({
+            where: { id: reservation.id },
+            data: { status: "CONVERTED" },
+          });
         }
 
         if (fresh.dealId) {
@@ -170,16 +170,10 @@ export async function PATCH(request: NextRequest, { params }: Context) {
             contractId: id,
           });
         } else {
-          const reservationAmount = fresh.reservationId
-            ? (await tx.reservation.findUnique({
-                where: { id: fresh.reservationId },
-                select: { amount: true },
-              }))?.amount
-            : null;
           const amounts = resolveContractAmounts({
             terms: fresh.terms,
             propertyPrice: property.price,
-            reservationAmount,
+            reservationAmount: reservation?.amount ?? null,
           });
           if (amounts.finalPrice <= 0) throw new Error("CONTRACT_AMOUNT_REQUIRED");
 
@@ -209,7 +203,7 @@ export async function PATCH(request: NextRequest, { params }: Context) {
       });
 
       return { updated, dealResult };
-    });
+    }, { maxWait: 5000, timeout: 25_000 });
 
     if (outcome.dealResult) {
       await notifyDealCompleted(session, outcome.dealResult);

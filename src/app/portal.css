@@ -2066,3 +2066,9 @@
     min-width: 50px;
   }
 }
+
+.public-footer-login {
+  font-size: 12px;
+  min-height: 36px;
+  padding: 6px 12px;
+}

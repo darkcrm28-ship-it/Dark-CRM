@@ -30,6 +30,7 @@ import {
   Cpu,
   FileText,
   Crown,
+  Globe,
 } from "lucide-react";
 
 const ROLE_LABELS: Record<string, string> = {
@@ -184,6 +185,13 @@ export default async function DashboardLayout({ children }: { children: React.Re
       href: "/dashboard/settings/custom-fields",
       icon: <SlidersHorizontal size={18} />,
       label: "الحقول الديناميكية",
+      show: session.role === ROLE.GENERAL_MANAGER,
+      section: "admin",
+    },
+    {
+      href: "/dashboard/site-content",
+      icon: <Globe size={18} />,
+      label: "إدارة صفحات الموقع",
       show: session.role === ROLE.GENERAL_MANAGER,
       section: "admin",
     },

@@ -1,7 +1,8 @@
 "use client";
 
+import { useSiteText, usePublicHeroStyle, SiteLink as Link } from "@/components/public/PublicSiteContent";
 import React from "react";
-import Link from "next/link";
+
 import {
   Building2,
   ShieldCheck,
@@ -18,36 +19,38 @@ import PublicHeader from "@/components/public/PublicHeader";
 import PublicFooter from "@/components/public/PublicFooter";
 
 export default function PortfolioClient() {
+  const text = useSiteText();
+  const heroStyle = usePublicHeroStyle();
   const partnerDevelopers = [
-    { name: "إعمار مصر (Emaar Misr)", projects: "ميفيدا، مراسي، كايرو جيت، أبتاون كايرو", badge: "مطور رئيسي" },
-    { name: "مجموعة طلعت مصطفى (TMG)", projects: "مدينتي، الرحاب، سيليا، نور، بريفادو", badge: "شراكة استراتيجية" },
-    { name: "بالم هيلز للتعمير (Palm Hills)", projects: "بالم هيلز التجمع، بادية، بالم هيلز أكتوبر", badge: "مطور معتمد" },
-    { name: "سوديك (SODIC)", projects: "فيليت، إيست تاون، سوديك ويست، كرمة", badge: "مطور رئيسي" },
-    { name: "ماونتن فيو (Mountain View)", projects: "آي سيتي التجمع، آي سيتي أكتوبر، رأس الحكمة", badge: "مطور معتمد" },
-    { name: "أورا ديفلوبرز (ORA Developers)", projects: "زيد إيست، زد الشيخ زايد، سيلفرساندز", badge: "مشروعات حصرية" },
+    { name: text("partners.partnerDevelopers1_name"), projects: text("partners.partnerDevelopers1_projects"), badge: text("partners.partnerDevelopers1_badge") },
+    { name: text("partners.partnerDevelopers2_name"), projects: text("partners.partnerDevelopers2_projects"), badge: text("partners.partnerDevelopers2_badge") },
+    { name: text("partners.partnerDevelopers3_name"), projects: text("partners.partnerDevelopers3_projects"), badge: text("partners.partnerDevelopers3_badge") },
+    { name: text("partners.partnerDevelopers4_name"), projects: text("partners.partnerDevelopers4_projects"), badge: text("partners.partnerDevelopers4_badge") },
+    { name: text("partners.partnerDevelopers5_name"), projects: text("partners.partnerDevelopers5_projects"), badge: text("partners.partnerDevelopers5_badge") },
+    { name: text("partners.partnerDevelopers6_name"), projects: text("partners.partnerDevelopers6_projects"), badge: text("partners.partnerDevelopers6_badge") },
   ];
 
   const milestones = [
-    { number: "+1,500", label: "وحدة عقارية تم تسويقها بنجاح", desc: "في مختلف أرقى المدن والتجمعات السكنية في مصر" },
-    { number: "+50", label: "مشروع وكومباوند استثماري معتمد", desc: "تم فحص كافة المستندات والتراخيص القانونية لها" },
-    { number: "98%", label: "نسبة رضا العملاء والمستثمرين", desc: "وفق استبيانات الجودة الدورية بعد استلام الوحدات" },
-    { number: "100%", label: "حماية وخصوصية بيانات الملاك", desc: "نظام مشفر يحجب العناوين الدقيقة عن المتطفلين" },
+    { number: text("milestones.milestones1_number"), label: text("milestones.milestones1_label"), desc: text("milestones.milestones1_desc") },
+    { number: text("milestones.milestones2_number"), label: text("milestones.milestones2_label"), desc: text("milestones.milestones2_desc") },
+    { number: text("milestones.milestones3_number"), label: text("milestones.milestones3_label"), desc: text("milestones.milestones3_desc") },
+    { number: text("milestones.milestones4_number"), label: text("milestones.milestones4_label"), desc: text("milestones.milestones4_desc") },
   ];
 
   const specializations = [
     {
-      title: "استشارات الاستثمار وإعادة البيع (Resale & Primary)",
-      desc: "دراسة شاملة لحركة الأسعار والعائد الإيجاري المتوقع لمساعدة المستثمرين على تحقيق أعلى عائد رأسمالي.",
+      title: text("services.specializations1_title"),
+      desc: text("services.specializations1_desc"),
       icon: TrendingUp,
     },
     {
-      title: "التسويق الحصري لخدمة الملاك المباشرين",
-      desc: "تسويق احترافي بالصور والوسائط الرقمية لقاعدة مشترين مؤهلين وجادين بدون إفصاح العناوين للعامة.",
+      title: text("services.specializations2_title"),
+      desc: text("services.specializations2_desc"),
       icon: ShieldCheck,
     },
     {
-      title: "الفحص القانوني والتعاقدي الشامل",
-      desc: "مراجعة موقف الوحدة مع الشركة المطورة وأجهزة المدن والتأكد من خلوها من أي نزاعات أو متأخرات مالية.",
+      title: text("services.specializations3_title"),
+      desc: text("services.specializations3_desc"),
       icon: Award,
     },
   ];
@@ -57,15 +60,11 @@ export default function PortfolioClient() {
       <PublicHeader />
 
       {/* Hero Section */}
-      <section className="portfolio-hero-banner">
+      <section className="portfolio-hero-banner" style={heroStyle}>
         <div className="portal-container text-center">
-          <div className="section-tag mb-4">بورتفوليو وإنجازات دارك العقارية</div>
-          <h1 className="portfolio-main-heading">
-            سجل حافل بالثقة، وشراكات مع كبرى <span className="gold-shimmer-text">صناع العقار</span> في مصر
-          </h1>
-          <p className="portfolio-subheading">
-            على مدار سنوات، قمنا ببناء سمعة رائدة تستند إلى الشفافية، الدقة في الاستشارة، وتوفير أرقى الفرص السكنية والاستثمارية الحصرية.
-          </p>
+          <div className="section-tag mb-4">{text("hero.text1")}</div>
+          <h1 className="portfolio-main-heading">{text("hero.text2")} <span className="gold-shimmer-text">{text("hero.text3")}</span> {text("hero.text4")}</h1>
+          <p className="portfolio-subheading">{text("hero.text5")}</p>
         </div>
       </section>
 
@@ -85,11 +84,9 @@ export default function PortfolioClient() {
       {/* Developers Portfolio Grid */}
       <section className="portal-container mb-24">
         <div className="section-head text-center">
-          <span className="section-tag">سابقة الأعمال والشراكات</span>
-          <h2 className="section-title-large">أبرز المطورين والمشروعات المعتمدة</h2>
-          <p className="section-subtitle">
-            نعمل كوكيل استشاري معتمد لأكبر الكيانات العقارية، مما يضمن لعملائنا أفضل الأسعار وأنظمة السداد
-          </p>
+          <span className="section-tag">{text("partners.text1")}</span>
+          <h2 className="section-title-large">{text("partners.text2")}</h2>
+          <p className="section-subtitle">{text("partners.text3")}</p>
         </div>
 
         <div className="developers-showcase-grid">
@@ -103,7 +100,7 @@ export default function PortfolioClient() {
               </div>
               <h3 className="dev-name">{dev.name}</h3>
               <div className="dev-projects-list">
-                <span className="text-muted text-xs block mb-1">أبرز المشروعات:</span>
+                <span className="text-muted text-xs block mb-1">{text("partners.text4")}</span>
                 <span className="text-white text-sm font-bold">{dev.projects}</span>
               </div>
             </div>
@@ -114,8 +111,8 @@ export default function PortfolioClient() {
       {/* Specializations & Core Values */}
       <section className="portal-container mb-24">
         <div className="section-head text-center">
-          <span className="section-tag">لماذا تختار شركة دارك؟</span>
-          <h2 className="section-title-large">معايير عمل ترتقي لطموحاتك الاستثمارية</h2>
+          <span className="section-tag">{text("services.text1")}</span>
+          <h2 className="section-title-large">{text("services.text2")}</h2>
         </div>
 
         <div className="specializations-grid">
@@ -138,18 +135,12 @@ export default function PortfolioClient() {
       <section className="portal-container mb-24">
         <div className="portfolio-cta-banner">
           <div>
-            <h2 className="cta-banner-title">جاهز لبدء استثمارك العقاري القادم؟</h2>
-            <p className="cta-banner-sub">
-              تصفح كتالوج الوحدات المتاحة حالياً أو احجز استشارة مجانية مع خبيرنا العقاري.
-            </p>
+            <h2 className="cta-banner-title">{text("contact.text1")}</h2>
+            <p className="cta-banner-sub">{text("contact.text2")}</p>
           </div>
           <div className="flex items-center gap-4 flex-wrap">
-            <Link href="/properties" className="btn-consultation-gold px-8 py-3 text-base">
-              تصفح الكتالوج العقاري &larr;
-            </Link>
-            <Link href="/contact" className="btn-secondary-white px-8 py-3 text-base">
-              طلب استشارة استثمارية
-            </Link>
+            <Link href="/properties" className="btn-consultation-gold px-8 py-3 text-base">{text("contact.text3")}</Link>
+            <Link href="/contact" className="btn-secondary-white px-8 py-3 text-base">{text("contact.text4")}</Link>
           </div>
         </div>
       </section>

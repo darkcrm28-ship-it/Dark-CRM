@@ -321,6 +321,14 @@ model SystemSettings {
   updatedAt               DateTime @updatedAt
 }
 
+model PublicSitePage {
+  key       String   @id
+  enabled   Boolean  @default(true)
+  content   Json     @default("{}")
+  revision  Int      @default(1)
+  updatedAt DateTime @updatedAt
+}
+
 model PushSubscription {
   id        String   @id @default(uuid())
   userId    String

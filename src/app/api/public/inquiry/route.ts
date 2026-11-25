@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getPublicSiteContent } from "@/lib/public-site";
 import { prisma } from "@/lib/db";
 import { normalizeEgyptianPhone, normalizeDate } from "@/lib/excel-normalizer";
 
@@ -92,6 +93,11 @@ export async function POST(request: NextRequest) {
       propertyId,
       deliveryDate: rawDeliveryDate,
     } = rawBody as Record<string, any>;
+
+    const sitePage = inquiryType === "SELL_UNIT" ? "sell" : inquiryType === "VIEWING" && propertyId ? "properties" : "contact";
+    if (!(await getPublicSiteContent())[sitePage].enabled) {
+      return NextResponse.json({ error: "الخدمة غير متاحة حالياً." }, { status: 404 });
+    }
 
     // ─── 1. Validation ────────────────────────────────────────────────────
     const nameStr = asText(name, MAX_NAME_LENGTH);

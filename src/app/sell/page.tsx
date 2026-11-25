@@ -1,10 +1,14 @@
 import SellClient from "./SellClient";
+import { PublicSiteContent } from "@/components/public/PublicSiteContent";
+import { getSitePageMetadata, getSitePageRender } from "@/lib/public-site";
 
-export const metadata = {
-  title: "اعرض وحدتك للبيع بأعلى عائد وبسرية تامة | دارك للاستثمار العقاري",
-  description: "خدمة حصرية لملاك العقارات في مصر: سجل وحدتك للبيع أو الإيجار، ارفع الصور، مع حجب كامل لرقم الشقة والعناوين الحساسة عن العامة لحماية خصوصيتك.",
-};
+export const dynamic = "force-dynamic";
 
-export default function SellPage() {
-  return <SellClient />;
+export function generateMetadata() {
+  return getSitePageMetadata("sell");
+}
+
+export default async function Page() {
+  const site = await getSitePageRender("sell");
+  return <PublicSiteContent value={site}><SellClient /></PublicSiteContent>;
 }

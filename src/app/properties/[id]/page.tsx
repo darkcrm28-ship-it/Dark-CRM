@@ -1,6 +1,7 @@
 import { getApprovedPublicListing } from "@/lib/public-listings";
 import { notFound } from "next/navigation";
 import PropertyShowcaseClient from "@/components/property/PropertyShowcaseClient";
+import { getPublicSiteContent } from "@/lib/public-site";
 
 export const dynamic = "force-dynamic";
 
@@ -10,6 +11,7 @@ export default async function PublicPropertyDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  if (!(await getPublicSiteContent()).properties.enabled) notFound();
 
   const property = await getApprovedPublicListing(id);
   if (!property) notFound();

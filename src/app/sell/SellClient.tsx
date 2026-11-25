@@ -1,7 +1,8 @@
 "use client";
 
+import { useSiteText, usePublicHeroStyle, SiteLink as Link } from "@/components/public/PublicSiteContent";
 import React, { useState } from "react";
-import Link from "next/link";
+
 import {
   Home,
   ShieldCheck,
@@ -19,6 +20,8 @@ import PublicFooter from "@/components/public/PublicFooter";
 import UnitImageManager from "@/components/UnitImageManager";
 
 export default function SellClient() {
+  const text = useSiteText();
+  const heroStyle = usePublicHeroStyle();
   const [formData, setFormData] = useState({
     name: "",
     phone: "",
@@ -70,7 +73,7 @@ export default function SellClient() {
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "فشل إرسال بيانات الوحدة");
+      if (!res.ok) throw new Error(data.error || text("hero.text1"));
 
       setSuccess(true);
       setFormData({
@@ -89,7 +92,7 @@ export default function SellClient() {
         images: [],
       });
     } catch (err: any) {
-      setError(err.message || "حدث خطأ أثناء إرسال البيانات، يرجى المحاولة لاحقاً.");
+      setError(err.message || text("hero.text2"));
     } finally {
       setLoading(false);
     }
@@ -100,15 +103,12 @@ export default function SellClient() {
       <PublicHeader />
 
       {/* Hero Section */}
-      <section className="sell-page-hero">
+      <section className="sell-page-hero" style={heroStyle}>
         <div className="portal-container text-center">
-          <div className="section-tag gold mb-4">بوابة ملاك العقارات والوحدات</div>
-          <h1 className="portfolio-main-heading">
-            اعرض وحدتك للبيع بأعلى عائد استثماري وبـ <span className="gold-shimmer-text">سرية تامة</span>
+          <div className="section-tag gold mb-4">{text("hero.text3")}</div>
+          <h1 className="portfolio-main-heading">{text("hero.text4")} <span className="gold-shimmer-text">{text("hero.text5")}</span>
           </h1>
-          <p className="portfolio-subheading">
-            نقوم بتسويق وحدتك لقاعدة مشترين جادة ومؤهلة مع حماية مطلقة لخصوصيتك: لا إفصاح عن رقم الوحدة أو العمارة أو هاتفك في العلن.
-          </p>
+          <p className="portfolio-subheading">{text("hero.text6")}</p>
         </div>
       </section>
 
@@ -117,20 +117,20 @@ export default function SellClient() {
         <div className="sell-guarantees-grid">
           <div className="guarantee-box">
             <EyeOff size={24} className="text-gold mb-3" />
-            <h3 className="guarantee-title">حجب العنوان الدقيق</h3>
-            <p className="guarantee-desc">نعرض فقط اسم المشروع والمنطقة التقريبية؛ لا نظهر رقم العمارة أو الشقة حفاظاً على هدوئك وخصوصيتك.</p>
+            <h3 className="guarantee-title">{text("guarantees.text1")}</h3>
+            <p className="guarantee-desc">{text("guarantees.text2")}</p>
           </div>
 
           <div className="guarantee-box">
             <UserCheck size={24} className="text-gold mb-3" />
-            <h3 className="guarantee-title">تصفية المشترين الجادين</h3>
-            <p className="guarantee-desc">يقوم مستشارونا بالتحقق المالي من جدية كل مشتري ومطابقة ميزانيته قبل ترتيب أي موعد معاينة ميدانية.</p>
+            <h3 className="guarantee-title">{text("guarantees.text3")}</h3>
+            <p className="guarantee-desc">{text("guarantees.text4")}</p>
           </div>
 
           <div className="guarantee-box">
             <Lock size={24} className="text-gold mb-3" />
-            <h3 className="guarantee-title">أمان تعاقدي وقانوني</h3>
-            <p className="guarantee-desc">إشراف قانوني كامل على صياغة عقود البيع وحسابات سداد الأقساط والتنازل بالشركة المطورة.</p>
+            <h3 className="guarantee-title">{text("guarantees.text5")}</h3>
+            <p className="guarantee-desc">{text("guarantees.text6")}</p>
           </div>
         </div>
       </section>
@@ -141,19 +141,17 @@ export default function SellClient() {
           <div className="sell-form-header">
             <div className="flex items-center gap-2 mb-1">
               <Home size={20} className="text-gold" />
-              <h2 className="text-xl font-extrabold text-white">تسجيل مواصفات الوحدة المعروضة للبيع</h2>
+              <h2 className="text-xl font-extrabold text-white">{text("form.text1")}</h2>
             </div>
-            <p className="text-xs text-muted">
-              يرجى إدخال أكبر قدر ممكن من التفاصيل لتمكين فريقنا من تقييم الوحدة وتسويقها بأسرع وقت.
-            </p>
+            <p className="text-xs text-muted">{text("form.text2")}</p>
           </div>
 
           {success && (
             <div className="form-alert-success my-6 p-4">
               <CheckCircle2 size={22} className="shrink-0" />
               <div>
-                <div className="font-extrabold text-base">تم تسجيل وحدتك بنجاح لدى شركة دارك!</div>
-                <div className="text-xs mt-1">سيتواصل معك أحد مديري المبيعات خلال 24 ساعة لبدء خطة التسويق بعد مراجعة البيانات.</div>
+                <div className="font-extrabold text-base">{text("form.text3")}</div>
+                <div className="text-xs mt-1">{text("form.text4")}</div>
               </div>
             </div>
           )}
@@ -167,14 +165,14 @@ export default function SellClient() {
 
           <form onSubmit={handleSubmit} className="portal-quick-form mt-6">
             {/* Step 1: Owner Info */}
-            <h3 className="form-section-divider-title">1. بيانات التواصل مع المالك (سرية تماماً)</h3>
+            <h3 className="form-section-divider-title">{text("owner.text1")}</h3>
             <div className="grid-3-form gap-4">
               <div className="form-field">
-                <label>اسم المالك بالكامل *</label>
+                <label>{text("owner.text2")}</label>
                 <input
                   type="text"
                   required
-                  placeholder="الاسم الرباعي..."
+                  placeholder={text("owner.text3")}
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   className="portal-input"
@@ -182,12 +180,12 @@ export default function SellClient() {
               </div>
 
               <div className="form-field">
-                <label>رقم هاتف المالك *</label>
+                <label>{text("owner.text4")}</label>
                 <input
                   type="tel"
                   required
                   dir="ltr"
-                  placeholder="01xxxxxxxxx"
+                  placeholder={text("owner.text5")}
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                   className="portal-input"
@@ -195,10 +193,10 @@ export default function SellClient() {
               </div>
 
               <div className="form-field">
-                <label>البريد الإلكتروني (اختياري)</label>
+                <label>{text("owner.text6")}</label>
                 <input
                   type="email"
-                  placeholder="example@mail.com"
+                  placeholder={text("owner.text7")}
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   className="portal-input"
@@ -207,32 +205,32 @@ export default function SellClient() {
             </div>
 
             {/* Step 2: Unit Specs */}
-            <h3 className="form-section-divider-title mt-6">2. مواصفات وموقع الوحدة</h3>
+            <h3 className="form-section-divider-title mt-6">{text("unit.text1")}</h3>
             <div className="grid-3-form gap-4">
               <div className="form-field">
-                <label>نوع العقار *</label>
+                <label>{text("unit.text2")}</label>
                 <select
                   value={formData.unitType}
                   onChange={(e) => setFormData({ ...formData, unitType: e.target.value })}
                   className="portal-input"
                 >
-                  <option value="شقة">شقة سكنية</option>
-                  <option value="فيلا">فيلا مستقلة</option>
-                  <option value="توين هاوس">توين هاوس</option>
-                  <option value="تاون هاوس">تاون هاوس</option>
-                  <option value="دوبلكس">دوبلكس</option>
-                  <option value="بنتهاوس">بنتهاوس</option>
-                  <option value="مكتب إداري">مكتب إداري</option>
-                  <option value="محل تجاري">محل تجاري</option>
+                  <option value="شقة">{text("unit.text3")}</option>
+                  <option value="فيلا">{text("unit.text4")}</option>
+                  <option value="توين هاوس">{text("unit.text5")}</option>
+                  <option value="تاون هاوس">{text("unit.text6")}</option>
+                  <option value="دوبلكس">{text("unit.text7")}</option>
+                  <option value="بنتهاوس">{text("unit.text8")}</option>
+                  <option value="مكتب إداري">{text("unit.text9")}</option>
+                  <option value="محل تجاري">{text("unit.text10")}</option>
                 </select>
               </div>
 
               <div className="form-field">
-                <label>اسم المشروع / الكومباوند *</label>
+                <label>{text("unit.text11")}</label>
                 <input
                   type="text"
                   required
-                  placeholder="مثال: مدينتي، ميفيدا، بالم هيلز..."
+                  placeholder={text("unit.text12")}
                   value={formData.projectName}
                   onChange={(e) => setFormData({ ...formData, projectName: e.target.value })}
                   className="portal-input"
@@ -240,11 +238,11 @@ export default function SellClient() {
               </div>
 
               <div className="form-field">
-                <label>المنطقة / الحي *</label>
+                <label>{text("unit.text13")}</label>
                 <input
                   type="text"
                   required
-                  placeholder="مثال: التجمع الخامس، زايد، أكتوبر..."
+                  placeholder={text("unit.text14")}
                   value={formData.zone}
                   onChange={(e) => setFormData({ ...formData, zone: e.target.value })}
                   className="portal-input"
@@ -254,11 +252,11 @@ export default function SellClient() {
 
             <div className="grid-4-form gap-4 mt-2">
               <div className="form-field">
-                <label>المساحة (م²) *</label>
+                <label>{text("unit.text15")}</label>
                 <input
                   type="number"
                   required
-                  placeholder="مثال: 165"
+                  placeholder={text("unit.text16")}
                   value={formData.area}
                   onChange={(e) => setFormData({ ...formData, area: e.target.value })}
                   className="portal-input"
@@ -266,10 +264,10 @@ export default function SellClient() {
               </div>
 
               <div className="form-field">
-                <label>الدور / الطابق</label>
+                <label>{text("unit.text17")}</label>
                 <input
                   type="text"
-                  placeholder="مثال: الدور الثالث"
+                  placeholder={text("unit.text18")}
                   value={formData.floor}
                   onChange={(e) => setFormData({ ...formData, floor: e.target.value })}
                   className="portal-input"
@@ -277,10 +275,10 @@ export default function SellClient() {
               </div>
 
               <div className="form-field">
-                <label>عدد الغرف</label>
+                <label>{text("unit.text19")}</label>
                 <input
                   type="number"
-                  placeholder="مثال: 3"
+                  placeholder={text("unit.text20")}
                   value={formData.bedrooms}
                   onChange={(e) => setFormData({ ...formData, bedrooms: e.target.value })}
                   className="portal-input"
@@ -288,10 +286,10 @@ export default function SellClient() {
               </div>
 
               <div className="form-field">
-                <label>عدد الحمامات</label>
+                <label>{text("unit.text21")}</label>
                 <input
                   type="number"
-                  placeholder="مثال: 2"
+                  placeholder={text("unit.text22")}
                   value={formData.bathrooms}
                   onChange={(e) => setFormData({ ...formData, bathrooms: e.target.value })}
                   className="portal-input"
@@ -300,14 +298,14 @@ export default function SellClient() {
             </div>
 
             {/* Step 3: Financials */}
-            <h3 className="form-section-divider-title mt-6">3. السعر ونظام السداد المطلوب</h3>
+            <h3 className="form-section-divider-title mt-6">{text("unit.text23")}</h3>
             <div className="grid-2-form gap-4">
               <div className="form-field">
-                <label>السعر المطلوب الإجمالي (جنيه مصري) *</label>
+                <label>{text("unit.text24")}</label>
                 <input
                   type="number"
                   required
-                  placeholder="مثال: 4,500,000"
+                  placeholder={text("unit.text25")}
                   value={formData.price}
                   onChange={(e) => setFormData({ ...formData, price: e.target.value })}
                   className="portal-input"
@@ -315,10 +313,10 @@ export default function SellClient() {
               </div>
 
               <div className="form-field">
-                <label>تفاصيل السداد أو الأقساط المتبقية</label>
+                <label>{text("unit.text26")}</label>
                 <input
                   type="text"
-                  placeholder="مثال: كاش بالكامل أو مقدم 2 مليون والباقي أقساط..."
+                  placeholder={text("unit.text27")}
                   value={formData.notes}
                   onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                   className="portal-input"
@@ -327,7 +325,7 @@ export default function SellClient() {
             </div>
 
             {/* Step 4: Images */}
-            <h3 className="form-section-divider-title mt-6">4. صور الوحدة (حتى 10 صور)</h3>
+            <h3 className="form-section-divider-title mt-6">{text("unit.text28")}</h3>
             <div className="images-uploader-wrap mb-4">
               <UnitImageManager
                 images={formData.images}
@@ -341,7 +339,7 @@ export default function SellClient() {
               disabled={loading}
               className="btn-consultation-gold w-full justify-center py-4 text-base font-extrabold mt-6"
             >
-              {loading ? "جاري تسجيل الوحدة ورفع البيانات..." : "تأكيد تسجيل الوحدة للبيع الآن"}
+              {loading ? text("unit.text29") : text("unit.text30")}
             </button>
           </form>
         </div>

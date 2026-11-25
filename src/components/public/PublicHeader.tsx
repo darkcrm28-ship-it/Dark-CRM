@@ -1,7 +1,8 @@
 "use client";
 
+import { useSiteText, usePublicSite, publicWhatsAppLink, SiteLink as Link } from "@/components/public/PublicSiteContent";
 import React, { useState } from "react";
-import Link from "next/link";
+
 import { usePathname } from "next/navigation";
 import {
   Calendar,
@@ -13,29 +14,30 @@ import DarakLogo from "./DarakLogo";
 import MobileBottomNav from "./MobileBottomNav";
 
 export default function PublicHeader() {
+  const text = useSiteText(true);
+  const { contact, canView } = usePublicSite();
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Equal-weight concise nav tabs
   const navTabs = [
-    { label: "الرئيسية", href: "/" },
-    { label: "الكتالوج العقاري", href: "/properties" },
-    { label: "بورتفوليو الشركة", href: "/portfolio" },
-    { label: "اعرض وحدتك", href: "/sell" },
-    { label: "تواصل معنا", href: "/contact" },
+    { label: text("header.navTabs1_label"), href: "/" },
+    { label: text("header.navTabs2_label"), href: "/properties" },
+    { label: text("header.navTabs3_label"), href: "/portfolio" },
+    { label: text("header.navTabs4_label"), href: "/sell" },
+    { label: text("header.navTabs5_label"), href: "/contact" },
   ];
 
   return (
     <header className="public-header-navbar">
       <div className="portal-container nav-inner-wrap">
         {/* Brand with Transparent Custom Logo */}
-        <Link href="/" className="public-brand-link">
+        <Link href={["/", "/properties", "/portfolio", "/sell", "/contact"].find(canView) ?? "/login"} className="public-brand-link">
           <DarakLogo size={38} />
           <div className="brand-titles">
             <div className="brand-primary-name">
-              <span className="gold-shimmer-text">دارك</span> للاستثمار العقاري
-            </div>
-            <div className="brand-sub-tag">Darak Real Estate</div>
+              <span className="gold-shimmer-text">{text("header.text1")}</span> {text("header.text2")}</div>
+            <div className="brand-sub-tag">{text("header.text3")}</div>
           </div>
         </Link>
 
@@ -59,25 +61,25 @@ export default function PublicHeader() {
         <div className="public-header-actions">
           <Link href="/contact" className="btn-header-consultation">
             <Calendar size={14} />
-            <span>حجز استشارة</span>
+            <span>{text("header.text4")}</span>
           </Link>
 
           <a
-            href="https://wa.me/?text=مرحباً شركة دارك العقارية، أود الاستفسار عن الوحدات المتاحة وخدماتكم."
+            href={publicWhatsAppLink(contact["details.whatsapp"] ?? "", contact["details.whatsappMessage"] ?? "")}
             target="_blank"
             rel="noopener noreferrer"
             className="btn-header-whatsapp"
-            title="محادثة واتساب مباشرة"
+            title={text("header.text5")}
           >
             <MessageCircle size={15} />
-            <span>واتساب</span>
+            <span>{text("header.text6")}</span>
           </a>
 
           {/* Mobile Menu Button */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             className="mobile-hamburger-btn"
-            aria-label="قائمة التنقل"
+            aria-label={text("header.text7")}
           >
             {mobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
           </button>
@@ -106,9 +108,7 @@ export default function PublicHeader() {
                 href="/contact"
                 onClick={() => setMobileMenuOpen(false)}
                 className="btn-header-consultation w-full text-center justify-center py-3"
-              >
-                حجز استشارة مجانية
-              </Link>
+              >{text("header.text8")}</Link>
             </div>
           </div>
         </div>

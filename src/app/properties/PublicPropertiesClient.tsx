@@ -1,7 +1,8 @@
 "use client";
 
+import { useSiteText, usePublicHeroStyle, usePublicSite, publicWhatsAppLink, SiteLink as Link } from "@/components/public/PublicSiteContent";
 import React, { useState, useEffect, useRef } from "react";
-import Link from "next/link";
+
 import { createClientReadCache } from "@/lib/client-read-cache";
 import {
   Building2,
@@ -53,12 +54,17 @@ const BEDROOMS_OPTIONS = ["الكل", "1", "2", "3", "4", "5+"];
 export default function PublicPropertiesClient({
   initialCatalog,
   zones,
+  initialQuery,
 }: {
   initialCatalog: { properties: PropertyItem[]; total: number; page: number; pageSize: number };
   zones: string[];
+  initialQuery: string;
 }) {
+  const text = useSiteText();
+  const heroStyle = usePublicHeroStyle();
+  const { contact } = usePublicSite();
   // Filter States
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState(initialQuery);
   const [selectedUnitType, setSelectedUnitType] = useState("الكل");
   const [selectedBedrooms, setSelectedBedrooms] = useState("الكل");
   const [selectedZone, setSelectedZone] = useState("الكل");
@@ -77,7 +83,7 @@ export default function PublicPropertiesClient({
   const [catalogError, setCatalogError] = useState("");
   const [catalogCache] = useState(() => createClientReadCache<typeof initialCatalog>());
   const catalogRequest = useRef<AbortController | null>(null);
-  const [appliedFilters, setAppliedFilters] = useState("");
+  const [appliedFilters, setAppliedFilters] = useState(() => initialQuery ? new URLSearchParams({ q: initialQuery }).toString() : "");
   const page = catalog.page;
   const uniqueZones = ["الكل", ...zones];
   const filteredProperties = catalog.properties;
@@ -98,7 +104,7 @@ export default function PublicPropertiesClient({
         setAppliedFilters(filters);
       }
     } catch {
-      if (!controller.signal.aborted) setCatalogError("تعذّر تحميل الوحدات. حاول مرة أخرى.");
+      if (!controller.signal.aborted) setCatalogError(text("header.text1"));
     } finally {
       if (!controller.signal.aborted) setLoadingCatalog(false);
     }
@@ -150,14 +156,14 @@ export default function PublicPropertiesClient({
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "فشل إرسال الطلب");
+      if (!res.ok) throw new Error(data.error || text("header.text2"));
 
       setSubmitSuccess(true);
       setTimeout(() => {
         setModalOpen(false);
       }, 3000);
     } catch (err: any) {
-      setSubmitError(err.message || "حدث خطأ أثناء إرسال الطلب، يرجى المحاولة لاحقاً.");
+      setSubmitError(err.message || text("header.text3"));
     } finally {
       setSubmitting(false);
     }
@@ -189,28 +195,25 @@ export default function PublicPropertiesClient({
       <PublicHeader />
 
       {/* Header Banner */}
-      <section className="catalog-hero-header">
+      <section className="catalog-hero-header" style={heroStyle}>
         <div className="portal-container">
           <div className="breadcrumb-nav-row">
-            <Link href="/" className="hover:text-gold text-muted">الرئيسية</Link>
+            <Link href="/" className="hover:text-gold text-muted">{text("header.text4")}</Link>
             <ChevronRight size={14} className="text-muted" />
-            <span className="text-gold font-bold">الكتالوج العقاري للوحدات</span>
+            <span className="text-gold font-bold">{text("header.text5")}</span>
           </div>
 
           <div className="catalog-title-wrap">
             <div>
-              <div className="section-tag mb-2">معرض الوحدات الحصرية</div>
-              <h1 className="catalog-main-title">
-                كتالوج الوحدات العقارية <span className="gold-shimmer-text">المتاحة للبيع</span>
+              <div className="section-tag mb-2">{text("header.text6")}</div>
+              <h1 className="catalog-main-title">{text("header.text7")} <span className="gold-shimmer-text">{text("header.text8")}</span>
               </h1>
-              <p className="catalog-sub-desc">
-                تصفح أفضل الفرص السكنية والاستثمارية المفحوصة والمطابقة لمعايير الجودة، مع الحفاظ التام على خصوصية الملاك والعناوين.
-              </p>
+              <p className="catalog-sub-desc">{text("header.text9")}</p>
             </div>
 
             <div className="catalog-verified-chip">
               <ShieldCheck size={16} className="text-gold" />
-              <span>فحص عقاري وقانوني معتمد</span>
+              <span>{text("header.text10")}</span>
             </div>
           </div>
         </div>
@@ -224,13 +227,13 @@ export default function PublicPropertiesClient({
             <Search size={18} className="catalog-search-icon" />
             <input
               type="text"
-              placeholder="ابحث باسم المشروع، الكومباوند، أو المنطقة (مثل: مدينتي، ميفيدا، التجمع، زايد...)"
+              placeholder={text("filters.text1")}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="catalog-search-input"
             />
             {searchQuery && (
-              <button type="button" aria-label="مسح البحث" onClick={() => setSearchQuery("")} className="clear-search-btn">
+              <button type="button" aria-label={text("filters.text2")} onClick={() => setSearchQuery("")} className="clear-search-btn">
                 <X size={16} />
               </button>
             )}
@@ -239,20 +242,20 @@ export default function PublicPropertiesClient({
           {/* Quick Filter Selects Grid */}
           <div className="catalog-filter-grid">
             <div className="filter-select-wrap">
-              <label>نوع الوحدة</label>
+              <label>{text("filters.text3")}</label>
               <select
                 value={selectedUnitType}
                 onChange={(e) => setSelectedUnitType(e.target.value)}
                 className="catalog-select"
               >
-                {UNIT_TYPES.map((t) => (
-                  <option key={t} value={t}>{t}</option>
+                {UNIT_TYPES.map((t, index) => (
+                  <option key={t} value={t}>{text("filters.unitType" + (index + 1))}</option>
                 ))}
               </select>
             </div>
 
             <div className="filter-select-wrap">
-              <label>المنطقة / الكومباوند</label>
+              <label>{text("filters.text4")}</label>
               <select
                 value={selectedZone}
                 onChange={(e) => setSelectedZone(e.target.value)}
@@ -265,14 +268,14 @@ export default function PublicPropertiesClient({
             </div>
 
             <div className="filter-select-wrap">
-              <label>عدد الغرف</label>
+              <label>{text("filters.text5")}</label>
               <select
                 value={selectedBedrooms}
                 onChange={(e) => setSelectedBedrooms(e.target.value)}
                 className="catalog-select"
               >
                 {BEDROOMS_OPTIONS.map((b) => (
-                  <option key={b} value={b}>{b === "الكل" ? "الكل" : `${b} غرف`}</option>
+                  <option key={b} value={b}>{b === "الكل" ? text("filters.text6") : text("filters.text7", [b])}</option>
                 ))}
               </select>
             </div>
@@ -281,13 +284,13 @@ export default function PublicPropertiesClient({
           {/* Bottom Bar: Reset + Count */}
           <div className="catalog-filter-footer">
             <div className="flex items-center gap-4">
-              <button type="submit" disabled={loadingCatalog} className="btn-consultation-gold">البحث</button>
+              <button type="submit" disabled={loadingCatalog} className="btn-consultation-gold">{text("filters.text8")}</button>
               <button type="button" onClick={resetFilters} className="btn-reset-filters">
                 <RotateCcw size={13} />
-                <span>إعادة ضبط</span>
+                <span>{text("filters.text9")}</span>
               </button>
               <div className="catalog-counter-pill">
-                {loadingCatalog ? "جاري تحميل الوحدات…" : <>عرض <strong>{filteredProperties.length}</strong> من أصل {catalog.total} وحدة</>}
+                {loadingCatalog ? text("filters.text10") : <>{text("filters.text11")} <strong>{filteredProperties.length}</strong> {text("filters.text12")} {catalog.total} {text("filters.text13")}</>}
               </div>
             </div>
           </div>
@@ -302,9 +305,7 @@ export default function PublicPropertiesClient({
             const photosCount = countImages(p.images);
             const unitCode = `DK-${p.id.substring(0, 6).toUpperCase()}`;
 
-            const whatsappUnitMsg = encodeURIComponent(
-              `مرحباً شركة دارك العقارية،\nأود الاستفسار عن الوحدة المعروضة بالكتالوج:\n*${p.projectName || p.title}* في ${p.zone || ""}\nكود الوحدة: ${unitCode}`
-            );
+            const whatsappUnitMsg = text("results.whatsappMessage", [p.projectName || p.title, p.zone, unitCode]);
 
             return (
               <div key={p.id} className="square-property-box group">
@@ -316,24 +317,23 @@ export default function PublicPropertiesClient({
                   {cover ? (
                     <img
                       src={cover}
-                      alt={p.projectName || "وحدة عقارية"}
+                      alt={p.projectName || text("results.text1")}
                       loading="lazy"
                       className="square-cover-img"
                     />
                   ) : (
                     <div className="square-no-img-box">
                       <Building2 size={38} className="text-gold opacity-50 mb-2" />
-                      <span>معاينة حصرية لدى المستشار</span>
+                      <span>{text("results.text2")}</span>
                     </div>
                   )}
 
                   {/* Badges Overlays */}
                   <div className="square-badges-top-row">
-                    <span className="badge-unit-type">{p.unitType || "شقة سكنية"}</span>
+                    <span className="badge-unit-type">{p.unitType || text("results.text3")}</span>
                     {photosCount > 1 && (
                       <span className="badge-photos-count">
-                        <Camera size={12} /> {photosCount} صور
-                      </span>
+                        <Camera size={12} /> {photosCount} {text("results.text4")}</span>
                     )}
                   </div>
 
@@ -343,14 +343,14 @@ export default function PublicPropertiesClient({
                 {/* Body Details */}
                 <div className="square-card-body">
                   <div className="square-header-line">
-                    <h3 className="square-project-title" title={p.projectName || p.title || "مشروع متميز"}>
-                      {p.projectName || p.title || "مشروع عقاري متميز"}
+                    <h3 className="square-project-title" title={p.projectName || p.title || text("results.text5")}>
+                      {p.projectName || p.title || text("results.text6")}
                     </h3>
                   </div>
 
                   <div className="square-location-row">
                     <MapPin size={13} className="text-gold shrink-0" />
-                    <span className="truncate">{p.zone || "القاهرة الكبرى"}</span>
+                    <span className="truncate">{p.zone || text("results.text7")}</span>
                   </div>
 
                   {/* Specs Grid */}
@@ -358,19 +358,19 @@ export default function PublicPropertiesClient({
                     {p.size && (
                       <div className="spec-badge">
                         <Maximize2 size={12} className="text-gold" />
-                        <span>{p.size} م²</span>
+                        <span>{p.size} {text("results.text8")}</span>
                       </div>
                     )}
                     {p.bedrooms && (
                       <div className="spec-badge">
                         <BedDouble size={12} className="text-gold" />
-                        <span>{p.bedrooms} غرف</span>
+                        <span>{p.bedrooms} {text("results.text9")}</span>
                       </div>
                     )}
                     {p.bathrooms && (
                       <div className="spec-badge">
                         <Bath size={12} className="text-gold" />
-                        <span>{p.bathrooms} حمام</span>
+                        <span>{p.bathrooms} {text("results.text10")}</span>
                       </div>
                     )}
                   </div>
@@ -378,16 +378,14 @@ export default function PublicPropertiesClient({
                   {/* Price & Installment */}
                   <div className="square-financials-row">
                     <div>
-                      <span className="financial-label">السعر المطلوب</span>
+                      <span className="financial-label">{text("results.text11")}</span>
                       <div className="financial-price">
-                        {p.price ? `${p.price.toLocaleString()} ج.م` : "عند التواصل"}
+                        {p.price ? text("results.text12", [p.price.toLocaleString()]) : text("results.text13")}
                       </div>
                     </div>
 
                     {p.monthlyInstallment && (
-                      <div className="financial-installment-tag">
-                        قسط: {p.monthlyInstallment.toLocaleString()} ج.م/ش
-                      </div>
+                      <div className="financial-installment-tag">{text("results.text14")} {p.monthlyInstallment.toLocaleString()} {text("results.text15")}</div>
                     )}
                   </div>
 
@@ -398,7 +396,7 @@ export default function PublicPropertiesClient({
                       className="btn-square-details"
                     >
                       <Eye size={14} />
-                      <span>التفاصيل</span>
+                      <span>{text("results.text16")}</span>
                     </a>
 
                     <button
@@ -406,15 +404,15 @@ export default function PublicPropertiesClient({
                       className="btn-square-viewing"
                     >
                       <Calendar size={14} />
-                      <span>معاينة</span>
+                      <span>{text("results.text17")}</span>
                     </button>
 
                     <a
-                      href={`https://wa.me/?text=${whatsappUnitMsg}`}
+                      href={publicWhatsAppLink(contact["details.whatsapp"] ?? "", whatsappUnitMsg)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="btn-square-whatsapp"
-                      title="واتساب للوحدة"
+                      title={text("results.text18")}
                     >
                       <MessageCircle size={15} />
                     </a>
@@ -428,22 +426,18 @@ export default function PublicPropertiesClient({
         {/* Empty State */}
         {catalogError && <p role="alert">{catalogError}</p>}
         {catalog.total > catalog.pageSize && (
-          <nav aria-label="صفحات الكتالوج" className="catalog-filter-footer">
-            <button type="button" className="btn-reset-filters" disabled={loadingCatalog || page <= 1} onClick={() => void loadCatalog(page - 1)}>السابق</button>
-            <span>صفحة {catalog.page} من {Math.ceil(catalog.total / catalog.pageSize)}</span>
-            <button type="button" className="btn-reset-filters" disabled={loadingCatalog || page * catalog.pageSize >= catalog.total} onClick={() => void loadCatalog(page + 1)}>التالي</button>
+          <nav aria-label={text("results.text19")} className="catalog-filter-footer">
+            <button type="button" className="btn-reset-filters" disabled={loadingCatalog || page <= 1} onClick={() => void loadCatalog(page - 1)}>{text("results.text20")}</button>
+            <span>{text("results.text21")} {catalog.page} {text("results.text22")} {Math.ceil(catalog.total / catalog.pageSize)}</span>
+            <button type="button" className="btn-reset-filters" disabled={loadingCatalog || page * catalog.pageSize >= catalog.total} onClick={() => void loadCatalog(page + 1)}>{text("results.text23")}</button>
           </nav>
         )}
         {filteredProperties.length === 0 && !catalogError && !loadingCatalog && (
           <div className="catalog-empty-card">
             <Building2 size={48} className="text-gold opacity-40 mx-auto mb-3" />
-            <h3 className="text-lg font-bold text-white mb-2">لا توجد وحدات مطابقة للبحث حالياً</h3>
-            <p className="text-xs text-muted max-w-md mx-auto mb-6">
-              جرّب تغيير خيارات البحث أو قم بإعادة ضبط الفلاتر للاطلاع على كافة الوحدات المتاحة.
-            </p>
-            <button onClick={resetFilters} className="btn-consultation-gold inline-flex">
-              إعادة ضبط الفلاتر وعرض الكل
-            </button>
+            <h3 className="text-lg font-bold text-white mb-2">{text("results.text24")}</h3>
+            <p className="text-xs text-muted max-w-md mx-auto mb-6">{text("results.text25")}</p>
+            <button onClick={resetFilters} className="btn-consultation-gold inline-flex">{text("results.text26")}</button>
           </div>
         )}
       </section>
@@ -455,7 +449,7 @@ export default function PublicPropertiesClient({
             <div className="modal-header-row">
               <div className="flex items-center gap-2">
                 <Calendar size={18} className="text-gold" />
-                <h3 className="modal-heading">طلب معاينة وحدة ميدانياً</h3>
+                <h3 className="modal-heading">{text("viewing.text1")}</h3>
               </div>
               <button onClick={() => setModalOpen(false)} className="modal-close-icon">
                 <X size={16} />
@@ -466,15 +460,14 @@ export default function PublicPropertiesClient({
               <div className="font-extrabold text-white text-sm">
                 {selectedUnit.projectName || selectedUnit.title}
               </div>
-              <div className="text-xs text-gold">
-                المنطقة: {selectedUnit.zone || "القاهرة الكبرى"} &bull; كود: DK-{selectedUnit.id.substring(0, 6).toUpperCase()}
+              <div className="text-xs text-gold">{text("viewing.text2")} {selectedUnit.zone || text("viewing.text3")} {text("viewing.text4")}{selectedUnit.id.substring(0, 6).toUpperCase()}
               </div>
             </div>
 
             {submitSuccess && (
               <div className="form-alert-success mb-4 p-3">
                 <CheckCircle2 size={18} className="shrink-0" />
-                <div className="text-xs">تم تسجيل طلب المعاينة بنجاح! سيتواصل معك منسق المعاينات لتحديد الموعد.</div>
+                <div className="text-xs">{text("viewing.text5")}</div>
               </div>
             )}
 
@@ -487,11 +480,11 @@ export default function PublicPropertiesClient({
 
             <form onSubmit={handleInquirySubmit} className="portal-quick-form">
               <div className="form-field">
-                <label>الاسم بالكامل *</label>
+                <label>{text("viewing.text6")}</label>
                 <input
                   type="text"
                   required
-                  placeholder="اسمك الكريم..."
+                  placeholder={text("viewing.text7")}
                   value={inquiryName}
                   onChange={(e) => setInquiryName(e.target.value)}
                   className="portal-input"
@@ -499,12 +492,12 @@ export default function PublicPropertiesClient({
               </div>
 
               <div className="form-field">
-                <label>رقم الهاتف / الواتساب *</label>
+                <label>{text("viewing.text8")}</label>
                 <input
                   type="tel"
                   required
                   dir="ltr"
-                  placeholder="01xxxxxxxxx"
+                  placeholder={text("viewing.text9")}
                   value={inquiryPhone}
                   onChange={(e) => setInquiryPhone(e.target.value)}
                   className="portal-input"
@@ -516,7 +509,7 @@ export default function PublicPropertiesClient({
                 disabled={submitting}
                 className="btn-consultation-gold w-full justify-center py-3 text-sm mt-3"
               >
-                {submitting ? "جاري الإرسال..." : "تأكيد طلب موعد المعاينة"}
+                {submitting ? text("viewing.text10") : text("viewing.text11")}
               </button>
             </form>
           </div>

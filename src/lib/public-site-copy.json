@@ -1,0 +1,1969 @@
+{
+  "home": {
+    "meta": {
+      "label": "ظهور الصفحة في البحث",
+      "fields": [
+        {
+          "key": "meta.title",
+          "label": "عنوان المتصفح ومحركات البحث",
+          "value": "دارك للاستثمار والتسويق العقاري | البوابة العقارية الرسمية"
+        },
+        {
+          "key": "meta.description",
+          "label": "وصف نتائج البحث",
+          "value": "اكتشف أفضل الفرص الاستثمارية والوحدات العقارية الحصرية في مصر، احجز استشارتك المجانية أو اعرض وحدتك للبيع بأمان وسرية تامة."
+        }
+      ]
+    },
+    "partners": {
+      "label": "شركاء الرئيسية",
+      "fields": [
+        {
+          "key": "partners.topDevelopers1_name",
+          "label": "اسم الشريك 1",
+          "value": "إعمار مصر"
+        },
+        {
+          "key": "partners.topDevelopers1_sub",
+          "label": "المشروعات 1",
+          "value": "ميفيدا • مراسي • أبتاون"
+        },
+        {
+          "key": "partners.topDevelopers2_name",
+          "label": "اسم الشريك 2",
+          "value": "مجموعة طلعت مصطفى"
+        },
+        {
+          "key": "partners.topDevelopers2_sub",
+          "label": "المشروعات 2",
+          "value": "مدينتي • سيليا • الرحاب"
+        },
+        {
+          "key": "partners.topDevelopers3_name",
+          "label": "اسم الشريك 3",
+          "value": "بالم هيلز للتعمير"
+        },
+        {
+          "key": "partners.topDevelopers3_sub",
+          "label": "المشروعات 3",
+          "value": "بادية • بالم هيلز التجمع"
+        },
+        {
+          "key": "partners.topDevelopers4_name",
+          "label": "اسم الشريك 4",
+          "value": "سوديك (SODIC)"
+        },
+        {
+          "key": "partners.topDevelopers4_sub",
+          "label": "المشروعات 4",
+          "value": "فيليت • إيست تاون • كرمة"
+        },
+        {
+          "key": "partners.topDevelopers5_name",
+          "label": "اسم الشريك 5",
+          "value": "ماونتن فيو"
+        },
+        {
+          "key": "partners.topDevelopers5_sub",
+          "label": "المشروعات 5",
+          "value": "آي سيتي • هايد بارك • رأس الحكمة"
+        },
+        {
+          "key": "partners.topDevelopers6_name",
+          "label": "اسم الشريك 6",
+          "value": "أورا ديفلوبرز"
+        },
+        {
+          "key": "partners.topDevelopers6_sub",
+          "label": "المشروعات 6",
+          "value": "زد الشيخ زايد • زد إيست"
+        },
+        {
+          "key": "partners.text1",
+          "label": "نص معروض",
+          "value": "شراكات معتمدة مع كبرى شركات التطوير العقاري في مصر"
+        }
+      ]
+    },
+    "hero": {
+      "label": "واجهة الرئيسية",
+      "fields": [
+        {
+          "key": "hero.text1",
+          "label": "نص معروض",
+          "value": "مجتمعات سكنية فاخرة • إطلالات لاندسكيب وبحيرات طبيعية"
+        },
+        {
+          "key": "hero.text2",
+          "label": "العنوان الرئيسي",
+          "value": "اختر منزل أحلامك في أرقى"
+        },
+        {
+          "key": "hero.text3",
+          "label": "نص معروض",
+          "value": "الكمبوندات العقارية"
+        },
+        {
+          "key": "hero.text4",
+          "label": "العنوان الرئيسي",
+          "value": "بمصر"
+        },
+        {
+          "key": "hero.text5",
+          "label": "فقرة",
+          "value": "نساعدك في اقتناء أرقى الفيلات والوحدات السكنية ذات الإطلالات الخضراء المفتوحة في التجمع الخامس، الشيخ زايد، والساحل الشمالي، مع فحص قانوني دقيق وأسهل خطط سداد."
+        },
+        {
+          "key": "hero.text6",
+          "label": "النص داخل الحقل",
+          "value": "ابحث باسم المشروع، الكومباوند، أو المنطقة (مثل: ميفيدا، مدينتي، التجمع...)"
+        },
+        {
+          "key": "hero.text7",
+          "label": "نص معروض",
+          "value": "بحث في الكتالوج"
+        },
+        {
+          "key": "hero.text8",
+          "label": "نص الرابط",
+          "value": "تصفح الكتالوج العقاري المباشر ←"
+        },
+        {
+          "key": "hero.text9",
+          "label": "نص الرابط",
+          "value": "اعرض وحدتك للبيع معنا"
+        },
+        {
+          "key": "hero.text10",
+          "label": "نص الرابط",
+          "value": "سابقة أعمالنا وشركاؤنا"
+        },
+        {
+          "key": "hero.text11",
+          "label": "نص معروض",
+          "value": "+1,500"
+        },
+        {
+          "key": "hero.text12",
+          "label": "نص معروض",
+          "value": "وحدة تم تسويقها بنجاح"
+        },
+        {
+          "key": "hero.text13",
+          "label": "نص معروض",
+          "value": "+50"
+        },
+        {
+          "key": "hero.text14",
+          "label": "نص معروض",
+          "value": "مشروع ولاندسكيب معتمد"
+        },
+        {
+          "key": "hero.text15",
+          "label": "نص معروض",
+          "value": "98%"
+        },
+        {
+          "key": "hero.text16",
+          "label": "نص معروض",
+          "value": "نسبة رضا المستثمرين"
+        },
+        {
+          "key": "hero.text17",
+          "label": "نص معروض",
+          "value": "100%"
+        },
+        {
+          "key": "hero.text18",
+          "label": "نص معروض",
+          "value": "حفظ لسرية بيانات الملاك"
+        }
+      ]
+    },
+    "listings": {
+      "label": "مختارات الكتالوج",
+      "fields": [
+        {
+          "key": "listings.text1",
+          "label": "نص معروض",
+          "value": "مختارات الكتالوج العقاري"
+        },
+        {
+          "key": "listings.text2",
+          "label": "عنوان القسم",
+          "value": "أحدث الوحدات الحصرية المتاحة للبيع"
+        },
+        {
+          "key": "listings.text3",
+          "label": "فقرة",
+          "value": "عروض مميزة تم فحصها فنياً وقانونياً في كبرى الكمبوندات بإطلالات مفتوحة"
+        },
+        {
+          "key": "listings.text4",
+          "label": "نص الرابط",
+          "value": "عرض الكتالوج بالكامل ←"
+        },
+        {
+          "key": "listings.text5",
+          "label": "وصف الصورة",
+          "value": "وحدة"
+        },
+        {
+          "key": "listings.text6",
+          "label": "نص معروض",
+          "value": "معاينة حصرية لدى المستشار"
+        },
+        {
+          "key": "listings.text7",
+          "label": "نص أو رسالة معروضة",
+          "value": "شقة سكنية"
+        },
+        {
+          "key": "listings.text8",
+          "label": "النص المساعد",
+          "value": "مشروع متميز"
+        },
+        {
+          "key": "listings.text9",
+          "label": "نص أو رسالة معروضة",
+          "value": "مشروع عقاري متميز"
+        },
+        {
+          "key": "listings.text10",
+          "label": "نص أو رسالة معروضة",
+          "value": "القاهرة الكبرى"
+        },
+        {
+          "key": "listings.text11",
+          "label": "نص معروض",
+          "value": "م²"
+        },
+        {
+          "key": "listings.text12",
+          "label": "نص معروض",
+          "value": "غرف"
+        },
+        {
+          "key": "listings.text13",
+          "label": "نص معروض",
+          "value": "حمام"
+        },
+        {
+          "key": "listings.text14",
+          "label": "نص معروض",
+          "value": "السعر المطلوب"
+        },
+        {
+          "key": "listings.text15",
+          "label": "نص أو رسالة معروضة",
+          "value": "{1} ج.م"
+        },
+        {
+          "key": "listings.text16",
+          "label": "نص أو رسالة معروضة",
+          "value": "عند التواصل"
+        },
+        {
+          "key": "listings.text17",
+          "label": "نص معروض",
+          "value": "قسط:"
+        },
+        {
+          "key": "listings.text18",
+          "label": "نص معروض",
+          "value": "ج.م"
+        },
+        {
+          "key": "listings.text19",
+          "label": "نص معروض",
+          "value": "معاينة تفاصيل الوحدة كاملة ←"
+        },
+        {
+          "key": "listings.text20",
+          "label": "نص الرابط",
+          "value": "استكشف جميع الوحدات بالكتالوج المربع ←"
+        }
+      ]
+    },
+    "services": {
+      "label": "الخدمات",
+      "fields": [
+        {
+          "key": "services.text1",
+          "label": "نص معروض",
+          "value": "خدمات شركة دارك العقارية"
+        },
+        {
+          "key": "services.text2",
+          "label": "عنوان القسم",
+          "value": "منظومة عقارية متكاملة تلبي كافة احتياجاتك"
+        },
+        {
+          "key": "services.text3",
+          "label": "فقرة",
+          "value": "نوفر لك أقساماً وخدمات متخصصة ومستقلة لتجربة عقارية استثنائية"
+        },
+        {
+          "key": "services.text4",
+          "label": "عنوان فرعي",
+          "value": "الكتالوج العقاري المباشر"
+        },
+        {
+          "key": "services.text5",
+          "label": "فقرة",
+          "value": "تصفح الفيلات والشقق المعروضة للبيع مع فلترة دقيقة بالمساحة والميزانية والغرف."
+        },
+        {
+          "key": "services.text6",
+          "label": "نص معروض",
+          "value": "دخول الكتالوج ←"
+        },
+        {
+          "key": "services.text7",
+          "label": "عنوان فرعي",
+          "value": "سابقة أعمالنا والشركاء"
+        },
+        {
+          "key": "services.text8",
+          "label": "فقرة",
+          "value": "سجل مشاريعنا وإنجازاتنا مع كبرى المطورين العقاريين، وإحصائيات الثقة والإنجاز."
+        },
+        {
+          "key": "services.text9",
+          "label": "نص معروض",
+          "value": "عرض البورتفوليو ←"
+        },
+        {
+          "key": "services.text10",
+          "label": "عنوان فرعي",
+          "value": "اعرض وحدتك للبيع معنا"
+        },
+        {
+          "key": "services.text11",
+          "label": "فقرة",
+          "value": "خدمة حصرية للملاك لتسويق وحداتهم بالصور مع حجب كامل لرقم الشقة والعناوين الحساسة."
+        },
+        {
+          "key": "services.text12",
+          "label": "نص معروض",
+          "value": "تسجيل وحدتك الآن ←"
+        },
+        {
+          "key": "services.text13",
+          "label": "عنوان فرعي",
+          "value": "حجز استشارة وتواصل"
+        },
+        {
+          "key": "services.text14",
+          "label": "فقرة",
+          "value": "تحدث مباشرة مع مستشار عقاري متخصص لتحديد أنسب الفرص ومناقشة تفاصيل ميزانيتك."
+        },
+        {
+          "key": "services.text15",
+          "label": "نص معروض",
+          "value": "حجز جلسة استشارة ←"
+        }
+      ]
+    },
+    "sell": {
+      "label": "عرض الوحدات",
+      "fields": [
+        {
+          "key": "sell.text1",
+          "label": "نص معروض",
+          "value": "أمان وخصوصية الملاك"
+        },
+        {
+          "key": "sell.text2",
+          "label": "عنوان القسم",
+          "value": "هل تملك وحدة في كمبوند وترغب في بيعها بأعلى عائد؟"
+        },
+        {
+          "key": "sell.text3",
+          "label": "فقرة",
+          "value": "اعرض وحدتك الآن مع شركة دارك. نقوم بتسويق وحدتك لقاعدة مشترين جادة ومؤهلة مع حماية تامة لخصوصيتك: لا ننشر رقم الشقة أو رقم العمارة أو هاتفك في العلن. نحن نتولى التصفية المالية الكاملة قبل أي معاينة."
+        },
+        {
+          "key": "sell.text4",
+          "label": "نص معروض",
+          "value": "سجل وحدتك وارفع صورها الآن ←"
+        },
+        {
+          "key": "sell.text5",
+          "label": "نص الرابط",
+          "value": "تحدث مع مستشار المبيعات"
+        },
+        {
+          "key": "sell.text6",
+          "label": "نص معروض",
+          "value": "نموذج العرض الآمن لدى دارك"
+        },
+        {
+          "key": "sell.text7",
+          "label": "نص معروض",
+          "value": "✓ حماية مطلقة لبيانات المالك"
+        },
+        {
+          "key": "sell.text8",
+          "label": "نص معروض",
+          "value": "تسويق احترافي بالصور دون إفصاح العنوان الدقيق"
+        },
+        {
+          "key": "sell.text9",
+          "label": "نص معروض",
+          "value": "نحن لا نعرض رقم الشقة أو بيانات التواصل الخاصة بك في العلن؛ نحن نتولى الفحص والفلترة الكاملة للمشترين الماليين قبل المعاينة."
+        }
+      ]
+    }
+  },
+  "properties": {
+    "meta": {
+      "label": "ظهور الصفحة في البحث",
+      "fields": [
+        {
+          "key": "meta.title",
+          "label": "عنوان المتصفح ومحركات البحث",
+          "value": "عقارات ووحدات متميزة للبيع | دارك للاستثمار العقاري"
+        },
+        {
+          "key": "meta.description",
+          "label": "وصف نتائج البحث",
+          "value": "تصفح أحدث عروض الوحدات السكنية والتجارية للبيع في مصر. شقق، فيلات، دوبلكس بأرقى المناطق مع إمكانية الفلترة والمعاينة الفورية."
+        }
+      ]
+    },
+    "header": {
+      "label": "عنوان الكتالوج",
+      "fields": [
+        {
+          "key": "header.text1",
+          "label": "رسالة الحالة",
+          "value": "تعذّر تحميل الوحدات. حاول مرة أخرى."
+        },
+        {
+          "key": "header.text2",
+          "label": "رسالة الحالة",
+          "value": "فشل إرسال الطلب"
+        },
+        {
+          "key": "header.text3",
+          "label": "رسالة الحالة",
+          "value": "حدث خطأ أثناء إرسال الطلب، يرجى المحاولة لاحقاً."
+        },
+        {
+          "key": "header.text4",
+          "label": "نص الرابط",
+          "value": "الرئيسية"
+        },
+        {
+          "key": "header.text5",
+          "label": "نص معروض",
+          "value": "الكتالوج العقاري للوحدات"
+        },
+        {
+          "key": "header.text6",
+          "label": "نص معروض",
+          "value": "معرض الوحدات الحصرية"
+        },
+        {
+          "key": "header.text7",
+          "label": "العنوان الرئيسي",
+          "value": "كتالوج الوحدات العقارية"
+        },
+        {
+          "key": "header.text8",
+          "label": "نص معروض",
+          "value": "المتاحة للبيع"
+        },
+        {
+          "key": "header.text9",
+          "label": "فقرة",
+          "value": "تصفح أفضل الفرص السكنية والاستثمارية المفحوصة والمطابقة لمعايير الجودة، مع الحفاظ التام على خصوصية الملاك والعناوين."
+        },
+        {
+          "key": "header.text10",
+          "label": "نص معروض",
+          "value": "فحص عقاري وقانوني معتمد"
+        }
+      ]
+    },
+    "filters": {
+      "label": "البحث والفلاتر",
+      "fields": [
+        {
+          "key": "filters.text1",
+          "label": "النص داخل الحقل",
+          "value": "ابحث باسم المشروع، الكومباوند، أو المنطقة (مثل: مدينتي، ميفيدا، التجمع، زايد...)"
+        },
+        {
+          "key": "filters.text2",
+          "label": "تسمية للمساعدة على الوصول",
+          "value": "مسح البحث"
+        },
+        {
+          "key": "filters.text3",
+          "label": "تسمية الحقل",
+          "value": "نوع الوحدة"
+        },
+        {
+          "key": "filters.text4",
+          "label": "تسمية الحقل",
+          "value": "المنطقة / الكومباوند"
+        },
+        {
+          "key": "filters.text5",
+          "label": "تسمية الحقل",
+          "value": "عدد الغرف"
+        },
+        {
+          "key": "filters.text6",
+          "label": "نص أو رسالة معروضة",
+          "value": "الكل"
+        },
+        {
+          "key": "filters.text7",
+          "label": "نص أو رسالة معروضة",
+          "value": "{1} غرف"
+        },
+        {
+          "key": "filters.text8",
+          "label": "نص الزر",
+          "value": "البحث"
+        },
+        {
+          "key": "filters.text9",
+          "label": "نص معروض",
+          "value": "إعادة ضبط"
+        },
+        {
+          "key": "filters.text10",
+          "label": "نص أو رسالة معروضة",
+          "value": "جاري تحميل الوحدات…"
+        },
+        {
+          "key": "filters.text11",
+          "label": "نص معروض",
+          "value": "عرض"
+        },
+        {
+          "key": "filters.text12",
+          "label": "نص معروض",
+          "value": "من أصل"
+        },
+        {
+          "key": "filters.text13",
+          "label": "نص معروض",
+          "value": "وحدة"
+        },
+        {
+          "key": "filters.unitType1",
+          "label": "خيار نوع الوحدة 1",
+          "value": "الكل"
+        },
+        {
+          "key": "filters.unitType2",
+          "label": "خيار نوع الوحدة 2",
+          "value": "شقة"
+        },
+        {
+          "key": "filters.unitType3",
+          "label": "خيار نوع الوحدة 3",
+          "value": "فيلا"
+        },
+        {
+          "key": "filters.unitType4",
+          "label": "خيار نوع الوحدة 4",
+          "value": "توين هاوس"
+        },
+        {
+          "key": "filters.unitType5",
+          "label": "خيار نوع الوحدة 5",
+          "value": "تاون هاوس"
+        },
+        {
+          "key": "filters.unitType6",
+          "label": "خيار نوع الوحدة 6",
+          "value": "دوبلكس"
+        },
+        {
+          "key": "filters.unitType7",
+          "label": "خيار نوع الوحدة 7",
+          "value": "بنتهاوس"
+        },
+        {
+          "key": "filters.unitType8",
+          "label": "خيار نوع الوحدة 8",
+          "value": "محل تجاري"
+        },
+        {
+          "key": "filters.unitType9",
+          "label": "خيار نوع الوحدة 9",
+          "value": "مكتب إداري"
+        }
+      ]
+    },
+    "results": {
+      "label": "بطاقات الوحدات والصفحات",
+      "fields": [
+        {
+          "key": "results.text1",
+          "label": "وصف الصورة",
+          "value": "وحدة عقارية"
+        },
+        {
+          "key": "results.text2",
+          "label": "نص معروض",
+          "value": "معاينة حصرية لدى المستشار"
+        },
+        {
+          "key": "results.text3",
+          "label": "نص أو رسالة معروضة",
+          "value": "شقة سكنية"
+        },
+        {
+          "key": "results.text4",
+          "label": "نص معروض",
+          "value": "صور"
+        },
+        {
+          "key": "results.text5",
+          "label": "النص المساعد",
+          "value": "مشروع متميز"
+        },
+        {
+          "key": "results.text6",
+          "label": "نص أو رسالة معروضة",
+          "value": "مشروع عقاري متميز"
+        },
+        {
+          "key": "results.text7",
+          "label": "نص أو رسالة معروضة",
+          "value": "القاهرة الكبرى"
+        },
+        {
+          "key": "results.text8",
+          "label": "نص معروض",
+          "value": "م²"
+        },
+        {
+          "key": "results.text9",
+          "label": "نص معروض",
+          "value": "غرف"
+        },
+        {
+          "key": "results.text10",
+          "label": "نص معروض",
+          "value": "حمام"
+        },
+        {
+          "key": "results.text11",
+          "label": "نص معروض",
+          "value": "السعر المطلوب"
+        },
+        {
+          "key": "results.text12",
+          "label": "نص أو رسالة معروضة",
+          "value": "{1} ج.م"
+        },
+        {
+          "key": "results.text13",
+          "label": "نص أو رسالة معروضة",
+          "value": "عند التواصل"
+        },
+        {
+          "key": "results.text14",
+          "label": "نص معروض",
+          "value": "قسط:"
+        },
+        {
+          "key": "results.text15",
+          "label": "نص معروض",
+          "value": "ج.م/ش"
+        },
+        {
+          "key": "results.text16",
+          "label": "نص معروض",
+          "value": "التفاصيل"
+        },
+        {
+          "key": "results.text17",
+          "label": "نص معروض",
+          "value": "معاينة"
+        },
+        {
+          "key": "results.text18",
+          "label": "النص المساعد",
+          "value": "واتساب للوحدة"
+        },
+        {
+          "key": "results.text19",
+          "label": "تسمية للمساعدة على الوصول",
+          "value": "صفحات الكتالوج"
+        },
+        {
+          "key": "results.text20",
+          "label": "نص الزر",
+          "value": "السابق"
+        },
+        {
+          "key": "results.text21",
+          "label": "نص معروض",
+          "value": "صفحة"
+        },
+        {
+          "key": "results.text22",
+          "label": "نص معروض",
+          "value": "من"
+        },
+        {
+          "key": "results.text23",
+          "label": "نص الزر",
+          "value": "التالي"
+        },
+        {
+          "key": "results.text24",
+          "label": "عنوان فرعي",
+          "value": "لا توجد وحدات مطابقة للبحث حالياً"
+        },
+        {
+          "key": "results.text25",
+          "label": "فقرة",
+          "value": "جرّب تغيير خيارات البحث أو قم بإعادة ضبط الفلاتر للاطلاع على كافة الوحدات المتاحة."
+        },
+        {
+          "key": "results.text26",
+          "label": "نص الزر",
+          "value": "إعادة ضبط الفلاتر وعرض الكل"
+        },
+        {
+          "key": "results.whatsappMessage",
+          "label": "رسالة واتساب للاستفسار عن الوحدة",
+          "value": "مرحباً شركة دارك العقارية،\nأود الاستفسار عن الوحدة المعروضة بالكتالوج:\n*{1}* في {2}\nكود الوحدة: {3}"
+        }
+      ]
+    },
+    "viewing": {
+      "label": "نموذج المعاينة",
+      "fields": [
+        {
+          "key": "viewing.text1",
+          "label": "عنوان فرعي",
+          "value": "طلب معاينة وحدة ميدانياً"
+        },
+        {
+          "key": "viewing.text2",
+          "label": "نص معروض",
+          "value": "المنطقة:"
+        },
+        {
+          "key": "viewing.text3",
+          "label": "نص أو رسالة معروضة",
+          "value": "القاهرة الكبرى"
+        },
+        {
+          "key": "viewing.text4",
+          "label": "نص معروض",
+          "value": "• كود: DK-"
+        },
+        {
+          "key": "viewing.text5",
+          "label": "نص معروض",
+          "value": "تم تسجيل طلب المعاينة بنجاح! سيتواصل معك منسق المعاينات لتحديد الموعد."
+        },
+        {
+          "key": "viewing.text6",
+          "label": "تسمية الحقل",
+          "value": "الاسم بالكامل *"
+        },
+        {
+          "key": "viewing.text7",
+          "label": "النص داخل الحقل",
+          "value": "اسمك الكريم..."
+        },
+        {
+          "key": "viewing.text8",
+          "label": "تسمية الحقل",
+          "value": "رقم الهاتف / الواتساب *"
+        },
+        {
+          "key": "viewing.text9",
+          "label": "النص داخل الحقل",
+          "value": "01xxxxxxxxx"
+        },
+        {
+          "key": "viewing.text10",
+          "label": "نص أو رسالة معروضة",
+          "value": "جاري الإرسال..."
+        },
+        {
+          "key": "viewing.text11",
+          "label": "نص أو رسالة معروضة",
+          "value": "تأكيد طلب موعد المعاينة"
+        }
+      ]
+    }
+  },
+  "portfolio": {
+    "meta": {
+      "label": "ظهور الصفحة في البحث",
+      "fields": [
+        {
+          "key": "meta.title",
+          "label": "عنوان المتصفح ومحركات البحث",
+          "value": "سابقة أعمال وإنجازات الشركة | دارك للاستثمار والتسويق العقاري"
+        },
+        {
+          "key": "meta.description",
+          "label": "وصف نتائج البحث",
+          "value": "تعرف على تاريخ وإنجازات شركة دارك للاستثمار العقاري، كبرى مشروعات المطورين المتعاقد معهم، إحصائيات النجاح وسجل المشروعات المعتمدة."
+        }
+      ]
+    },
+    "partners": {
+      "label": "المطورون والمشروعات",
+      "fields": [
+        {
+          "key": "partners.partnerDevelopers1_name",
+          "label": "اسم الشريك 1",
+          "value": "إعمار مصر (Emaar Misr)"
+        },
+        {
+          "key": "partners.partnerDevelopers1_projects",
+          "label": "المشروعات 1",
+          "value": "ميفيدا، مراسي، كايرو جيت، أبتاون كايرو"
+        },
+        {
+          "key": "partners.partnerDevelopers1_badge",
+          "label": "شارة المشروع 1",
+          "value": "مطور رئيسي"
+        },
+        {
+          "key": "partners.partnerDevelopers2_name",
+          "label": "اسم الشريك 2",
+          "value": "مجموعة طلعت مصطفى (TMG)"
+        },
+        {
+          "key": "partners.partnerDevelopers2_projects",
+          "label": "المشروعات 2",
+          "value": "مدينتي، الرحاب، سيليا، نور، بريفادو"
+        },
+        {
+          "key": "partners.partnerDevelopers2_badge",
+          "label": "شارة المشروع 2",
+          "value": "شراكة استراتيجية"
+        },
+        {
+          "key": "partners.partnerDevelopers3_name",
+          "label": "اسم الشريك 3",
+          "value": "بالم هيلز للتعمير (Palm Hills)"
+        },
+        {
+          "key": "partners.partnerDevelopers3_projects",
+          "label": "المشروعات 3",
+          "value": "بالم هيلز التجمع، بادية، بالم هيلز أكتوبر"
+        },
+        {
+          "key": "partners.partnerDevelopers3_badge",
+          "label": "شارة المشروع 3",
+          "value": "مطور معتمد"
+        },
+        {
+          "key": "partners.partnerDevelopers4_name",
+          "label": "اسم الشريك 4",
+          "value": "سوديك (SODIC)"
+        },
+        {
+          "key": "partners.partnerDevelopers4_projects",
+          "label": "المشروعات 4",
+          "value": "فيليت، إيست تاون، سوديك ويست، كرمة"
+        },
+        {
+          "key": "partners.partnerDevelopers4_badge",
+          "label": "شارة المشروع 4",
+          "value": "مطور رئيسي"
+        },
+        {
+          "key": "partners.partnerDevelopers5_name",
+          "label": "اسم الشريك 5",
+          "value": "ماونتن فيو (Mountain View)"
+        },
+        {
+          "key": "partners.partnerDevelopers5_projects",
+          "label": "المشروعات 5",
+          "value": "آي سيتي التجمع، آي سيتي أكتوبر، رأس الحكمة"
+        },
+        {
+          "key": "partners.partnerDevelopers5_badge",
+          "label": "شارة المشروع 5",
+          "value": "مطور معتمد"
+        },
+        {
+          "key": "partners.partnerDevelopers6_name",
+          "label": "اسم الشريك 6",
+          "value": "أورا ديفلوبرز (ORA Developers)"
+        },
+        {
+          "key": "partners.partnerDevelopers6_projects",
+          "label": "المشروعات 6",
+          "value": "زيد إيست، زد الشيخ زايد، سيلفرساندز"
+        },
+        {
+          "key": "partners.partnerDevelopers6_badge",
+          "label": "شارة المشروع 6",
+          "value": "مشروعات حصرية"
+        },
+        {
+          "key": "partners.text1",
+          "label": "نص معروض",
+          "value": "سابقة الأعمال والشراكات"
+        },
+        {
+          "key": "partners.text2",
+          "label": "عنوان القسم",
+          "value": "أبرز المطورين والمشروعات المعتمدة"
+        },
+        {
+          "key": "partners.text3",
+          "label": "فقرة",
+          "value": "نعمل كوكيل استشاري معتمد لأكبر الكيانات العقارية، مما يضمن لعملائنا أفضل الأسعار وأنظمة السداد"
+        },
+        {
+          "key": "partners.text4",
+          "label": "نص معروض",
+          "value": "أبرز المشروعات:"
+        }
+      ]
+    },
+    "milestones": {
+      "label": "الإنجازات",
+      "fields": [
+        {
+          "key": "milestones.milestones1_number",
+          "label": "القيمة 1",
+          "value": "+1,500"
+        },
+        {
+          "key": "milestones.milestones1_label",
+          "label": "عرض القائمة 1",
+          "value": "وحدة عقارية تم تسويقها بنجاح"
+        },
+        {
+          "key": "milestones.milestones1_desc",
+          "label": "الوصف 1",
+          "value": "في مختلف أرقى المدن والتجمعات السكنية في مصر"
+        },
+        {
+          "key": "milestones.milestones2_number",
+          "label": "القيمة 2",
+          "value": "+50"
+        },
+        {
+          "key": "milestones.milestones2_label",
+          "label": "عرض القائمة 2",
+          "value": "مشروع وكومباوند استثماري معتمد"
+        },
+        {
+          "key": "milestones.milestones2_desc",
+          "label": "الوصف 2",
+          "value": "تم فحص كافة المستندات والتراخيص القانونية لها"
+        },
+        {
+          "key": "milestones.milestones3_number",
+          "label": "القيمة 3",
+          "value": "98%"
+        },
+        {
+          "key": "milestones.milestones3_label",
+          "label": "عرض القائمة 3",
+          "value": "نسبة رضا العملاء والمستثمرين"
+        },
+        {
+          "key": "milestones.milestones3_desc",
+          "label": "الوصف 3",
+          "value": "وفق استبيانات الجودة الدورية بعد استلام الوحدات"
+        },
+        {
+          "key": "milestones.milestones4_number",
+          "label": "القيمة 4",
+          "value": "100%"
+        },
+        {
+          "key": "milestones.milestones4_label",
+          "label": "عرض القائمة 4",
+          "value": "حماية وخصوصية بيانات الملاك"
+        },
+        {
+          "key": "milestones.milestones4_desc",
+          "label": "الوصف 4",
+          "value": "نظام مشفر يحجب العناوين الدقيقة عن المتطفلين"
+        }
+      ]
+    },
+    "services": {
+      "label": "التخصصات",
+      "fields": [
+        {
+          "key": "services.specializations1_title",
+          "label": "العنوان 1",
+          "value": "استشارات الاستثمار وإعادة البيع (Resale & Primary)"
+        },
+        {
+          "key": "services.specializations1_desc",
+          "label": "الوصف 1",
+          "value": "دراسة شاملة لحركة الأسعار والعائد الإيجاري المتوقع لمساعدة المستثمرين على تحقيق أعلى عائد رأسمالي."
+        },
+        {
+          "key": "services.specializations2_title",
+          "label": "العنوان 2",
+          "value": "التسويق الحصري لخدمة الملاك المباشرين"
+        },
+        {
+          "key": "services.specializations2_desc",
+          "label": "الوصف 2",
+          "value": "تسويق احترافي بالصور والوسائط الرقمية لقاعدة مشترين مؤهلين وجادين بدون إفصاح العناوين للعامة."
+        },
+        {
+          "key": "services.specializations3_title",
+          "label": "العنوان 3",
+          "value": "الفحص القانوني والتعاقدي الشامل"
+        },
+        {
+          "key": "services.specializations3_desc",
+          "label": "الوصف 3",
+          "value": "مراجعة موقف الوحدة مع الشركة المطورة وأجهزة المدن والتأكد من خلوها من أي نزاعات أو متأخرات مالية."
+        },
+        {
+          "key": "services.text1",
+          "label": "نص معروض",
+          "value": "لماذا تختار شركة دارك؟"
+        },
+        {
+          "key": "services.text2",
+          "label": "عنوان القسم",
+          "value": "معايير عمل ترتقي لطموحاتك الاستثمارية"
+        }
+      ]
+    },
+    "hero": {
+      "label": "مقدمة البورتفوليو",
+      "fields": [
+        {
+          "key": "hero.text1",
+          "label": "نص معروض",
+          "value": "بورتفوليو وإنجازات دارك العقارية"
+        },
+        {
+          "key": "hero.text2",
+          "label": "العنوان الرئيسي",
+          "value": "سجل حافل بالثقة، وشراكات مع كبرى"
+        },
+        {
+          "key": "hero.text3",
+          "label": "نص معروض",
+          "value": "صناع العقار"
+        },
+        {
+          "key": "hero.text4",
+          "label": "العنوان الرئيسي",
+          "value": "في مصر"
+        },
+        {
+          "key": "hero.text5",
+          "label": "فقرة",
+          "value": "على مدار سنوات، قمنا ببناء سمعة رائدة تستند إلى الشفافية، الدقة في الاستشارة، وتوفير أرقى الفرص السكنية والاستثمارية الحصرية."
+        }
+      ]
+    },
+    "contact": {
+      "label": "استشارة وتواصل",
+      "fields": [
+        {
+          "key": "contact.text1",
+          "label": "عنوان القسم",
+          "value": "جاهز لبدء استثمارك العقاري القادم؟"
+        },
+        {
+          "key": "contact.text2",
+          "label": "فقرة",
+          "value": "تصفح كتالوج الوحدات المتاحة حالياً أو احجز استشارة مجانية مع خبيرنا العقاري."
+        },
+        {
+          "key": "contact.text3",
+          "label": "نص الرابط",
+          "value": "تصفح الكتالوج العقاري ←"
+        },
+        {
+          "key": "contact.text4",
+          "label": "نص الرابط",
+          "value": "طلب استشارة استثمارية"
+        }
+      ]
+    }
+  },
+  "sell": {
+    "meta": {
+      "label": "ظهور الصفحة في البحث",
+      "fields": [
+        {
+          "key": "meta.title",
+          "label": "عنوان المتصفح ومحركات البحث",
+          "value": "اعرض وحدتك للبيع بأعلى عائد وبسرية تامة | دارك للاستثمار العقاري"
+        },
+        {
+          "key": "meta.description",
+          "label": "وصف نتائج البحث",
+          "value": "خدمة حصرية لملاك العقارات في مصر: سجل وحدتك للبيع أو الإيجار، ارفع الصور، مع حجب كامل لرقم الشقة والعناوين الحساسة عن العامة لحماية خصوصيتك."
+        }
+      ]
+    },
+    "hero": {
+      "label": "مقدمة صفحة البيع",
+      "fields": [
+        {
+          "key": "hero.text1",
+          "label": "رسالة الحالة",
+          "value": "فشل إرسال بيانات الوحدة"
+        },
+        {
+          "key": "hero.text2",
+          "label": "رسالة الحالة",
+          "value": "حدث خطأ أثناء إرسال البيانات، يرجى المحاولة لاحقاً."
+        },
+        {
+          "key": "hero.text3",
+          "label": "نص معروض",
+          "value": "بوابة ملاك العقارات والوحدات"
+        },
+        {
+          "key": "hero.text4",
+          "label": "العنوان الرئيسي",
+          "value": "اعرض وحدتك للبيع بأعلى عائد استثماري وبـ"
+        },
+        {
+          "key": "hero.text5",
+          "label": "نص معروض",
+          "value": "سرية تامة"
+        },
+        {
+          "key": "hero.text6",
+          "label": "فقرة",
+          "value": "نقوم بتسويق وحدتك لقاعدة مشترين جادة ومؤهلة مع حماية مطلقة لخصوصيتك: لا إفصاح عن رقم الوحدة أو العمارة أو هاتفك في العلن."
+        }
+      ]
+    },
+    "guarantees": {
+      "label": "الخصوصية والضمانات",
+      "fields": [
+        {
+          "key": "guarantees.text1",
+          "label": "عنوان فرعي",
+          "value": "حجب العنوان الدقيق"
+        },
+        {
+          "key": "guarantees.text2",
+          "label": "فقرة",
+          "value": "نعرض فقط اسم المشروع والمنطقة التقريبية؛ لا نظهر رقم العمارة أو الشقة حفاظاً على هدوئك وخصوصيتك."
+        },
+        {
+          "key": "guarantees.text3",
+          "label": "عنوان فرعي",
+          "value": "تصفية المشترين الجادين"
+        },
+        {
+          "key": "guarantees.text4",
+          "label": "فقرة",
+          "value": "يقوم مستشارونا بالتحقق المالي من جدية كل مشتري ومطابقة ميزانيته قبل ترتيب أي موعد معاينة ميدانية."
+        },
+        {
+          "key": "guarantees.text5",
+          "label": "عنوان فرعي",
+          "value": "أمان تعاقدي وقانوني"
+        },
+        {
+          "key": "guarantees.text6",
+          "label": "فقرة",
+          "value": "إشراف قانوني كامل على صياغة عقود البيع وحسابات سداد الأقساط والتنازل بالشركة المطورة."
+        }
+      ]
+    },
+    "form": {
+      "label": "نموذج تسجيل الوحدة",
+      "fields": [
+        {
+          "key": "form.text1",
+          "label": "عنوان القسم",
+          "value": "تسجيل مواصفات الوحدة المعروضة للبيع"
+        },
+        {
+          "key": "form.text2",
+          "label": "فقرة",
+          "value": "يرجى إدخال أكبر قدر ممكن من التفاصيل لتمكين فريقنا من تقييم الوحدة وتسويقها بأسرع وقت."
+        },
+        {
+          "key": "form.text3",
+          "label": "نص معروض",
+          "value": "تم تسجيل وحدتك بنجاح لدى شركة دارك!"
+        },
+        {
+          "key": "form.text4",
+          "label": "نص معروض",
+          "value": "سيتواصل معك أحد مديري المبيعات خلال 24 ساعة لبدء خطة التسويق بعد مراجعة البيانات."
+        }
+      ]
+    },
+    "owner": {
+      "label": "بيانات المالك",
+      "fields": [
+        {
+          "key": "owner.text1",
+          "label": "عنوان فرعي",
+          "value": "1. بيانات التواصل مع المالك (سرية تماماً)"
+        },
+        {
+          "key": "owner.text2",
+          "label": "تسمية الحقل",
+          "value": "اسم المالك بالكامل *"
+        },
+        {
+          "key": "owner.text3",
+          "label": "النص داخل الحقل",
+          "value": "الاسم الرباعي..."
+        },
+        {
+          "key": "owner.text4",
+          "label": "تسمية الحقل",
+          "value": "رقم هاتف المالك *"
+        },
+        {
+          "key": "owner.text5",
+          "label": "النص داخل الحقل",
+          "value": "01xxxxxxxxx"
+        },
+        {
+          "key": "owner.text6",
+          "label": "تسمية الحقل",
+          "value": "البريد الإلكتروني (اختياري)"
+        },
+        {
+          "key": "owner.text7",
+          "label": "النص داخل الحقل",
+          "value": "example@mail.com"
+        }
+      ]
+    },
+    "unit": {
+      "label": "مواصفات الوحدة",
+      "fields": [
+        {
+          "key": "unit.text1",
+          "label": "عنوان فرعي",
+          "value": "2. مواصفات وموقع الوحدة"
+        },
+        {
+          "key": "unit.text2",
+          "label": "تسمية الحقل",
+          "value": "نوع العقار *"
+        },
+        {
+          "key": "unit.text3",
+          "label": "خيار",
+          "value": "شقة سكنية"
+        },
+        {
+          "key": "unit.text4",
+          "label": "خيار",
+          "value": "فيلا مستقلة"
+        },
+        {
+          "key": "unit.text5",
+          "label": "خيار",
+          "value": "توين هاوس"
+        },
+        {
+          "key": "unit.text6",
+          "label": "خيار",
+          "value": "تاون هاوس"
+        },
+        {
+          "key": "unit.text7",
+          "label": "خيار",
+          "value": "دوبلكس"
+        },
+        {
+          "key": "unit.text8",
+          "label": "خيار",
+          "value": "بنتهاوس"
+        },
+        {
+          "key": "unit.text9",
+          "label": "خيار",
+          "value": "مكتب إداري"
+        },
+        {
+          "key": "unit.text10",
+          "label": "خيار",
+          "value": "محل تجاري"
+        },
+        {
+          "key": "unit.text11",
+          "label": "تسمية الحقل",
+          "value": "اسم المشروع / الكومباوند *"
+        },
+        {
+          "key": "unit.text12",
+          "label": "النص داخل الحقل",
+          "value": "مثال: مدينتي، ميفيدا، بالم هيلز..."
+        },
+        {
+          "key": "unit.text13",
+          "label": "تسمية الحقل",
+          "value": "المنطقة / الحي *"
+        },
+        {
+          "key": "unit.text14",
+          "label": "النص داخل الحقل",
+          "value": "مثال: التجمع الخامس، زايد، أكتوبر..."
+        },
+        {
+          "key": "unit.text15",
+          "label": "تسمية الحقل",
+          "value": "المساحة (م²) *"
+        },
+        {
+          "key": "unit.text16",
+          "label": "النص داخل الحقل",
+          "value": "مثال: 165"
+        },
+        {
+          "key": "unit.text17",
+          "label": "تسمية الحقل",
+          "value": "الدور / الطابق"
+        },
+        {
+          "key": "unit.text18",
+          "label": "النص داخل الحقل",
+          "value": "مثال: الدور الثالث"
+        },
+        {
+          "key": "unit.text19",
+          "label": "تسمية الحقل",
+          "value": "عدد الغرف"
+        },
+        {
+          "key": "unit.text20",
+          "label": "النص داخل الحقل",
+          "value": "مثال: 3"
+        },
+        {
+          "key": "unit.text21",
+          "label": "تسمية الحقل",
+          "value": "عدد الحمامات"
+        },
+        {
+          "key": "unit.text22",
+          "label": "النص داخل الحقل",
+          "value": "مثال: 2"
+        },
+        {
+          "key": "unit.text23",
+          "label": "عنوان فرعي",
+          "value": "3. السعر ونظام السداد المطلوب"
+        },
+        {
+          "key": "unit.text24",
+          "label": "تسمية الحقل",
+          "value": "السعر المطلوب الإجمالي (جنيه مصري) *"
+        },
+        {
+          "key": "unit.text25",
+          "label": "النص داخل الحقل",
+          "value": "مثال: 4,500,000"
+        },
+        {
+          "key": "unit.text26",
+          "label": "تسمية الحقل",
+          "value": "تفاصيل السداد أو الأقساط المتبقية"
+        },
+        {
+          "key": "unit.text27",
+          "label": "النص داخل الحقل",
+          "value": "مثال: كاش بالكامل أو مقدم 2 مليون والباقي أقساط..."
+        },
+        {
+          "key": "unit.text28",
+          "label": "عنوان فرعي",
+          "value": "4. صور الوحدة (حتى 10 صور)"
+        },
+        {
+          "key": "unit.text29",
+          "label": "نص أو رسالة معروضة",
+          "value": "جاري تسجيل الوحدة ورفع البيانات..."
+        },
+        {
+          "key": "unit.text30",
+          "label": "نص أو رسالة معروضة",
+          "value": "تأكيد تسجيل الوحدة للبيع الآن"
+        }
+      ]
+    },
+    "photos": {
+      "label": "واجهة صور الوحدة",
+      "fields": [
+        {
+          "key": "photos.text1",
+          "label": "رسالة الحالة",
+          "value": "فشل رفع الصورة"
+        },
+        {
+          "key": "photos.text2",
+          "label": "نص معروض",
+          "value": "معرض صور الوحدة"
+        },
+        {
+          "key": "photos.text3",
+          "label": "نص معروض",
+          "value": "صور"
+        },
+        {
+          "key": "photos.text4",
+          "label": "نص معروض",
+          "value": "(الحد الأقصى)"
+        },
+        {
+          "key": "photos.text5",
+          "label": "نص معروض",
+          "value": "جاري معالجة ورفع الصور إلى Cloudflare..."
+        },
+        {
+          "key": "photos.text6",
+          "label": "نص معروض",
+          "value": "اضغط هنا لاختيار أو سحب صور الوحدة (حتى"
+        },
+        {
+          "key": "photos.text7",
+          "label": "نص معروض",
+          "value": "صور إضافية)"
+        },
+        {
+          "key": "photos.text8",
+          "label": "نص معروض",
+          "value": "الحد الأقصى: 500 كيلوبايت لكل صورة • الصيغ المدعومة: JPG, PNG, WebP"
+        },
+        {
+          "key": "photos.text9",
+          "label": "وصف الصورة",
+          "value": "وحدة - صورة {1}"
+        },
+        {
+          "key": "photos.text10",
+          "label": "النص المساعد",
+          "value": "الصورة الرئيسية للكتالوج"
+        },
+        {
+          "key": "photos.text11",
+          "label": "نص معروض",
+          "value": "الرئيسية"
+        },
+        {
+          "key": "photos.text12",
+          "label": "النص المساعد",
+          "value": "تعيين كصورة رئيسية"
+        },
+        {
+          "key": "photos.text13",
+          "label": "نص الزر",
+          "value": "اجعلها رئيسية"
+        },
+        {
+          "key": "photos.text14",
+          "label": "النص المساعد",
+          "value": "حذف هذه الصورة"
+        }
+      ]
+    }
+  },
+  "contact": {
+    "meta": {
+      "label": "ظهور الصفحة في البحث",
+      "fields": [
+        {
+          "key": "meta.title",
+          "label": "عنوان المتصفح ومحركات البحث",
+          "value": "تواصل معنا وحجز استشارة عقارية | دارك للاستثمار العقاري"
+        },
+        {
+          "key": "meta.description",
+          "label": "وصف نتائج البحث",
+          "value": "تواصل مع خبراء ومستشاري شركة دارك العقارية. حجز موعد استشارة مجانية، طلب معاينة وحدة، أرقام الهاتف والواتساب وموقع المقر الرئيسي."
+        }
+      ]
+    },
+    "hero": {
+      "label": "مقدمة الاتصال",
+      "fields": [
+        {
+          "key": "hero.text1",
+          "label": "رسالة الحالة",
+          "value": "حدث خطأ أثناء إرسال الطلب"
+        },
+        {
+          "key": "hero.text2",
+          "label": "رسالة الحالة",
+          "value": "فشل إرسال الطلب، يرجى المحاولة لاحقاً أو مراسلتنا عبر واتساب."
+        },
+        {
+          "key": "hero.text3",
+          "label": "نص معروض",
+          "value": "مركز الاستشارات وخدمة العملاء"
+        },
+        {
+          "key": "hero.text4",
+          "label": "العنوان الرئيسي",
+          "value": "تواصل معنا مباشرة، خطوتك الأولى نحو"
+        },
+        {
+          "key": "hero.text5",
+          "label": "نص معروض",
+          "value": "قرار عقاري مدروس"
+        },
+        {
+          "key": "hero.text6",
+          "label": "فقرة",
+          "value": "سواء كنت ترغب في استشارة استثمارية، تحديد موعد معاينة ميدانية، أو الاستفسار عن تفاصيل وحدة؛ مستشارونا في خدمتك."
+        }
+      ]
+    },
+    "channels": {
+      "label": "قنوات التواصل",
+      "fields": [
+        {
+          "key": "channels.text1",
+          "label": "عنوان القسم",
+          "value": "قنوات التواصل المباشرة"
+        },
+        {
+          "key": "channels.text2",
+          "label": "فقرة",
+          "value": "اختر القناة الأنسب لك للتواصل مع مسؤولي خدمة العملاء والمستشارين الماليين."
+        },
+        {
+          "key": "channels.text3",
+          "label": "نص معروض",
+          "value": "الاتصال الهاتفي المباشر"
+        },
+        {
+          "key": "channels.text5",
+          "label": "نص معروض",
+          "value": "متاح السبت إلى الخميس: 10:00 ص – 8:00 م"
+        },
+        {
+          "key": "channels.text6",
+          "label": "نص معروض",
+          "value": "المحادثة الفورية عبر واتساب"
+        },
+        {
+          "key": "channels.text7",
+          "label": "نص معروض",
+          "value": "بدء محادثة الآن ←"
+        },
+        {
+          "key": "channels.text8",
+          "label": "نص معروض",
+          "value": "رد سريع على مدار اليوم"
+        },
+        {
+          "key": "channels.text9",
+          "label": "نص معروض",
+          "value": "المقر الرئيسي للشركة"
+        },
+        {
+          "key": "channels.text10",
+          "label": "نص معروض",
+          "value": "التجمع الخامس، القاهرة الجديدة"
+        },
+        {
+          "key": "channels.text11",
+          "label": "نص معروض",
+          "value": "محافظة القاهرة • جمهورية مصر العربية"
+        },
+        {
+          "key": "channels.text12",
+          "label": "نص معروض",
+          "value": "أيام وساعات العمل"
+        },
+        {
+          "key": "channels.text13",
+          "label": "نص معروض",
+          "value": "السبت إلى الخميس: 10:00 ص إلى 8:00 م"
+        },
+        {
+          "key": "channels.text14",
+          "label": "نص معروض",
+          "value": "الجمعة: إجازة أسبوعية لفريق المبيعات"
+        },
+        {
+          "key": "channels.text15",
+          "label": "نص معروض",
+          "value": "التزام بالسرية:"
+        },
+        {
+          "key": "channels.text16",
+          "label": "نص معروض",
+          "value": "بياناتك الهاتفية والشخصية تستخدم حصرياً للتواصل معك بخصوص طلبك ولا يتم مشاركتها مطلقاً مع أي طرف ثالث."
+        }
+      ]
+    },
+    "form": {
+      "label": "نموذج التواصل",
+      "fields": [
+        {
+          "key": "form.text1",
+          "label": "عنوان فرعي",
+          "value": "نموذج حجز الاستشارة والاستفسار"
+        },
+        {
+          "key": "form.text2",
+          "label": "فقرة",
+          "value": "املأ النموذج التالي وسيقوم أحد مستشارينا بالتواصل معك هاتفياً أو عبر واتساب خلال ساعات قليلة."
+        },
+        {
+          "key": "form.text3",
+          "label": "نص معروض",
+          "value": "تم استلام طلبك بنجاح!"
+        },
+        {
+          "key": "form.text4",
+          "label": "نص معروض",
+          "value": "سيتواصل معك أحد مستشارينا المتخصصين في أقرب وقت."
+        },
+        {
+          "key": "form.text5",
+          "label": "تسمية الحقل",
+          "value": "نوع الطلب أو الخدمة *"
+        },
+        {
+          "key": "form.text6",
+          "label": "خيار",
+          "value": "حجز جلسة استشارة عقارية مجانية"
+        },
+        {
+          "key": "form.text7",
+          "label": "خيار",
+          "value": "طلب معاينة وحدة معروضة بالكتالوج"
+        },
+        {
+          "key": "form.text8",
+          "label": "خيار",
+          "value": "استفسار عام أو سؤال عن مشروع محدد"
+        },
+        {
+          "key": "form.text9",
+          "label": "تسمية الحقل",
+          "value": "الاسم بالكامل * (إلزامي)"
+        },
+        {
+          "key": "form.text10",
+          "label": "النص داخل الحقل",
+          "value": "اسمك الكريم..."
+        },
+        {
+          "key": "form.text11",
+          "label": "تسمية الحقل",
+          "value": "رقم الهاتف / الواتساب * (إلزامي)"
+        },
+        {
+          "key": "form.text12",
+          "label": "النص داخل الحقل",
+          "value": "01xxxxxxxxx"
+        },
+        {
+          "key": "form.text13",
+          "label": "تسمية الحقل",
+          "value": "المنطقة أو الكومباوند المهتم به"
+        },
+        {
+          "key": "form.text14",
+          "label": "النص داخل الحقل",
+          "value": "مثال: التجمع، الشيخ زايد، العاصمة..."
+        },
+        {
+          "key": "form.text15",
+          "label": "تسمية الحقل",
+          "value": "الميزانية التقريبية (جنيه مصري)"
+        },
+        {
+          "key": "form.text16",
+          "label": "النص داخل الحقل",
+          "value": "مثال: 5,000,000 أو كاش / قسط"
+        },
+        {
+          "key": "form.text17",
+          "label": "تسمية الحقل",
+          "value": "ملاحظات إضافية أو وقت الاتصال المفضل"
+        },
+        {
+          "key": "form.text18",
+          "label": "النص داخل الحقل",
+          "value": "اكتب أي تفاصيل بخصوص طلبك، مواصفات الوحدة التي تبحث عنها، أو أفضل وقت للاتصال..."
+        },
+        {
+          "key": "form.text19",
+          "label": "نص أو رسالة معروضة",
+          "value": "جاري الإرسال..."
+        },
+        {
+          "key": "form.text20",
+          "label": "نص أو رسالة معروضة",
+          "value": "تأكيد وإرسال الطلب الآن"
+        }
+      ]
+    },
+    "details": {
+      "label": "بيانات الاتصال والروابط",
+      "fields": [
+        {
+          "key": "details.phone",
+          "label": "رقم الاتصال",
+          "value": "+20 100 000 0000"
+        },
+        {
+          "key": "details.whatsapp",
+          "label": "رقم واتساب بصيغة دولية",
+          "value": ""
+        },
+        {
+          "key": "details.email",
+          "label": "البريد المعلن",
+          "value": ""
+        },
+        {
+          "key": "details.maps",
+          "label": "رابط خريطة المقر",
+          "value": ""
+        },
+        {
+          "key": "details.whatsappMessage",
+          "label": "رسالة واتساب الافتراضية",
+          "value": "مرحباً شركة دارك العقارية، أود الاستفسار عن الخدمات والوحدات المتاحة."
+        },
+        {
+          "key": "details.emailLabel",
+          "label": "عنوان بطاقة البريد",
+          "value": "البريد الإلكتروني"
+        }
+      ]
+    }
+  },
+  "shared": {
+    "header": {
+      "label": "ترويسة الموقع",
+      "fields": [
+        {
+          "key": "header.navTabs1_label",
+          "label": "عرض القائمة 1",
+          "value": "الرئيسية"
+        },
+        {
+          "key": "header.navTabs2_label",
+          "label": "عرض القائمة 2",
+          "value": "الكتالوج العقاري"
+        },
+        {
+          "key": "header.navTabs3_label",
+          "label": "عرض القائمة 3",
+          "value": "بورتفوليو الشركة"
+        },
+        {
+          "key": "header.navTabs4_label",
+          "label": "عرض القائمة 4",
+          "value": "اعرض وحدتك"
+        },
+        {
+          "key": "header.navTabs5_label",
+          "label": "عرض القائمة 5",
+          "value": "تواصل معنا"
+        },
+        {
+          "key": "header.text1",
+          "label": "نص معروض",
+          "value": "دارك"
+        },
+        {
+          "key": "header.text2",
+          "label": "نص معروض",
+          "value": "للاستثمار العقاري"
+        },
+        {
+          "key": "header.text3",
+          "label": "نص معروض",
+          "value": "Darak Real Estate"
+        },
+        {
+          "key": "header.text4",
+          "label": "نص معروض",
+          "value": "حجز استشارة"
+        },
+        {
+          "key": "header.text5",
+          "label": "النص المساعد",
+          "value": "محادثة واتساب مباشرة"
+        },
+        {
+          "key": "header.text6",
+          "label": "نص معروض",
+          "value": "واتساب"
+        },
+        {
+          "key": "header.text7",
+          "label": "تسمية للمساعدة على الوصول",
+          "value": "قائمة التنقل"
+        },
+        {
+          "key": "header.text8",
+          "label": "نص الرابط",
+          "value": "حجز استشارة مجانية"
+        }
+      ]
+    },
+    "footer": {
+      "label": "محتوى الفوتر",
+      "fields": [
+        {
+          "key": "footer.text1",
+          "label": "نص معروض",
+          "value": "دارك للاستثمار والتسويق العقاري"
+        },
+        {
+          "key": "footer.text2",
+          "label": "فقرة",
+          "value": "منظومة الاستشارات والتسويق العقاري الموثوقة في مصر. نقدم دراسات جدوى استثمارية حقيقية، تسويقاً حصرياً للوحدات المتميزة، وحماية مطلقة لسرية بيانات الملاك والمشترين."
+        },
+        {
+          "key": "footer.text3",
+          "label": "نص معروض",
+          "value": "حفظ سرية العناوين والملاك • فحص ومراجعة قانونية"
+        },
+        {
+          "key": "footer.text4",
+          "label": "نص معروض",
+          "value": "أقسام الموقع"
+        },
+        {
+          "key": "footer.text5",
+          "label": "نص الرابط",
+          "value": "الرئيسية"
+        },
+        {
+          "key": "footer.text6",
+          "label": "نص الرابط",
+          "value": "الكتالوج العقاري للوحدات"
+        },
+        {
+          "key": "footer.text7",
+          "label": "نص الرابط",
+          "value": "سابقة الأعمال والشركاء"
+        },
+        {
+          "key": "footer.text8",
+          "label": "نص الرابط",
+          "value": "اعرض وحدتك للبيع"
+        },
+        {
+          "key": "footer.text9",
+          "label": "نص الرابط",
+          "value": "تواصل معنا"
+        },
+        {
+          "key": "footer.text10",
+          "label": "نص معروض",
+          "value": "الخدمات العقارية"
+        },
+        {
+          "key": "footer.text11",
+          "label": "نص الرابط",
+          "value": "استشارات الشراء والاستثمار"
+        },
+        {
+          "key": "footer.text12",
+          "label": "نص الرابط",
+          "value": "وحدات سكنية وتجارية مميزة"
+        },
+        {
+          "key": "footer.text13",
+          "label": "نص الرابط",
+          "value": "تسويق وحدات الملاك بالصور"
+        },
+        {
+          "key": "footer.text14",
+          "label": "نص الرابط",
+          "value": "تنسيق مواعيد المعاينات"
+        },
+        {
+          "key": "footer.text15",
+          "label": "نص معروض",
+          "value": "التواصل والمقر"
+        },
+        {
+          "key": "footer.text16",
+          "label": "نص معروض",
+          "value": "التجمع الخامس، القاهرة الجديدة، مصر"
+        },
+        {
+          "key": "footer.text18",
+          "label": "نص معروض",
+          "value": "متاح عبر واتساب طوال أيام الأسبوع"
+        },
+        {
+          "key": "footer.text19",
+          "label": "نص معروض",
+          "value": "دارك للاستثمار والتسويق العقاري © 2026 • كافة الحقوق محفوظة"
+        },
+        {
+          "key": "footer.text20",
+          "label": "نص معروض",
+          "value": "Darak Real Estate Portal"
+        },
+        {
+          "key": "footer.dashboardLogin",
+          "label": "زر دخول لوحة التحكم",
+          "value": "دخول لوحة التحكم"
+        }
+      ]
+    },
+    "mobile": {
+      "label": "التنقل على الموبايل",
+      "fields": [
+        {
+          "key": "mobile.navItems1_label",
+          "label": "عرض القائمة 1",
+          "value": "الرئيسية"
+        },
+        {
+          "key": "mobile.navItems2_label",
+          "label": "عرض القائمة 2",
+          "value": "الكتالوج"
+        },
+        {
+          "key": "mobile.navItems3_label",
+          "label": "عرض القائمة 3",
+          "value": "أعمالنا"
+        },
+        {
+          "key": "mobile.navItems4_label",
+          "label": "عرض القائمة 4",
+          "value": "اعرض عقارك"
+        },
+        {
+          "key": "mobile.navItems5_label",
+          "label": "عرض القائمة 5",
+          "value": "تواصل"
+        },
+        {
+          "key": "mobile.text1",
+          "label": "تسمية للمساعدة على الوصول",
+          "value": "شريط التنقل السفلي"
+        }
+      ]
+    }
+  }
+}

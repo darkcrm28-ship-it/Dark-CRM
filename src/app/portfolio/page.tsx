@@ -1,10 +1,14 @@
 import PortfolioClient from "./PortfolioClient";
+import { PublicSiteContent } from "@/components/public/PublicSiteContent";
+import { getSitePageMetadata, getSitePageRender } from "@/lib/public-site";
 
-export const metadata = {
-  title: "سابقة أعمال وإنجازات الشركة | دارك للاستثمار والتسويق العقاري",
-  description: "تعرف على تاريخ وإنجازات شركة دارك للاستثمار العقاري، كبرى مشروعات المطورين المتعاقد معهم، إحصائيات النجاح وسجل المشروعات المعتمدة.",
-};
+export const dynamic = "force-dynamic";
 
-export default function PortfolioPage() {
-  return <PortfolioClient />;
+export function generateMetadata() {
+  return getSitePageMetadata("portfolio");
+}
+
+export default async function Page() {
+  const site = await getSitePageRender("portfolio");
+  return <PublicSiteContent value={site}><PortfolioClient /></PublicSiteContent>;
 }

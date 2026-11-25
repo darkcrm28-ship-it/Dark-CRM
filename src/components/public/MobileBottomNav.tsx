@@ -1,7 +1,8 @@
 "use client";
 
+import { useSiteText, SiteLink as Link } from "@/components/public/PublicSiteContent";
 import React from "react";
-import Link from "next/link";
+
 import { usePathname } from "next/navigation";
 import {
   Home,
@@ -12,38 +13,39 @@ import {
 } from "lucide-react";
 
 export default function MobileBottomNav() {
+  const text = useSiteText(true);
   const pathname = usePathname();
 
   const navItems = [
     {
-      label: "الرئيسية",
+      label: text("mobile.navItems1_label"),
       href: "/",
       icon: Home,
     },
     {
-      label: "الكتالوج",
+      label: text("mobile.navItems2_label"),
       href: "/properties",
       icon: Building2,
     },
     {
-      label: "أعمالنا",
+      label: text("mobile.navItems3_label"),
       href: "/portfolio",
       icon: Award,
     },
     {
-      label: "اعرض عقارك",
+      label: text("mobile.navItems4_label"),
       href: "/sell",
       icon: Tag,
     },
     {
-      label: "تواصل",
+      label: text("mobile.navItems5_label"),
       href: "/contact",
       icon: PhoneCall,
     },
   ];
 
   return (
-    <nav className="mobile-bottom-nav-bar" aria-label="شريط التنقل السفلي">
+    <nav className="mobile-bottom-nav-bar" aria-label={text("mobile.text1")}>
       <div className="bottom-nav-inner">
         {navItems.map((item) => {
           const isActive = pathname === item.href;

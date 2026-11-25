@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireRole, SALES_ROLES } from "@/lib/auth";
+import { requireRole, ROLE, SALES_ROLES } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -49,7 +49,8 @@ function extensionFromMime(mime: AllowedMimeType): string {
 export async function POST(request: NextRequest) {
   try {
     // Verify user session
-    const session = await requireRole(SALES_ROLES);
+    const siteImage = request.nextUrl.searchParams.get("purpose") === "site-content";
+    const session = await requireRole(siteImage ? [ROLE.GENERAL_MANAGER] : SALES_ROLES);
     if (session instanceof NextResponse) return session;
 
     const privateKey = process.env.IMAGEKIT_PRIVATE_KEY;
@@ -100,13 +101,13 @@ export async function POST(request: NextRequest) {
 
     const extension = extensionFromMime(magic.detected as AllowedMimeType);
 
-    const fileName = `property-${crypto.randomUUID()}.${extension}`;
+    const fileName = `${siteImage ? "cover" : "property"}-${crypto.randomUUID()}.${extension}`;
 
     const uploadData = new FormData();
 
     uploadData.append("file", file, fileName);
     uploadData.append("fileName", fileName);
-    uploadData.append("folder", "/dark-crm/properties");
+    uploadData.append("folder", siteImage ? "/dark-crm/site-content" : "/dark-crm/properties");
     uploadData.append("useUniqueFileName", "true");
 
     const authorization = btoa(`${privateKey}:`);

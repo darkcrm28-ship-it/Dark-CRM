@@ -1,10 +1,14 @@
 import ContactClient from "./ContactClient";
+import { PublicSiteContent } from "@/components/public/PublicSiteContent";
+import { getSitePageMetadata, getSitePageRender } from "@/lib/public-site";
 
-export const metadata = {
-  title: "تواصل معنا وحجز استشارة عقارية | دارك للاستثمار العقاري",
-  description: "تواصل مع خبراء ومستشاري شركة دارك العقارية. حجز موعد استشارة مجانية، طلب معاينة وحدة، أرقام الهاتف والواتساب وموقع المقر الرئيسي.",
-};
+export const dynamic = "force-dynamic";
 
-export default function ContactPage() {
-  return <ContactClient />;
+export function generateMetadata() {
+  return getSitePageMetadata("contact");
+}
+
+export default async function Page() {
+  const site = await getSitePageRender("contact");
+  return <PublicSiteContent value={site}><ContactClient /></PublicSiteContent>;
 }
