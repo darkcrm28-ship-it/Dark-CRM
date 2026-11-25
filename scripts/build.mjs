@@ -10,4 +10,5 @@ if (process.env.NEXT_PRIVATE_STANDALONE) {
     stdio: "inherit",
     env: process.env,
   });
+  execSync("node scripts/sanitize-cloudflare-build.mjs", { stdio: "inherit" });
 }
