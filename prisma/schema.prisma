@@ -10,17 +10,19 @@ datasource db {
 }
 
 model User {
-  id                    String         @id @default(uuid())
+  id                    String           @id @default(uuid())
   name                  String
-  email                 String         @unique
+  email                 String           @unique
   password              String
-  role                  String         @default("SALES_EMPLOYEE")
+  role                  String           @default("SALES_EMPLOYEE")
+  authzVersion          Int              @default(0)
   phone                 String?
   nationalId            String?
   address               String?
   dateJoined            DateTime?
-  salaryBase            Float?         @default(0)
-  isActive              Boolean        @default(true)
+  salaryBase            Float?           @default(0)
+  salaryBaseDecimal     Decimal?         @db.Decimal(15, 2)
+  isActive              Boolean          @default(true)
   expertAreas           String?
   birthDate             DateTime?
   emergencyContactName  String?
@@ -30,16 +32,28 @@ model User {
   experience            String?
   contractStartDate     DateTime?
   contractEndDate       DateTime?
-  profileCompleted      Boolean        @default(false)
-  createdAt             DateTime       @default(now())
-  updatedAt             DateTime       @updatedAt
+  profileCompleted      Boolean          @default(false)
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
   auditLogs             AuditLog[]
   commissions           Commission[]
-  customers             Customer[]     @relation("AssignedTo")
-  deals                 Deal[]         @relation("SalesRep")
+  customers             Customer[]       @relation("AssignedTo")
+  deals                 Deal[]           @relation("SalesRep")
   interactions          Interaction[]
   notifications         Notification[]
   reminders             Reminder[]
+  assignedTasks         Task[]           @relation("TaskAssignee")
+  createdTasks          Task[]           @relation("TaskCreator")
+  uploadedDocuments     Document[]       @relation("DocumentUploader")
+  recordedPayments      Payment[]        @relation("PaymentRecorder")
+  createdReservations   Reservation[]    @relation("ReservationCreator")
+  approvedReservations  Reservation[]    @relation("ReservationApprover")
+  createdContracts      Contract[]       @relation("ContractCreator")
+  approvedContracts     Contract[]       @relation("ContractApprover")
+  submittedListings     PublicListing[]  @relation("ListingSubmitter")
+  reviewedListings      PublicListing[]  @relation("ListingReviewer")
+  journalEntries        JournalEntry[]   @relation("JournalCreator")
+  inventoryEvents       InventoryEvent[] @relation("InventoryActor")
 }
 
 model Project {
@@ -51,65 +65,79 @@ model Project {
 }
 
 model Customer {
-  id                    String        @id @default(uuid())
-  code                  String?       @unique
-  name                  String
-  phone                 String
-  email                 String?
-  type                  String        @default("SELLER")
-  status                String        @default("POTENTIAL_SELLER")
-  source                String?
-  area                  String?
-  propertyType          String?
-  customData            Json?         @default("{}")
-  governorate           String?
-  city                  String?
-  executingCompany      String?
-  deliveryDate          String?
-  floor                 String?
-  bedrooms              Int?
-  bathrooms             Int?
-  finishing             String?
-  unitSize              Float?
-  preferencesSummary    String?
-  unitStatus            String?
-  isNegotiable          Boolean?      @default(false)
-  viewingTimes          String?
-  paperworkStatus       String?
-  projectName           String?
-  unitNumber            String?
-  zoneNumber            String?
-  buildingNumber        String?
-  pipelineStage         String?
-  customerType          String?
-  askingPrice           Float?
-  remainingInstallments Float?
-  installmentDuration   Int?
-  budgetMin             Float?        @default(0)
-  budgetMax             Float?        @default(0)
-  preferredZone         String?
-  preferredSize         Float?        @default(0)
-  lastInteractionAt     DateTime?
-  installmentAmount     Float?        @default(0)
-  installmentRemaining  Int?          @default(0)
-  installmentDetails    String?
-  isArchived            Boolean       @default(false)
-  createdAt             DateTime      @default(now())
-  updatedAt             DateTime      @updatedAt
-  projectId             String?
-  assignedToId          String?
-  leadScore             Int           @default(3)
-  assignedTo            User?         @relation("AssignedTo", fields: [assignedToId], references: [id])
-  project               Project?      @relation(fields: [projectId], references: [id])
-  deals                 Deal[]
-  interactions          Interaction[]
-  reminders             Reminder[]
-  propertyOwnerships    PropertyOwnership[]
+  id                           String              @id @default(uuid())
+  code                         String?             @unique
+  name                         String
+  phone                        String
+  email                        String?
+  type                         String              @default("SELLER")
+  status                       String              @default("POTENTIAL_SELLER")
+  source                       String?
+  area                         String?
+  propertyType                 String?
+  customData                   Json?               @default("{}")
+  governorate                  String?
+  city                         String?
+  executingCompany             String?
+  deliveryDate                 String?
+  floor                        String?
+  bedrooms                     Int?
+  bathrooms                    Int?
+  finishing                    String?
+  unitSize                     Float?
+  preferencesSummary           String?
+  unitStatus                   String?
+  isNegotiable                 Boolean?            @default(false)
+  viewingTimes                 String?
+  paperworkStatus              String?
+  projectName                  String?
+  unitNumber                   String?
+  zoneNumber                   String?
+  buildingNumber               String?
+  pipelineStage                String?
+  customerType                 String?
+  askingPrice                  Float?
+  askingPriceDecimal           Decimal?            @db.Decimal(15, 2)
+  remainingInstallments        Float?
+  remainingInstallmentsDecimal Decimal?            @db.Decimal(15, 2)
+  installmentDuration          Int?
+  budgetMin                    Float?              @default(0)
+  budgetMinDecimal             Decimal?            @db.Decimal(15, 2)
+  budgetMax                    Float?              @default(0)
+  budgetMaxDecimal             Decimal?            @db.Decimal(15, 2)
+  preferredZone                String?
+  preferredSize                Float?              @default(0)
+  lastInteractionAt            DateTime?
+  installmentAmount            Float?              @default(0)
+  installmentAmountDecimal     Decimal?            @db.Decimal(15, 2)
+  installmentRemaining         Int?                @default(0)
+  installmentDetails           String?
+  isArchived                   Boolean             @default(false)
+  createdAt                    DateTime            @default(now())
+  updatedAt                    DateTime            @updatedAt
+  projectId                    String?
+  campaignId                   String?
+  assignedToId                 String?
+  leadScore                    Int                 @default(3)
+  assignedTo                   User?               @relation("AssignedTo", fields: [assignedToId], references: [id])
+  project                      Project?            @relation(fields: [projectId], references: [id])
+  campaign                     Campaign?           @relation(fields: [campaignId], references: [id])
+  deals                        Deal[]
+  interactions                 Interaction[]
+  reminders                    Reminder[]
+  propertyOwnerships           PropertyOwnership[]
+  needs                        CustomerNeed[]
+  reservations                 Reservation[]
+  contracts                    Contract[]
+  paymentPlans                 PaymentPlan[]
+  payments                     Payment[]
+  tasks                        Task[]
 
   @@index([assignedToId])
   @@index([status])
   @@index([type])
   @@index([projectId])
+  @@index([campaignId])
   @@index([createdAt])
   @@index([phone])
   @@index([name])
@@ -117,31 +145,41 @@ model Customer {
 }
 
 model Property {
-  id                    String   @id @default(uuid())
-  title                 String?
-  projectName           String?
-  unitNumber            String?
-  buildingNumber        String?
-  zone                  String?
-  floor                 String?
-  size                  Float?
-  bedrooms              Int?
-  bathrooms             Int?
-  unitType              String?
-  finishing             String?
-  price                 Float?
-  status                String   @default("AVAILABLE")
-  description           String?
-  images                String?
-  monthlyInstallment    Float?
-  remainingMonths       Int?
-  installmentType       String?  @default("FIXED")
-  installmentPercentage Float?
-  customData            Json?    @default("{}")
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
-  deals                 Deal[]
-  ownerships            PropertyOwnership[]
+  id                           String              @id @default(uuid())
+  title                        String?
+  projectName                  String?
+  unitNumber                   String?
+  buildingNumber               String?
+  zone                         String?
+  floor                        String?
+  size                         Float?
+  bedrooms                     Int?
+  bathrooms                    Int?
+  unitType                     String?
+  finishing                    String?
+  price                        Float?
+  priceDecimal                 Decimal?            @db.Decimal(15, 2)
+  status                       String              @default("AVAILABLE")
+  description                  String?
+  images                       String?
+  monthlyInstallment           Float?
+  monthlyInstallmentDecimal    Decimal?            @db.Decimal(15, 2)
+  remainingMonths              Int?
+  installmentType              String?             @default("FIXED")
+  installmentPercentage        Float?
+  installmentPercentageDecimal Decimal?            @db.Decimal(5, 2)
+  customData                   Json?               @default("{}")
+  createdAt                    DateTime            @default(now())
+  updatedAt                    DateTime            @updatedAt
+  deals                        Deal[]
+  ownerships                   PropertyOwnership[]
+  owners                       PropertyOwner[]
+  reservations                 Reservation[]
+  contracts                    Contract[]
+  paymentPlans                 PaymentPlan[]
+  inventoryEvents              InventoryEvent[]
+  publicListing                PublicListing?
+  Task                         Task[]
 
   @@index([status, createdAt])
   @@index([projectName])
@@ -161,21 +199,35 @@ model CustomFieldDefinition {
 }
 
 model Deal {
-  id            String    @id @default(uuid())
-  customerId    String
-  propertyId    String?
-  salesRepId    String?
-  status        String
-  value         Float
-  commission    Float?
-  commissionAmt Float?
-  finalPrice    Float?
-  closedAt      DateTime?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  customer      Customer  @relation(fields: [customerId], references: [id])
-  property      Property? @relation(fields: [propertyId], references: [id])
-  salesRep      User?     @relation("SalesRep", fields: [salesRepId], references: [id])
+  id                    String        @id @default(uuid())
+  dealNumber            String?       @unique
+  customerId            String
+  propertyId            String?
+  salesRepId            String?
+  status                String
+  value                 Float
+  valueDecimal          Decimal?      @db.Decimal(15, 2)
+  commission            Float?
+  commissionRateDecimal Decimal?      @db.Decimal(5, 2)
+  commissionAmt         Float?
+  commissionAmtDecimal  Decimal?      @db.Decimal(15, 2)
+  finalPrice            Float?
+  finalPriceDecimal     Decimal?      @db.Decimal(15, 2)
+  discountAmount        Decimal?      @db.Decimal(15, 2)
+  paymentMethod         String?
+  startDate             DateTime?
+  contractDate          DateTime?
+  closedAt              DateTime?
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+  customer              Customer      @relation(fields: [customerId], references: [id])
+  property              Property?     @relation(fields: [propertyId], references: [id])
+  salesRep              User?         @relation("SalesRep", fields: [salesRepId], references: [id])
+  reservations          Reservation[]
+  contracts             Contract[]
+  paymentPlans          PaymentPlan[]
+  payments              Payment[]
+  tasks                 Task[]
 
   @@index([salesRepId])
   @@index([customerId])
@@ -216,13 +268,14 @@ model Reminder {
 }
 
 model Commission {
-  id        String   @id @default(uuid())
-  userId    String
-  amount    Float
-  status    String   @default("PENDING")
-  notes     String?
-  createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id])
+  id            String   @id @default(uuid())
+  userId        String
+  amount        Float
+  amountDecimal Decimal? @db.Decimal(15, 2)
+  status        String   @default("PENDING")
+  notes         String?
+  createdAt     DateTime @default(now())
+  user          User     @relation(fields: [userId], references: [id])
 
   @@index([userId])
   @@index([status])
@@ -275,38 +328,46 @@ model PushSubscription {
 }
 
 model FinancialTransaction {
-  id          String   @id @default(uuid())
-  type        String
-  category    String
-  amount      Float
-  description String?
-  status      String   @default("COMPLETED")
-  date        DateTime @default(now())
-  relatedId   String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id             String                 @id @default(uuid())
+  type           String
+  category       String
+  amount         Float
+  amountDecimal  Decimal?               @db.Decimal(15, 2)
+  description    String?
+  status         String                 @default("COMPLETED")
+  date           DateTime               @default(now())
+  relatedId      String?
+  reversalOfId   String?
+  reversedAt     DateTime?
+  reversalReason String?
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+  reversalOf     FinancialTransaction?  @relation("TransactionReversal", fields: [reversalOfId], references: [id])
+  reversals      FinancialTransaction[] @relation("TransactionReversal")
 
   @@index([date])
   @@index([relatedId])
   @@index([type])
+  @@index([reversalOfId])
 }
 
 model PropertyOwnership {
-  id              String    @id @default(uuid())
-  propertyId      String
-  customerId      String
-  percentage      Float
-  effectiveFrom   DateTime  @default(now())
-  effectiveTo     DateTime?
-  isCurrent       Boolean   @default(true)
-  notes           String?
-  transferReason  String?
-  previousOwnerId String?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id                String    @id @default(uuid())
+  propertyId        String
+  customerId        String
+  percentage        Float
+  percentageDecimal Decimal?  @db.Decimal(5, 2)
+  effectiveFrom     DateTime  @default(now())
+  effectiveTo       DateTime?
+  isCurrent         Boolean   @default(true)
+  notes             String?
+  transferReason    String?
+  previousOwnerId   String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
-  property        Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  customer        Customer  @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
 
   @@index([propertyId, isCurrent])
   @@index([customerId])
@@ -326,41 +387,42 @@ model JobQueue {
   runAt       DateTime  @default(now())
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
-  claimToken String?    @unique
+  claimToken  String?   @unique
 
   @@index([status, runAt])
   @@index([lockedAt])
 }
 
 model Notification {
-  id        String   @id @default(uuid())
+  id        String    @id @default(uuid())
   userId    String
   title     String
   body      String
-  type      String   @default("INFO")
-  read      Boolean  @default(false)
+  type      String    @default("INFO")
+  read      Boolean   @default(false)
   link      String?
-  dedupKey String?   @unique
-  dedupAt  DateTime?
-  createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id])
+  dedupKey  String?   @unique
+  dedupAt   DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id])
 
   @@index([userId])
   @@index([read])
   @@index([createdAt])
+  @@index([dedupAt])
 }
 
 model PushDeliveryLog {
-  id             String    @id @default(uuid())
+  id             String   @id @default(uuid())
   notificationId String?
   userId         String
   endpoint       String
-  outcome        String    // PROVIDER_ACCEPTED, EXPIRED, FAILED, UNKNOWN, SKIPPED_NO_KEYS
+  outcome        String // PROVIDER_ACCEPTED, EXPIRED, FAILED, UNKNOWN, SKIPPED_NO_KEYS
   statusCode     Int?
   errorDetails   String?
   dispatchKey    String?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   @@unique([dispatchKey, endpoint])
   @@index([userId])
@@ -369,3 +431,388 @@ model PushDeliveryLog {
   @@index([dispatchKey])
 }
 
+/// Persisted idempotency records for sensitive operations (deals, payments, imports).
+model IdempotencyKey {
+  id          String   @id @default(uuid())
+  scope       String
+  key         String
+  payloadHash String
+  status      String   @default("COMPLETED")
+  entityType  String?
+  entityId    String?
+  response    Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([scope, key])
+  @@index([entityType, entityId])
+}
+
+/// Field-level status transitions for sensitive entities.
+model StatusHistory {
+  id         String   @id @default(uuid())
+  entity     String
+  entityId   String
+  fromStatus String?
+  toStatus   String
+  reason     String?
+  actorType  String
+  actorId    String?
+  meta       Json?
+  createdAt  DateTime @default(now())
+
+  @@index([entity, entityId, createdAt])
+  @@index([actorId])
+}
+
+/// Marketing campaign and source attribution. Customer.source remains free text
+/// for legacy data; this model is the structured source of truth.
+model Campaign {
+  id         String     @id @default(uuid())
+  name       String
+  channel    String
+  sourceCode String     @unique
+  budget     Decimal?   @db.Decimal(15, 2)
+  spend      Decimal?   @db.Decimal(15, 2)
+  startDate  DateTime?
+  endDate    DateTime?
+  status     String     @default("ACTIVE")
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+  customers  Customer[]
+
+  @@index([channel])
+  @@index([status])
+}
+
+/// A structured, repeatable requirement belonging to one customer.
+model CustomerNeed {
+  id            String   @id @default(uuid())
+  customerId    String
+  dealType      String   @default("BUY")
+  propertyType  String?
+  city          String?
+  zone          String?
+  project       String?
+  budgetMin     Decimal? @db.Decimal(15, 2)
+  budgetMax     Decimal? @db.Decimal(15, 2)
+  areaMin       Float?
+  areaMax       Float?
+  bedrooms      Int?
+  paymentMethod String?
+  notes         String?
+  status        String   @default("ACTIVE")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  customer      Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+  @@index([status])
+  @@index([city, zone])
+}
+
+/// Independent owner identity. Legacy PropertyOwnership still points at Customer
+/// and remains readable; new ownership records use this model.
+model Owner {
+  id         String          @id @default(uuid())
+  name       String
+  phone      String?
+  email      String?
+  nationalId String?
+  address    String?
+  type       String          @default("INDIVIDUAL")
+  notes      String?
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+  properties PropertyOwner[]
+
+  @@index([phone])
+  @@index([name])
+}
+
+/// Current and historical ownership of a property by independent owners.
+model PropertyOwner {
+  id            String    @id @default(uuid())
+  propertyId    String
+  ownerId       String
+  percentage    Decimal   @db.Decimal(5, 2)
+  effectiveFrom DateTime  @default(now())
+  effectiveTo   DateTime?
+  isCurrent     Boolean   @default(true)
+  notes         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  property      Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  owner         Owner     @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+
+  @@index([propertyId, isCurrent])
+  @@index([ownerId])
+  @@index([effectiveFrom, effectiveTo])
+}
+
+/// Typed documents for ownership proof, contracts, receipts, customers and deals.
+/// Access is enforced by the API according to entityType and accessLevel.
+model Document {
+  id           String   @id @default(uuid())
+  entityType   String
+  entityId     String
+  type         String
+  title        String?
+  fileName     String
+  storageKey   String   @unique
+  url          String?
+  mimeType     String
+  sizeBytes    Int
+  accessLevel  String   @default("RESTRICTED")
+  uploadedById String
+  isDeleted    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  uploadedBy   User     @relation("DocumentUploader", fields: [uploadedById], references: [id])
+
+  @@index([entityType, entityId])
+  @@index([type])
+  @@index([uploadedById])
+}
+
+/// Approved reservation occupies a unit. A partial unique index on
+/// (propertyId) WHERE status = 'APPROVED' prevents conflicting holds.
+model Reservation {
+  id           String     @id @default(uuid())
+  propertyId   String
+  customerId   String
+  dealId       String?
+  status       String     @default("PENDING")
+  startAt      DateTime
+  endAt        DateTime
+  amount       Decimal    @default(0) @db.Decimal(15, 2)
+  currency     String     @default("EGP")
+  notes        String?
+  createdById  String?
+  approvedById String?
+  releasedAt   DateTime?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  property     Property   @relation(fields: [propertyId], references: [id])
+  customer     Customer   @relation(fields: [customerId], references: [id])
+  deal         Deal?      @relation(fields: [dealId], references: [id])
+  createdBy    User?      @relation("ReservationCreator", fields: [createdById], references: [id])
+  approvedBy   User?      @relation("ReservationApprover", fields: [approvedById], references: [id])
+  Contract     Contract[]
+
+  @@index([propertyId, status])
+  @@index([customerId])
+  @@index([dealId])
+  @@index([endAt])
+}
+
+/// Preliminary and final contracts linked to a deal, customer, unit and owners.
+model Contract {
+  id            String        @id @default(uuid())
+  dealId        String?
+  reservationId String?
+  customerId    String
+  propertyId    String
+  type          String        @default("SALE")
+  status        String        @default("DRAFT")
+  signedAt      DateTime?
+  startDate     DateTime?
+  endDate       DateTime?
+  documentKey   String?
+  terms         Json?
+  createdById   String?
+  approvedById  String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  deal          Deal?         @relation(fields: [dealId], references: [id])
+  reservation   Reservation?  @relation(fields: [reservationId], references: [id])
+  customer      Customer      @relation(fields: [customerId], references: [id])
+  property      Property      @relation(fields: [propertyId], references: [id])
+  createdBy     User?         @relation("ContractCreator", fields: [createdById], references: [id])
+  approvedBy    User?         @relation("ContractApprover", fields: [approvedById], references: [id])
+  PaymentPlan   PaymentPlan[]
+
+  @@index([dealId])
+  @@index([customerId])
+  @@index([propertyId])
+  @@index([status])
+  @@index([reservationId])
+}
+
+/// A payment schedule attached to a deal or contract. All amounts are Decimal.
+model PaymentPlan {
+  id               String        @id @default(uuid())
+  dealId           String?
+  contractId       String?
+  customerId       String
+  propertyId       String?
+  totalAmount      Decimal       @db.Decimal(15, 2)
+  downPayment      Decimal       @default(0) @db.Decimal(15, 2)
+  currency         String        @default("EGP")
+  planType         String        @default("INSTALLMENTS")
+  installmentCount Int?
+  status           String        @default("ACTIVE")
+  startDate        DateTime?
+  notes            String?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  deal             Deal?         @relation(fields: [dealId], references: [id])
+  contract         Contract?     @relation(fields: [contractId], references: [id])
+  customer         Customer      @relation(fields: [customerId], references: [id])
+  property         Property?     @relation(fields: [propertyId], references: [id])
+  installments     Installment[]
+  payments         Payment[]
+
+  @@index([dealId])
+  @@index([contractId])
+  @@index([customerId])
+  @@index([status])
+}
+
+model Installment {
+  id         String      @id @default(uuid())
+  planId     String
+  number     Int
+  dueDate    DateTime
+  amount     Decimal     @db.Decimal(15, 2)
+  paidAmount Decimal     @default(0) @db.Decimal(15, 2)
+  status     String      @default("UPCOMING")
+  paidAt     DateTime?
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  plan       PaymentPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  payments   Payment[]
+
+  @@unique([planId, number])
+  @@index([status, dueDate])
+}
+
+/// Immutable collection record. Corrections are made through reversal entries.
+model Payment {
+  id             String       @id @default(uuid())
+  planId         String?
+  installmentId  String?
+  dealId         String?
+  customerId     String
+  amount         Decimal      @db.Decimal(15, 2)
+  method         String?
+  reference      String?
+  receiptNumber  String?      @unique
+  status         String       @default("COMPLETED")
+  paidAt         DateTime     @default(now())
+  recordedById   String?
+  reversalOfId   String?
+  reversedAt     DateTime?
+  reversalReason String?
+  idempotencyKey String?      @unique
+  notes          String?
+  createdAt      DateTime     @default(now())
+  plan           PaymentPlan? @relation(fields: [planId], references: [id])
+  installment    Installment? @relation(fields: [installmentId], references: [id])
+  deal           Deal?        @relation(fields: [dealId], references: [id])
+  customer       Customer     @relation(fields: [customerId], references: [id])
+  recordedBy     User?        @relation("PaymentRecorder", fields: [recordedById], references: [id])
+  reversalOf     Payment?     @relation("PaymentReversal", fields: [reversalOfId], references: [id])
+  reversals      Payment[]    @relation("PaymentReversal")
+
+  @@index([planId])
+  @@index([installmentId])
+  @@index([customerId, paidAt])
+  @@index([dealId])
+  @@index([reversalOfId])
+}
+
+/// Double-entry style journal lines for accounting reports and reversals.
+model JournalEntry {
+  id           String         @id @default(uuid())
+  date         DateTime       @default(now())
+  direction    String
+  amount       Decimal        @db.Decimal(15, 2)
+  accountCode  String?
+  currency     String         @default("EGP")
+  description  String
+  sourceType   String
+  sourceId     String?
+  status       String         @default("POSTED")
+  reversalOfId String?
+  createdById  String?
+  createdAt    DateTime       @default(now())
+  reversalOf   JournalEntry?  @relation("JournalReversal", fields: [reversalOfId], references: [id])
+  reversals    JournalEntry[] @relation("JournalReversal")
+  createdBy    User?          @relation("JournalCreator", fields: [createdById], references: [id])
+
+  @@index([date])
+  @@index([sourceType, sourceId])
+  @@index([reversalOfId])
+}
+
+/// Operational task for employees and managers, with due-date automation hooks.
+model Task {
+  id           String    @id @default(uuid())
+  title        String
+  description  String?
+  type         String    @default("FOLLOW_UP")
+  status       String    @default("PENDING")
+  priority     String    @default("NORMAL")
+  assignedToId String?
+  customerId   String?
+  dealId       String?
+  propertyId   String?
+  dueDate      DateTime?
+  completedAt  DateTime?
+  createdById  String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  assignedTo   User?     @relation("TaskAssignee", fields: [assignedToId], references: [id])
+  createdBy    User?     @relation("TaskCreator", fields: [createdById], references: [id])
+  customer     Customer? @relation(fields: [customerId], references: [id])
+  deal         Deal?     @relation(fields: [dealId], references: [id])
+  property     Property? @relation(fields: [propertyId], references: [id])
+
+  @@index([assignedToId, status])
+  @@index([dueDate])
+  @@index([customerId])
+  @@index([dealId])
+  @@index([propertyId])
+}
+
+/// Durable public-catalog publication workflow, separate from customData flags.
+model PublicListing {
+  id                   String    @id @default(uuid())
+  propertyId           String    @unique
+  status               String    @default("DRAFT")
+  marketingDescription String?
+  publicImageKeys      Json?
+  submittedById        String?
+  reviewedById         String?
+  reviewedAt           DateTime?
+  rejectionReason      String?
+  publishedAt          DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  property             Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  submittedBy          User?     @relation("ListingSubmitter", fields: [submittedById], references: [id])
+  reviewedBy           User?     @relation("ListingReviewer", fields: [reviewedById], references: [id])
+
+  @@index([status])
+  @@index([submittedById])
+  @@index([reviewedById])
+}
+
+/// Immutable inventory events: price changes, status changes, holds and sales.
+model InventoryEvent {
+  id         String   @id @default(uuid())
+  propertyId String
+  type       String
+  fromValue  String?
+  toValue    String?
+  reason     String?
+  relatedId  String?
+  actorId    String?
+  createdAt  DateTime @default(now())
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  actor      User?    @relation("InventoryActor", fields: [actorId], references: [id])
+
+  @@index([propertyId, createdAt])
+  @@index([type])
+}
