@@ -3,10 +3,12 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import DatabaseBackupModal from "@/components/DatabaseBackupModal";
+import NeonTransferUsageCard from "@/components/NeonTransferUsageCard";
 
 export default function DashboardClient({ 
   session, 
   isManager, 
+  isGeneralManager,
   stats, 
   recentInteractions, 
   neglectedCount,
@@ -68,6 +70,8 @@ export default function DashboardClient({
           </Link>
         </div>
       )}
+
+      {isGeneralManager && <NeonTransferUsageCard />}
 
       {/* Executive Welcome Glass Card */}
       <div

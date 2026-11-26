@@ -110,6 +110,7 @@ export default async function DashboardPage() {
     <DashboardClient 
       session={session}
       isManager={isManager}
+      isGeneralManager={session.role === ROLE.GENERAL_MANAGER}
       stats={{ ...customers, ...deals, ...activity }}
       recentInteractions={recentInteractions}
       neglectedCount={neglectedCount}

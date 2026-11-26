@@ -50,7 +50,10 @@ export default function Sidebar({ session, navItems, sections, ROLE_LABELS }: an
             if (!items.length) return null;
             return (
               <div key={sec.key} className="nav-section-group">
-                <div className="nav-section-label">{sec.label}</div>
+                <div className="nav-section-label">
+                  <span className="nav-section-icon" aria-hidden="true">{sec.icon}</span>
+                  <span>{sec.label}</span>
+                </div>
                 <div className="nav-items-list">
                   {items.map((item: any) => (
                     <NavItem key={item.href} href={item.href} icon={item.icon} label={item.label} />

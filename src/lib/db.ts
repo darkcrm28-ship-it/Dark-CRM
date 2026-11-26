@@ -1,6 +1,8 @@
-import { Pool, neonConfig } from "@neondatabase/serverless";
+import { Pool as NeonPool, neonConfig } from "@neondatabase/serverless";
 import { PrismaNeon } from "@prisma/adapter-neon";
+import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
+import { Pool as PostgresPool } from "pg";
 import ws from "ws";
 
 // Always enable fetch mode for Neon Serverless queries on edge/Cloudflare runtimes.
@@ -30,7 +32,7 @@ function sanitizeDatabaseUrl(rawUrl: string | undefined): string {
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
-  pool: Pool | undefined;
+  pool: NeonPool | PostgresPool | undefined;
   lastDbUrl: string | undefined;
 };
 
@@ -46,10 +48,21 @@ function getPrisma(): PrismaClient {
     console.warn("⚠️ Warning: DATABASE_URL is not set at runtime.");
   }
 
-  const pool = new Pool({
-    connectionString: currentUrl || "postgresql://placeholder:placeholder@localhost:5432/placeholder_db",
-  });
-  const adapter = new PrismaNeon(pool);
+  const connectionString = currentUrl || "postgresql://placeholder:placeholder@localhost:5432/placeholder_db";
+  const isNeon = (() => {
+    try {
+      return new URL(connectionString).hostname.endsWith(".neon.tech");
+    } catch {
+      return false;
+    }
+  })();
+
+  // Neon uses its serverless adapter. A Supabase session-pooler (or local
+  // PostgreSQL) URL uses the standard pg adapter for a controlled failover.
+  const pool = isNeon
+    ? new NeonPool({ connectionString })
+    : new PostgresPool({ connectionString });
+  const adapter = isNeon ? new PrismaNeon(pool as NeonPool) : new PrismaPg(pool as PostgresPool);
 
   const client = new PrismaClient({
     adapter,
