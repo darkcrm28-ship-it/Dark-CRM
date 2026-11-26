@@ -57,7 +57,7 @@ export default async function DashboardPage() {
         ...(isManager ? {} : { userId: session.id, customer: { assignedToId: session.id } }),
         createdAt: { gte: startOfYesterday },
       },
-      take: 12,
+      take: 10,
       orderBy: { createdAt: "desc" },
       select: {
         id: true, type: true, createdAt: true,
