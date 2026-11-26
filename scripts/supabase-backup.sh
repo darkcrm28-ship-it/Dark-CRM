@@ -107,4 +107,3 @@ if [ "$source_count" != "$target_count" ]; then
 fi
 
 echo "Four-day Neon to Supabase backup completed and public relation counts match."
-

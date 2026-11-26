@@ -88,4 +88,3 @@ export const prisma = new Proxy({} as PrismaClient, {
     return val;
   },
 });
-

@@ -41,4 +41,3 @@ Before switching back, pause application writes or put the app into maintenance 
 ## Cost and availability notes
 
 The backup uses the existing Free Supabase project and a scheduled GitHub Actions job; it does not create a paid database resource. Free-plan availability is best effort: Supabase may pause an inactive project, and scheduled GitHub jobs may be delayed. Keep an eye on the latest backup status and the Neon usage card.
-

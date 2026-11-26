@@ -31,4 +31,3 @@ persist = true
 enabled = false
 
 # Store sensitive variables as Cloudflare Secrets, not here.
-

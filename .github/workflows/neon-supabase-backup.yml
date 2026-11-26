@@ -44,4 +44,3 @@ jobs:
             --workdir /workspace \
             postgres:18-bookworm \
             sh scripts/supabase-backup.sh
-

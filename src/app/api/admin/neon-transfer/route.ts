@@ -64,4 +64,3 @@ export async function GET() {
     return NextResponse.json({ code: "NEON_API_UNAVAILABLE" }, { status: 502 });
   }
 }
-

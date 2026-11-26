@@ -80,4 +80,3 @@ export async function POST() {
     return NextResponse.json({ error: "Internal server error during accounting sync" }, { status: 500 });
   }
 }
-

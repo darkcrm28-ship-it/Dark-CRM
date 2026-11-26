@@ -93,4 +93,3 @@ export default function Sidebar({ session, navItems, sections, ROLE_LABELS }: an
     </>
   );
 }
-
