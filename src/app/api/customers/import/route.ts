@@ -20,9 +20,31 @@ import {
 
 const IMPORT_LOCK_ID = 74839201;
 const CUSTOMER_SEQUENCE_LOCK = 74839205;
+const MAX_IMPORT_BATCH_SIZE = 50;
 
 const asText = (value: unknown) =>
   value === null || value === undefined ? "" : String(value).trim();
+
+function phoneIdentityKey(value: unknown): string | null {
+  const normalized = normalizePhone(value);
+  if (!normalized.isValid) return null;
+  const identifier = normalized.type === "EGYPTIAN_MOBILE"
+    ? normalized.phoneSuffix10
+    : normalized.phone;
+  return `${normalized.type}:${identifier}`;
+}
+
+function addCandidateIndex(index: Map<string, number[]>, key: string | null, rowIndex: number) {
+  if (!key) return;
+  const rows = index.get(key);
+  if (rows) rows.push(rowIndex);
+  else index.set(key, [rowIndex]);
+}
+
+function addCandidateRows(index: Map<string, number[]>, key: string | null, candidates: Set<number>) {
+  if (!key) return;
+  for (const rowIndex of index.get(key) ?? []) candidates.add(rowIndex);
+}
 
 // الأعمدة الأساسية المعرفة صراحة في جدول Customer بـ Prisma
 const KNOWN_CUSTOMER_FIELDS = new Set([
@@ -116,8 +138,11 @@ export async function POST(request: NextRequest) {
     if (!Array.isArray(customers) || customers.length === 0) {
       return NextResponse.json({ error: "لم يتم إرسال سجلات للاستيراد" }, { status: 400 });
     }
-    if (customers.length > 200) {
-      return NextResponse.json({ error: "الحد الأقصى للدفعة 200 سجل" }, { status: 413 });
+    if (customers.length > MAX_IMPORT_BATCH_SIZE) {
+      return NextResponse.json(
+        { error: `الحد الأقصى الآمن للدفعة ${MAX_IMPORT_BATCH_SIZE} سجل` },
+        { status: 413 }
+      );
     }
 
     // حساب بصمة المحتوى للدفعة للتحقق من عدم استخدام نفس batchId مع بيانات مختلفة
@@ -462,6 +487,38 @@ export async function POST(request: NextRequest) {
                 OR (${unitUnits.length} > 0 AND "unitNumber" = ANY(${unitUnits}::text[]));
             `;
 
+            // Index each candidate once so a batch doesn't rescan every matching
+            // customer for every imported row. Keep the original order for stable
+            // duplicate/co-owner decisions.
+            const candidatesByPhone = new Map<string, number[]>();
+            const candidatesByNationalId = new Map<string, number[]>();
+            const candidatesByUnit = new Map<string, number[]>();
+            const existingPhoneKeys: Array<string | null> = [];
+            const existingNationalIds: Array<string | null> = [];
+            const existingUnitSignatures: string[] = [];
+
+            existingCustomers.forEach((existing, index) => {
+              const customData =
+                existing.customData && typeof existing.customData === "object" && !Array.isArray(existing.customData)
+                  ? (existing.customData as Record<string, unknown>)
+                  : {};
+              const nationalIdValue = customData["الرقم القومي"] ?? customData.nationalId;
+              const nationalId = nationalIdValue == null ? null : String(nationalIdValue);
+              const unitSignature = getUnitSignature(
+                existing.projectName || "",
+                existing.buildingNumber || "",
+                existing.unitNumber || ""
+              );
+              const phoneKey = phoneIdentityKey(existing.phone);
+
+              existingPhoneKeys.push(phoneKey);
+              existingNationalIds.push(nationalId);
+              existingUnitSignatures.push(unitSignature);
+              addCandidateIndex(candidatesByPhone, phoneKey, index);
+              addCandidateIndex(candidatesByNationalId, nationalId, index);
+              addCandidateIndex(candidatesByUnit, unitSignature === "NO_UNIT" ? null : unitSignature, index);
+            });
+
             const processedBatchKeys = new Set<string>();
             const dataToInsert: any[] = [];
             const duplicateRows: Array<{ row: number; name: string; phone: string; unit: string; reason: string }> = [];
@@ -483,28 +540,31 @@ export async function POST(request: NextRequest) {
 
               // فحص التطابق مع قاعدة البيانات (مُرشَّح بالهاتف/القومي/الوحدة، ثم تُطبّق قواعد الهوية).
               // نُطبّق decideImportMatch بعد الجلب، ولا نستخدم الوحدة كدليل هوية.
-              const matchedInDb = existingCustomers.filter((ex) => {
-                const exUnitSig = getUnitSignature(
-                  ex.projectName || "",
-                  ex.buildingNumber || "",
-                  ex.unitNumber || ""
-                );
-                const exCustomData =
-                  ex.customData && typeof ex.customData === "object" && !Array.isArray(ex.customData)
-                    ? (ex.customData as Record<string, unknown>)
-                    : {};
-                const exNationalId = exCustomData["الرقم القومي"] ?? exCustomData.nationalId;
+              const rowPhoneKey = row.hasSyntheticPhone ? null : phoneIdentityKey(row.phone);
+              const candidateIndexes = new Set<number>();
+              addCandidateRows(candidatesByPhone, rowPhoneKey, candidateIndexes);
+              addCandidateRows(
+                candidatesByNationalId,
+                row.nationalId ? String(row.nationalId) : null,
+                candidateIndexes
+              );
+              addCandidateRows(
+                candidatesByUnit,
+                row.unitSignature === "NO_UNIT" ? null : row.unitSignature,
+                candidateIndexes
+              );
 
-                const phoneMatches = !row.hasSyntheticPhone && isSamePhone(ex.phone, row.phone);
-                const nationalIdMatches =
-                  Boolean(row.nationalId) &&
-                  Boolean(exNationalId) &&
-                  row.nationalId === String(exNationalId);
-                const unitMatches =
-                  row.unitSignature !== "NO_UNIT" && exUnitSig === row.unitSignature;
-
-                return phoneMatches || nationalIdMatches || unitMatches;
-              });
+              const matchedInDb = [...candidateIndexes]
+                .sort((left, right) => left - right)
+                .filter((index) => {
+                  const phoneMatches = rowPhoneKey !== null && existingPhoneKeys[index] === rowPhoneKey;
+                  const nationalIdMatches =
+                    Boolean(row.nationalId) && existingNationalIds[index] === String(row.nationalId);
+                  const unitMatches =
+                    row.unitSignature !== "NO_UNIT" && existingUnitSignatures[index] === row.unitSignature;
+                  return phoneMatches || nationalIdMatches || unitMatches;
+                })
+                .map((index) => existingCustomers[index]);
 
               // تجميع أقوى قرار متاح: DUPLICATE > CO_OWNER > INSERT_REVIEW > INSERT.
               let hasDuplicate = false;
