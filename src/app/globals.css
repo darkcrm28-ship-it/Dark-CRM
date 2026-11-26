@@ -146,12 +146,21 @@ img { max-width: 100%; }
 }
 
 .nav-section-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-size: 10px;
   font-weight: 700;
   color: var(--text-muted);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   padding: 12px 12px 6px;
+}
+
+.nav-section-icon {
+  display: inline-flex;
+  color: var(--gold-primary);
+  opacity: 0.8;
 }
 
 .nav-item {

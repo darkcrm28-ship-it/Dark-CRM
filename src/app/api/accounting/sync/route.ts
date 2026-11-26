@@ -71,7 +71,13 @@ export async function POST() {
 
     return NextResponse.json({ success: true, ...syncResult });
   } catch (error) {
-    console.error("Accounting Sync Error:", error);
+    const rawCode = (error as { code?: unknown } | null)?.code;
+    const code = typeof rawCode === "string" && /^P\d{4}$/.test(rawCode) ? rawCode : undefined;
+    const name = error instanceof Error && /^[A-Za-z][A-Za-z0-9]{0,63}$/.test(error.name)
+      ? error.name
+      : "Unknown";
+    console.error("Accounting Sync Error:", { name, ...(code ? { code } : {}) });
     return NextResponse.json({ error: "Internal server error during accounting sync" }, { status: 500 });
   }
 }
+

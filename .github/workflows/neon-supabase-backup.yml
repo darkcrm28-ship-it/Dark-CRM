@@ -1,0 +1,47 @@
+name: Neon to Supabase free backup
+
+on:
+  schedule:
+    - cron: "0 0 */4 * *"
+    - cron: "0 8 * * *"
+  workflow_dispatch:
+    inputs:
+      run_backup:
+        description: Run the database backup immediately
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: neon-supabase-free-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    name: Keep Supabase active and back up every four days
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DARK_CRM_NEON_URL: ${{ secrets.DARK_CRM_NEON_URL }}
+      DARK_CRM_SUPABASE_URL: ${{ secrets.DARK_CRM_SUPABASE_URL }}
+      SUPABASE_PROJECT_REF: velkoehtnbelqwydtvix
+      RUN_BACKUP: ${{ github.event_name == 'workflow_dispatch' && inputs.run_backup || github.event.schedule == '0 0 */4 * *' }}
+    steps:
+      - name: Check out backup script
+        uses: actions/checkout@v4
+
+      - name: Run safe PostgreSQL backup task
+        run: |
+          docker run --rm \
+            --env DARK_CRM_NEON_URL \
+            --env DARK_CRM_SUPABASE_URL \
+            --env SUPABASE_PROJECT_REF \
+            --env RUN_BACKUP \
+            --volume "$GITHUB_WORKSPACE:/workspace:ro" \
+            --workdir /workspace \
+            postgres:18-bookworm \
+            sh scripts/supabase-backup.sh
+

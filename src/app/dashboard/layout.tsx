@@ -55,14 +55,14 @@ export default async function DashboardLayout({ children }: { children: React.Re
       icon: <LayoutDashboard size={18} />,
       label: "لوحة القيادة",
       show: isSales,
-      section: "main",
+      section: "overview",
     },
     {
       href: "/dashboard/profile",
       icon: <User size={18} />,
       label: "ملفي الشخصي",
       show: true,
-      section: "main",
+      section: "overview",
     },
 
     // Core Business Sections
@@ -71,35 +71,35 @@ export default async function DashboardLayout({ children }: { children: React.Re
       icon: <Database size={18} />,
       label: "قاعدة العملاء الشاملة",
       show: isSales,
-      section: "main",
+      section: "customers",
     },
     {
       href: "/dashboard/available-for-sale",
       icon: <Building size={18} />,
       label: "الوحدات المعروضة",
       show: isSales,
-      section: "main",
+      section: "inventory",
     },
     {
       href: "/dashboard/properties",
       icon: <Building size={18} />,
       label: "إدارة الوحدات والكتالوج",
       show: isManager,
-      section: "main",
+      section: "inventory",
     },
     {
       href: "/dashboard/buyers",
       icon: <ShoppingBag size={18} />,
       label: "المشترين والمستأجرين",
       show: isSales,
-      section: "main",
+      section: "customers",
     },
     {
       href: "/dashboard/not-interested",
       icon: <UserX size={18} />,
       label: "قائمة غير المهتمين",
       show: isSales,
-      section: "main",
+      section: "customers",
     },
 
     {
@@ -107,42 +107,42 @@ export default async function DashboardLayout({ children }: { children: React.Re
       icon: <FolderKanban size={18} />,
       label: "المشاريع العقارية",
       show: isManager,
-      section: "main",
+      section: "inventory",
     },
     {
       href: "/dashboard/documents",
       icon: <FileText size={18} />,
       label: "المستندات",
       show: isSales || session.role === ROLE.ACCOUNTING_MANAGER,
-      section: "main",
+      section: "sales",
     },
     {
       href: "/dashboard/deal-cycle",
       icon: <Handshake size={18} />,
       label: "دورة الصفقات",
       show: isSales || session.role === ROLE.ACCOUNTING_MANAGER,
-      section: "main",
+      section: "sales",
     },
     {
       href: "/dashboard/property-owners",
       icon: <Crown size={18} />,
       label: "الملاك والملكية",
       show: isManager || session.role === ROLE.ACCOUNTING_MANAGER,
-      section: "main",
+      section: "inventory",
     },
     {
       href: "/dashboard/calendar",
       icon: <Calendar size={18} />,
       label: "التقويم والمواعيد",
       show: isSales,
-      section: "main",
+      section: "customers",
     },
     {
       href: "/dashboard/overdue-reminders",
       icon: <AlertTriangle size={18} />,
       label: "المتابعات المتأخرة",
       show: isSales,
-      section: "main",
+      section: "customers",
     },
 
     // Sales & Management
@@ -158,70 +158,73 @@ export default async function DashboardLayout({ children }: { children: React.Re
       icon: <BarChart3 size={18} />,
       label: "التقارير والإحصائيات",
       show: isManager,
-      section: "admin",
+      section: "finance",
     },
     {
       href: "/dashboard/commissions",
       icon: <Coins size={18} />,
       label: "العمولات والرواتب",
       show: canViewCommissions,
-      section: "admin",
+      section: "finance",
     },
     {
       href: "/dashboard/audit",
       icon: <ShieldCheck size={18} />,
       label: "سجل العمليات (Audit)",
       show: session.role === ROLE.GENERAL_MANAGER,
-      section: "admin",
+      section: "system",
     },
     {
       href: "/dashboard/users",
       icon: <KeyRound size={18} />,
       label: "إدارة المستخدمين",
       show: session.role === ROLE.GENERAL_MANAGER,
-      section: "admin",
+      section: "system",
     },
     {
       href: "/dashboard/settings/custom-fields",
       icon: <SlidersHorizontal size={18} />,
       label: "الحقول الديناميكية",
       show: session.role === ROLE.GENERAL_MANAGER,
-      section: "admin",
+      section: "system",
     },
     {
       href: "/dashboard/site-content",
       icon: <Globe size={18} />,
       label: "إدارة صفحات الموقع",
       show: session.role === ROLE.GENERAL_MANAGER,
-      section: "admin",
+      section: "system",
     },
     {
       href: "/dashboard/settings",
       icon: <Settings size={18} />,
       label: "إعدادات النظام",
       show: session.role === ROLE.GENERAL_MANAGER,
-      section: "admin",
+      section: "system",
     },
     {
       href: "/dashboard/accounting",
       icon: <Wallet size={18} />,
       label: "المحاسبة والخزينة",
       show: session.role === ROLE.GENERAL_MANAGER || session.role === ROLE.ACCOUNTING_MANAGER,
-      section: "admin",
+      section: "finance",
     },
     {
       href: "/dashboard/integrations",
       icon: <Cpu size={18} />,
       label: "الربط التقني والتكامل",
       show: session.role === ROLE.GENERAL_MANAGER,
-      section: "admin",
+      section: "system",
     },
   ];
 
   const sections = [
-    { key: "main", label: "الرئيسية والعمليات" },
-    { key: "sales", label: "إدارة الصفقات والمبيعات" },
-    { key: "admin", label: "الإدارة والنظام" },
+    { key: "overview", label: "نظرة عامة", icon: <LayoutDashboard size={14} /> },
+    { key: "customers", label: "العملاء والمتابعة", icon: <ShoppingBag size={14} /> },
+    { key: "inventory", label: "العقارات والمخزون", icon: <Building size={14} /> },
+    { key: "sales", label: "الصفقات والملفات", icon: <Handshake size={14} /> },
+    { key: "finance", label: "التقارير والمالية", icon: <Wallet size={14} /> },
+    { key: "system", label: "إدارة النظام", icon: <Settings size={14} /> },
   ];
 
   return (
@@ -280,3 +283,4 @@ export default async function DashboardLayout({ children }: { children: React.Re
     </div>
   );
 }
+

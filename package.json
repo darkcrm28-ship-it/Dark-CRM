@@ -24,6 +24,7 @@
     "@neon/env": "^2.1.9",
     "@neondatabase/serverless": "^0.10.4",
     "@prisma/adapter-neon": "^5.22.0",
+    "@prisma/adapter-pg": "^5.22.0",
     "@prisma/client": "^5.22.0",
     "bcryptjs": "^3.0.3",
     "html2canvas": "^1.4.1",
@@ -77,3 +78,4 @@
     }
   }
 }
+
