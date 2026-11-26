@@ -388,11 +388,14 @@ export default function ImportWizardModal({
     // بناء مُعرِّف ثابت للاستيراد الحالي (اسم الملف + حجمه + تاريخ اليوم)
     const fileTag = importId || crypto.randomUUID();
 
-    const batchSize = 200;
+    const batchSize = 50;
+    const batchIntervalMs = 500;
     const batchesCount = Math.ceil(totalValidRows.length / batchSize);
 
     // تجميع الصفوف حسب الورقة للحصول على إعدادات كل ورقة
     const sheetConfigMap = new Map(Object.values(sheetConfigs).map(s => [s.sheetName, s]));
+
+    let stoppedEarly = false;
 
     try {
       for (let bIdx = 0; bIdx < batchesCount; bIdx++) {
@@ -478,22 +481,52 @@ export default function ImportWizardModal({
               success = true;
             } else if (res.status === 409) {
               retryCount++;
+              if (retryCount >= 3) {
+                stoppedEarly = true;
+                break;
+              }
+              const retryDelayMs = Math.min(8000, 1000 * 2 ** (retryCount - 1));
               setExecutionStatusText(`⏳ هناك عملية استيراد أخرى قيد التنفيذ، جاري إعادة المحاولة تلقائياً بعد ثانيتين (محاولة ${retryCount} من 3)...`);
-              await new Promise(r => setTimeout(r, 2000));
+              await new Promise(r => setTimeout(r, retryDelayMs));
+            } else if (res.status === 408 || res.status === 425 || res.status === 429 || res.status >= 500) {
+              retryCount++;
+              if (retryCount >= 3) {
+                stoppedEarly = true;
+                break;
+              }
+              const retryDelayMs = Math.min(8000, 1000 * 2 ** (retryCount - 1));
+              setExecutionStatusText(`Server busy (HTTP ${res.status}); retrying in ${retryDelayMs / 1000}s...`);
+              await new Promise(r => setTimeout(r, retryDelayMs));
             } else {
+              stoppedEarly = true;
               totalFailed += currentBatch.length;
-              console.error('Batch error:', data);
+              console.error('Batch request failed:', res.status);
               success = true; // انتقل إلى الدفعة التالية
             }
           } catch {
             retryCount++;
+            if (retryCount >= 3) {
+              stoppedEarly = true;
+              break;
+            }
+            const retryDelayMs = Math.min(8000, 1000 * 2 ** (retryCount - 1));
             setExecutionStatusText(`⚠️ ضعف في الاتصال، جاري إعادة المحاولة...`);
-            await new Promise(r => setTimeout(r, 2000));
+            await new Promise(r => setTimeout(r, retryDelayMs));
           }
         }
 
         if (!success) {
           totalFailed += currentBatch.length;
+        }
+
+        if (stoppedEarly) {
+          totalFailed += totalValidRows.length - start - currentBatch.length;
+          break;
+        }
+
+        if (bIdx < batchesCount - 1) {
+          setExecutionStatusText(`تم حفظ الدفعة ${bIdx + 1} من ${batchesCount}؛ انتظار قصير قبل المتابعة...`);
+          await new Promise(r => setTimeout(r, batchIntervalMs));
         }
       }
 
