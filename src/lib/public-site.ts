@@ -1,3 +1,5 @@
+import english from "./public-site-en.json";
+import { cookies } from "next/headers";
 import { cache } from "react";
 import type {} from "react/canary";
 import { notFound } from "next/navigation";
@@ -121,9 +123,11 @@ export async function getSitePageRender(page: SitePage, snapshot?: Awaited<Retur
   const visibility = { ...DEFAULT_VISIBILITY };
   for (const key of Object.keys(visibility) as SitePage[]) visibility[key] = settings[key].enabled;
   const contact = { ...defaultCopy.contact, ...settings.contact.overrides };
+  const locale: "ar" | "en" = (await cookies()).get("darak-language")?.value === "en" ? "en" : "ar";
   return {
-    copy: { ...defaultCopy[page], ...settings[page].overrides },
-    shared: { ...defaultCopy.shared, ...settings.shared.overrides },
+    locale,
+    copy: { ...defaultCopy[page], ...(locale === "en" ? english[page] : {}), ...settings[page].overrides },
+    shared: { ...defaultCopy.shared, ...(locale === "en" ? english.shared : {}), ...settings.shared.overrides },
     contact: {
       "details.phone": contact["details.phone"],
       "details.whatsapp": contact["details.whatsapp"],
@@ -138,6 +142,7 @@ export async function getSitePageMetadata(page: SitePage) {
   const settings = (await getPublicSiteContent())[page];
   if (!settings.enabled) return { title: "الصفحة غير متاحة", robots: { index: false, follow: false } };
   return {
+    manifest: "/property-portal.webmanifest",
     title: settings.overrides["meta.title"] ?? defaultCopy[page]["meta.title"],
     description: settings.overrides["meta.description"] ?? defaultCopy[page]["meta.description"],
   };

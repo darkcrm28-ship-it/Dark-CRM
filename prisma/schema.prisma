@@ -831,3 +831,13 @@ model InventoryEvent {
   @@index([propertyId, createdAt])
   @@index([type])
 }
+
+model PortalMember {
+  id            String   @id @default(uuid())
+  email         String   @unique
+  passwordHash  String
+  savedSearches String[] @default([])
+  favorites     String[] @default([])
+  alertsSince   DateTime?
+  createdAt     DateTime @default(now())
+}

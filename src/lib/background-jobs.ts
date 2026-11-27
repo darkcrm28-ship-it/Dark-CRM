@@ -62,19 +62,19 @@ export async function claimBackgroundJobs(
       WITH claimable AS (
         SELECT id
         FROM "JobQueue"
-        WHERE (status = 'PENDING' AND "runAt" <= NOW())
-           OR (status = 'PROCESSING' AND "lockedAt" < NOW() - (${leaseMinutes} * INTERVAL '1 minute'))
+        WHERE (status = 'PENDING' AND "runAt" <= (NOW() AT TIME ZONE 'UTC'))
+           OR (status = 'PROCESSING' AND "lockedAt" < (NOW() AT TIME ZONE 'UTC') - (${leaseMinutes} * INTERVAL '1 minute'))
         ORDER BY "runAt" ASC
         LIMIT ${batchSize}
         FOR UPDATE SKIP LOCKED
       )
       UPDATE "JobQueue"
       SET status = 'PROCESSING',
-          "lockedAt" = NOW(),
+          "lockedAt" = (NOW() AT TIME ZONE 'UTC'),
           "lockedBy" = ${workerId},
           attempts = attempts + 1,
           "claimToken" = gen_random_uuid()::text,
-          "updatedAt" = NOW()
+          "updatedAt" = (NOW() AT TIME ZONE 'UTC')
       FROM claimable
       WHERE "JobQueue".id = claimable.id
       RETURNING "JobQueue".*;

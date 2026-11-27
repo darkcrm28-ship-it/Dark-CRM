@@ -80,7 +80,7 @@ export default function ContactClient() {
   };
 
   return (
-    <div dir="rtl" className="public-portal-root">
+    <div className="public-portal-root">
       <PublicHeader />
 
       {/* Header Banner */}

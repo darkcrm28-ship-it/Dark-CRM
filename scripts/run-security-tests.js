@@ -24,7 +24,10 @@ neonConfig.poolQueryViaFetch = true;
 if (!globalThis.WebSocket) neonConfig.webSocketConstructor = ws;
 
 const dbUrl = (process.env.DATABASE_URL || "").replace(/^["']|["']$/g, "");
-const pool = new Pool({ connectionString: dbUrl });
+// Match the application adapter when the guarded test target is local PostgreSQL.
+const localTarget = ["localhost", "127.0.0.1", "[::1]"].includes(new URL(dbUrl).hostname);
+const TestPool = localTarget ? require("pg").Pool : Pool;
+const pool = new TestPool({ connectionString: dbUrl });
 
 let passed = 0, failed = 0;
 function assert(label, cond, detail = "") {
@@ -102,7 +105,7 @@ async function main() {
   // ── TEST 5: IDOR — SALES_EMPLOYEE cannot read other's customer ──────────
   section("TEST 5 — IDOR: SALES_EMPLOYEE isolation");
   const custId = randomUUID();
-  await pool.query(`INSERT INTO "Customer" (id, name, phone, "assignedToId", status) VALUES ($1,$2,$3,$4,'NEW')`,
+  await pool.query(`INSERT INTO "Customer" (id, name, phone, "assignedToId", status, "updatedAt") VALUES ($1,$2,$3,$4,'NEW',NOW())`,
     [custId, "Emp2 Customer", "01000000002", emp2Id]);
   // emp1 queries customers assigned to emp1 only
   const emp1Customers = await pool.query(`SELECT id FROM "Customer" WHERE "assignedToId"=$1`, [emp1Id]);
@@ -144,7 +147,19 @@ async function main() {
   assert("Inquiry validates phone via normalizeEgyptianPhone", inquirySrc.includes("normalizeEgyptianPhone"));
   assert("Inquiry rate limit present (DB-backed)", inquirySrc.includes("INQUIRY_RATE_MAX"));
   assert("Inquiry uses transaction", inquirySrc.includes("prisma.$transaction"));
-  assert("Inquiry does NOT send 'notes' to Customer (uses customData/Interaction)", !inquirySrc.includes("notes: notes"));
+  const typescript = require("typescript");
+  const tree = typescript.createSourceFile("inquiry.ts", inquirySrc, typescript.ScriptTarget.Latest, true);
+  let createPayload;
+  function inspect(node) {
+    if (typescript.isCallExpression(node) && node.expression.getText(tree) === "tx.customer.create") {
+      createPayload = node.arguments[0].properties.find(prop => prop.name?.getText(tree) === "data")?.initializer;
+    }
+    typescript.forEachChild(node, inspect);
+  }
+  inspect(tree);
+  assert("Inquiry stores notes inside customData, outside Customer columns",
+    createPayload && !createPayload.properties.some(prop => prop.name?.getText(tree) === "notes") &&
+    createPayload.properties.find(prop => prop.name?.getText(tree) === "customData")?.getText(tree).includes("notes:"));
   assert("Inquiry generates WEB code with advisory lock", inquirySrc.includes("WEB_SEQUENCE_LOCK"));
 
   // ── TEST 10: Setup uses header only (no query string) ───────────────────
@@ -160,13 +175,13 @@ async function main() {
   const tgSrc = fs.readFileSync(path.join(__dirname, "..", "src", "app", "api", "integrations", "telegram", "route.ts"), "utf-8");
   assert("Telegram escapes HTML", tgSrc.includes("escapeHtml"));
   assert("Telegram caps message length", tgSrc.includes("MAX_MESSAGE_LENGTH"));
-  assert("Telegram requires getSession", tgSrc.includes("getSession"));
-  assert("Telegram never returns bot token", !tgSrc.includes("botToken}") && !tgSrc.includes("botToken,"));
+  assert("Telegram requires a manager session", tgSrc.includes("await requireManager()") && tgSrc.includes("if (session instanceof NextResponse) return session"));
+  assert("Telegram never returns bot token", [...tgSrc.matchAll(/return NextResponse\.json\(([\s\S]*?)\);/g)].every(match => !/botToken|TELEGRAM_BOT_TOKEN/.test(match[1])));
 
   // ── TEST 12: Session token excludes role ────────────────────────────────
   section("TEST 12 — Login token carries only id");
   const loginSrc = fs.readFileSync(path.join(__dirname, "..", "src", "app", "api", "auth", "login", "route.ts"), "utf-8");
-  assert("Login embeds only id in session token", loginSrc.includes("const sessionData = {") && loginSrc.includes("id: user.id,") && !loginSrc.includes("role: user.role,"));
+  assert("Login embeds only id in session token", /const sessionData = \{\s*id: auth\.id\s*\};/.test(loginSrc) && loginSrc.includes("encrypt(sessionData)"));
 
   // ─── Cleanup ────────────────────────────────────────────────────────────
   section("Cleanup");

@@ -1,7 +1,10 @@
 import { getApprovedPublicListing } from "@/lib/public-listings";
 import { notFound } from "next/navigation";
-import PropertyShowcaseClient from "@/components/property/PropertyShowcaseClient";
-import { getPublicSiteContent } from "@/lib/public-site";
+import PropertyDetails from "@/components/public/PropertyDetails";
+import { PublicSiteContent } from "@/components/public/PublicSiteContent";
+import { getSitePageRender } from "@/lib/public-site";
+
+export const metadata = { manifest: "/property-portal.webmanifest" };
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +14,7 @@ export default async function PublicPropertyDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  if (!(await getPublicSiteContent()).properties.enabled) notFound();
+  const site = await getSitePageRender("properties");
 
   const property = await getApprovedPublicListing(id);
   if (!property) notFound();
@@ -20,28 +23,12 @@ export default async function PublicPropertyDetailPage({
   if (property.images) {
     try {
       const parsed = JSON.parse(property.images);
-      if (Array.isArray(parsed)) images = parsed;
+      if (Array.isArray(parsed)) images = parsed.filter((image): image is string => typeof image === "string" && !!image);
       else if (typeof parsed === "string") images = [parsed];
     } catch {
       images = [property.images];
     }
   }
 
-  const sanitizedUnit = {
-    id: property.id,
-    refCode: `DK-${property.id.substring(0, 6).toUpperCase()}`,
-    title: property.title ?? "وحدة عقارية",
-    projectName: property.projectName ?? "مشروع عقاري راقي",
-    zone: property.zone ?? "منطقة متميزة",
-    size: property.size ?? null,
-    unitType: property.unitType ?? null,
-    finishing: property.finishing ?? null,
-    bedrooms: property.bedrooms ?? null,
-    bathrooms: property.bathrooms ?? null,
-    description: property.description ?? null,
-    images,
-    status: "AVAILABLE",
-  };
-
-  return <PropertyShowcaseClient unit={sanitizedUnit} hideFinancials={true} />;
+  return <PublicSiteContent value={site}><PropertyDetails property={property} images={images} /></PublicSiteContent>;
 }

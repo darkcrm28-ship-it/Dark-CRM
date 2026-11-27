@@ -56,7 +56,7 @@ export default function PortfolioClient() {
   ];
 
   return (
-    <div dir="rtl" className="public-portal-root">
+    <div className="public-portal-root">
       <PublicHeader />
 
       {/* Hero Section */}

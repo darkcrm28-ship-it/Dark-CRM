@@ -9,11 +9,14 @@ export function generateMetadata() {
   return getSitePageMetadata("properties");
 }
 
-export default async function Page({ searchParams }: { searchParams: Promise<{ q?: string | string[] }> }) {
+export default async function Page({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const site = await getSitePageRender("properties");
-  const query = (await searchParams).q;
-  const initialQuery = typeof query === "string" ? query.trim().slice(0, 120) : "";
-  const params = new URLSearchParams(initialQuery ? { q: initialQuery } : {});
+  const query = await searchParams;
+  const params = new URLSearchParams();
+  for (const key of ["q", "zone", "type", "rooms", "page", "purpose", "budget"]) {
+    const value = query[key];
+    if (typeof value === "string" && value.trim()) params.set(key, value.trim().slice(0, 120));
+  }
   const [catalog, zones] = await Promise.all([getPublicCatalogPage(params), getPublicCatalogZones()]);
-  return <PublicSiteContent value={site}><PublicPropertiesClient initialCatalog={catalog} zones={zones} initialQuery={initialQuery} /></PublicSiteContent>;
+  return <PublicSiteContent value={site}><PublicPropertiesClient initialCatalog={catalog} zones={zones} key={params.toString()} initialFilters={params.toString()} /></PublicSiteContent>;
 }

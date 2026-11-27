@@ -2072,3 +2072,78 @@
   min-height: 36px;
   padding: 6px 12px;
 }
+
+/* Public homepage: limestone, olive and Mediterranean daylight. */
+.darak-home { background:#faf8f2; color:#26372d; }
+.darak-header-mark { width:46px; mix-blend-mode:multiply; }
+.darak-home .public-header-navbar,.darak-home .mobile-nav-drawer,.darak-home .mobile-bottom-nav-bar { background:#fffdf8; border-color:#d9d4bf; }
+.darak-home .brand-primary-name,.darak-home .unified-nav-tab,.darak-home .mobile-hamburger-btn,.darak-home .bottom-nav-item,.darak-home .mobile-nav-link { color:#344537; }
+.darak-home .brand-sub-tag,.darak-home .section-subtitle { color:#5b685a; }
+.darak-home .gold-shimmer-text { background:none; -webkit-text-fill-color:#796026; color:#796026; }
+.darak-hero { position:relative; overflow:hidden; isolation:isolate; display:grid; align-items:center; min-height:clamp(480px,70vh,700px); }
+.darak-hero-photo,.darak-hero-wash { position:absolute; inset:0; width:100%; height:100%; z-index:-2; object-fit:cover; }
+.darak-hero-wash { z-index:-1; background:linear-gradient(270deg,#faf7ed 4%,rgba(250,247,237,.92) 26%,rgba(250,247,237,.35) 52%,transparent 80%); }
+.darak-hero-inner { padding-block:56px 110px; }
+.darak-hero-copy { max-width:540px; }
+.darak-home .cinematic-hero-headline { color:#263b30; font-size:clamp(32px,4.2vw,64px); text-align:start; line-height:1.25; margin:0 0 1rem; text-shadow:none; }
+.darak-home .cinematic-hero-subtext { color:#34483a; font-size:1rem; line-height:1.85; text-align:start; margin:0 0 1.35rem; }
+.darak-home .hero-floating-search-box { margin:0; padding:6px; border:1px solid #a29d84; background:#fffefa; width:100%; display:flex; gap:5px; }
+.darak-home .hero-search-inner-input { color:#2c392d; min-width:0; }
+.darak-home .hero-search-inner-input::placeholder { color:#596659; }
+.darak-home .hero-search-action-btn,.darak-home .btn-consultation-gold { background:#364e3d; color:white; border-color:#364e3d; }
+.darak-home .hero-actions-row { justify-content:flex-start; }
+.darak-home .hero-actions-row a { font-size:.83rem; }
+.darak-home .btn-secondary-white { background:#fffdf7; border-color:#aaa38b; color:#344537; }
+.darak-slide-bar { position:absolute; inset:auto 0 0; min-height:58px; display:flex; justify-content:space-between; align-items:center; gap:12px; padding:5px max(5vw,18px); background:rgba(250,248,240,.94); border-block:1px solid #d8d3bf; color:#334738; }
+.darak-controls { display:flex; align-items:center; gap:10px; }
+.darak-controls button { display:grid; place-items:center; width:44px; height:44px; border:1px solid #b5baa8; background:#fffdf7; border-radius:50%; color:inherit; cursor:pointer; }
+.darak-home .developers-strip-card,.darak-home .square-property-box,.darak-home .pillar-glass-card,.darak-home .sell-unit-glass-banner,.darak-home .sell-preview-card,.darak-home .preview-inner-box { background:#fffdf8; border:1px solid #dbd7c7; box-shadow:none; }
+.darak-home :is(.section-title-large,.sell-title,.pillar-card-title,.square-project-title,.developers-strip-card .text-white,.sell-preview-card .text-white) {color:#263b30;}
+.darak-home :is(.pillar-card-desc,.sell-desc,.square-location-row,.financial-label,.text-slate-400) {color:#56685d;}
+.darak-home :is(.developers-strip-title,.pillar-card-link,.financial-price,.section-tag,.spec-badge) {color:#6b582f;}
+.darak-estimate { margin-block:48px; padding-block:30px; background:#edf1e8; border-block:1px solid #bac6b7; }
+.darak-estimate h2 {font-size:1.6rem;color:#263b30;}
+.estimate-fields { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:12px; margin-block:20px; }
+.estimate-fields label { display:grid; gap:5px; }
+.estimate-fields input,.estimate-fields select { width:100%; padding:9px; background:#fffef9; color:#263b30; border:1px solid #97a18f; border-radius:6px; }
+@media(max-width:700px){
+  .darak-hero { display:flex; flex-direction:column; min-height:0; }
+  .darak-hero-photo { position:relative; height:190px; object-position:left center; }
+  .darak-hero-wash {display:none;}
+  .darak-hero-inner {padding:24px 18px 16px;}
+  .darak-hero-copy {max-width:none;}
+  .darak-slide-bar {position:relative;width:100%;}
+  .darak-home .hero-actions-row {display:flex;flex-wrap:wrap;}
+  .darak-home .hero-actions-row a {width:auto;}
+  .darak-home .hero-search-inner-input {font-size:16px;}
+  .darak-estimate {padding-inline:18px;}
+}
+.darak-language { padding:6px; border:0; color:inherit; background:transparent; cursor:pointer; font:inherit; }
+[lang="en"] .darak-hero-wash { background:linear-gradient(90deg,#faf7ed 2%,rgba(250,247,237,.92) 27%,rgba(250,247,237,.32) 53%,transparent 80%); }
+.hero-purpose { flex:0 0 auto; background:#f2f0e6; color:#344537; border:0; padding:0 8px; border-radius:6px; }
+.darak-home .search-input-col {min-width:0;}
+.darak-property {padding-block:36px 70px;max-width:1000px;}
+.darak-property h1 {font-size:clamp(2rem,5vw,4rem);margin-block:12px;}
+.darak-property figure {margin:20px 0;}
+.darak-property-photo {width:100%;max-height:530px;object-fit:contain;background:#ede9dd;}
+.darak-property figcaption,.darak-property dl {display:flex;flex-wrap:wrap;gap:14px;margin-block:12px;}
+.darak-property dl>div,.darak-viewing {background:#fffdf8;border:1px solid #d6d4bf;padding:15px;border-radius:8px;}
+.darak-viewing {margin-block:24px;scroll-margin-top:90px;}
+.darak-viewing form {display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));align-items:end;gap:14px;}
+.darak-viewing label {display:grid;gap:5px;}
+.darak-viewing input,.darak-property figcaption button {padding:8px;border:1px solid #a2aca0;border-radius:4px;background:white;color:#263b30;}
+.darak-viewing button {background:#344e3d;color:white;padding:10px;border-radius:6px;}
+.darak-map {margin-block:20px;padding:16px;border:1px solid #aca688;border-radius:8px;}
+.darak-map select {padding:8px;margin-inline:10px;border:1px solid #aaa; background:#fff;color:#263b30;}
+.darak-map iframe {width:100%;height:300px;border:0;margin-block:8px;}
+.darak-save,.darak-compare-link {display:inline-block;padding:9px 14px;margin-block:8px;border:1px solid #aaa17f;border-radius:6px;cursor:pointer;color:inherit;background:transparent;}
+.darak-save:disabled { opacity:.6;cursor:default; }
+.compare-scroll {overflow-x:auto;margin-block:24px;}
+.compare-scroll table {width:100%;border-collapse:collapse;}
+.compare-scroll th,.compare-scroll td {padding:12px;text-align:start;border-bottom:1px solid #c6c8b6;}
+.darak-guides {display:flex;flex-wrap:wrap;gap:18px;padding-block:22px;border-block:1px solid #c8c7b3;}
+.darak-guides a {font-weight:bold;color:#344e3d;}
+.darak-article-body {white-space:pre-line;max-width:65ch;font-size:1.1rem;line-height:1.9;margin-block:22px;}
+@media(max-width:1024px){
+  .darak-home .mobile-bottom-nav-bar {background:#fffdf8 !important;box-shadow:0 -2px 12px #27352512 !important;}
+}

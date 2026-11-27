@@ -1,6 +1,6 @@
 "use client";
 
-import { useSiteText, usePublicSite, usePublicHeroStyle, SiteLink as Link } from "@/components/public/PublicSiteContent";
+import { useSiteText, usePublicSite, SiteLink as Link } from "@/components/public/PublicSiteContent";
 import React, { useState } from "react";
 
 import { useRouter } from "next/navigation";
@@ -9,25 +9,17 @@ import {
   Calendar,
   Eye,
   Home,
-  MessageCircle,
-  PhoneCall,
   ShieldCheck,
-  Sparkles,
-  Award,
-  TrendingUp,
   MapPin,
-  ArrowLeft,
-  ArrowUpRight,
   Maximize2,
   BedDouble,
   Bath,
   Search,
-  CheckCircle2,
-  Lock,
   ChevronRight,
-  Trees,
   Compass,
 } from "lucide-react";
+import HomeCarousel from "./HomeCarousel";
+import PaymentEstimate from "./PaymentEstimate";
 import PublicHeader from "./PublicHeader";
 import PublicFooter from "./PublicFooter";
 
@@ -38,6 +30,7 @@ interface PropertyItem {
   zone?: string | null;
   unitType?: string | null;
   size?: number | null;
+  purpose?: string;
   price?: number | null;
   bedrooms?: number | null;
   bathrooms?: number | null;
@@ -51,18 +44,17 @@ export default function PublicPortalClient({
   featuredProperties: PropertyItem[];
 }) {
   const text = useSiteText();
-  const { visibility } = usePublicSite();
-  const heroStyle = usePublicHeroStyle(false);
+  const { visibility, heroImage, locale } = usePublicSite();
   const router = useRouter();
+  const [purpose, setPurpose] = useState("");
   const [heroSearch, setHeroSearch] = useState("");
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (heroSearch.trim()) {
-      router.push(`/properties?q=${encodeURIComponent(heroSearch.trim())}`);
-    } else {
-      router.push("/properties");
-    }
+    const params = new URLSearchParams();
+    if (heroSearch.trim()) params.set("q", heroSearch.trim());
+    if (purpose) params.set("purpose", purpose);
+    router.push(params.size ? "/properties?" + params : "/properties");
   };
 
   const parseCover = (imagesStr?: string | null): string | null => {
@@ -76,6 +68,15 @@ export default function PublicPortalClient({
     return null;
   };
 
+  const slides = [
+    { image: heroImage || "/images/mediterranean-home.webp", title: text("hero.text8"), href: "/properties" },
+    ...featuredProperties.flatMap(property => {
+      const image = parseCover(property.images);
+      return image ? [{ image, title: property.title || property.projectName || text("listings.text5"), href: `/properties/${property.id}` }] : [];
+    }),
+    ...(visibility.portfolio ? [{ image: "/images/hero-landscape.jpg", title: text("hero.text10"), href: "/portfolio" }] : []),
+  ];
+
   const topDevelopers = [
     { name: text("partners.topDevelopers1_name"), sub: text("partners.topDevelopers1_sub") },
     { name: text("partners.topDevelopers2_name"), sub: text("partners.topDevelopers2_sub") },
@@ -86,20 +87,11 @@ export default function PublicPortalClient({
   ];
 
   return (
-    <div dir="rtl" className="public-portal-root">
+    <div className="public-portal-root darak-home">
       <PublicHeader />
 
-      {/* ─── 1. CINEMATIC LUXURY LANDSCAPE HERO SECTION ─── */}
-      <section className="cinematic-hero-wrapper">
-        <div className="hero-landscape-bg-img" style={heroStyle} />
-        <div className="hero-dark-vignette-overlay" />
-
-        <div className="portal-container hero-content-relative">
-          <div className="hero-text-badge-pill">
-            <Trees size={15} className="text-gold" />
-            <span>{text("hero.text1")}</span>
-          </div>
-
+      <HomeCarousel slides={slides}>
+          <div className="darak-hero-copy">
           <h1 className="cinematic-hero-headline">{text("hero.text2")} <br />
             <span className="gold-shimmer-text">{text("hero.text3")}</span> {text("hero.text4")}</h1>
 
@@ -107,6 +99,9 @@ export default function PublicPortalClient({
 
           {/* Embedded Floating Hero Search Box */}
           {visibility.properties && <form onSubmit={handleSearchSubmit} className="hero-floating-search-box">
+            <select className="hero-purpose" aria-label={locale === "en" ? "Listing purpose" : "غرض الإعلان"} value={purpose} onChange={e => setPurpose(e.target.value)}>
+              <option value="">{locale === "en" ? "All" : "الكل"}</option><option value="SALE">{locale === "en" ? "Buy" : "شراء"}</option><option value="RENT">{locale === "en" ? "Rent" : "إيجار"}</option>
+            </select>
             <div className="search-input-col">
               <Search size={18} className="text-gold" />
               <input
@@ -130,33 +125,8 @@ export default function PublicPortalClient({
             <Link href="/portfolio" className="btn-secondary-white px-6 py-3.5 text-sm">{text("hero.text10")}</Link>
           </div>
 
-          {/* Floating Glass Stats Ribbon */}
-          <div className="hero-stats-floating-ribbon">
-            <div className="ribbon-stat-item">
-              <div className="ribbon-stat-num">{text("hero.text11")}</div>
-              <div className="ribbon-stat-label">{text("hero.text12")}</div>
-            </div>
-            <div className="ribbon-stat-divider" />
-
-            <div className="ribbon-stat-item">
-              <div className="ribbon-stat-num">{text("hero.text13")}</div>
-              <div className="ribbon-stat-label">{text("hero.text14")}</div>
-            </div>
-            <div className="ribbon-stat-divider" />
-
-            <div className="ribbon-stat-item">
-              <div className="ribbon-stat-num">{text("hero.text15")}</div>
-              <div className="ribbon-stat-label">{text("hero.text16")}</div>
-            </div>
-            <div className="ribbon-stat-divider" />
-
-            <div className="ribbon-stat-item">
-              <div className="ribbon-stat-num">{text("hero.text17")}</div>
-              <div className="ribbon-stat-label">{text("hero.text18")}</div>
-            </div>
           </div>
-        </div>
-      </section>
+      </HomeCarousel>
 
       {/* ─── 2. DEVELOPERS & PARTNERS SHOWCASE STRIP ─── */}
       <section className="portal-container my-16">
@@ -245,7 +215,7 @@ export default function PublicPortalClient({
 
                     <div className="square-financials-row">
                       <div>
-                        <span className="financial-label">{text("listings.text14")}</span>
+                        <span className="financial-label">{p.purpose === "RENT" ? (locale === "en" ? "Monthly rent" : "الإيجار الشهري") : text("listings.text14")}</span>
                         <div className="financial-price">
                           {p.price ? text("listings.text15", [p.price.toLocaleString()]) : text("listings.text16")}
                         </div>
@@ -355,6 +325,12 @@ export default function PublicPortalClient({
         </div>
       </section>
 
+      <nav className="portal-container darak-guides" aria-label={locale === "en" ? "Guides and news" : "الأدلة والأخبار"}>
+        <Link href="/guides/finishes">{locale === "en" ? "Finishing" : "التشطيبات"} ↗</Link>
+        <Link href="/guides/decor">{locale === "en" ? "Interiors" : "الديكور"} ↗</Link>
+        <Link href="/guides/news">{locale === "en" ? "DARAK news" : "أخبار دارك"} ↗</Link>
+      </nav>
+      <PaymentEstimate />
       <PublicFooter />
     </div>
   );

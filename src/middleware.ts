@@ -5,6 +5,16 @@ import { decrypt } from "@/lib/session-token";
 const publicExactRoutes = [
   "/",
   "/login",
+  "/offline",
+  "/client-portal",
+  "/guides/finishes",
+  "/guides/decor",
+  "/guides/news",
+  "/manifest.json",
+  "/property-portal.webmanifest",
+  "/sw.js",
+  "/icons/icon-192.png",
+  "/icons/icon-512.png",
   "/api/auth/login",
   "/api/auth/logout",
   "/api/setup",
@@ -46,7 +56,7 @@ export async function middleware(request: NextRequest) {
   try {
     const payload = await decrypt(session);
 
-    if (!payload) {
+    if (typeof payload.id !== "string" || !payload.id || payload.aud === "darak-property-portal") {
       throw new Error("Invalid session");
     }
 

@@ -1,0 +1,72 @@
+.mark {
+  display: inline-block;
+  width: 4rem;
+  max-width: 100%;
+  line-height: 0;
+  position: relative;
+  vertical-align: middle;
+  isolation: isolate;
+}
+
+.logo {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.pieces { display: none; }
+
+@media (prefers-reduced-motion: no-preference) and (min-width: 48rem) and (update: fast) {
+  .assemble .logo {
+    animation: reveal 720ms step-end;
+  }
+
+  .assemble .pieces {
+    display: block;
+    pointer-events: none;
+    position: absolute;
+    inset: 0;
+    perspective: 420px;
+    animation: finish 720ms step-end forwards;
+  }
+
+  .pieces span {
+    position: absolute;
+    inset: 0;
+    background: url("/images/darak-brand.webp") center / 100% 100% no-repeat;
+    animation: join 720ms cubic-bezier(.2,.75,.18,1) both;
+  }
+
+  .pieces span:nth-child(1) {
+    clip-path: inset(0 67% 0 0);
+    --entry-x: -12%;
+    --entry-turn: -18deg;
+  }
+
+  .pieces span:nth-child(2) {
+    clip-path: inset(0 33% 0 33%);
+    --entry-x: 0%;
+    --entry-turn: 12deg;
+  }
+
+  .pieces span:nth-child(3) {
+    clip-path: inset(0 0 0 67%);
+    --entry-x: 12%;
+    --entry-turn: 18deg;
+  }
+}
+
+@keyframes join {
+  from { transform: translateX(var(--entry-x)) rotateY(var(--entry-turn)); opacity: .4; }
+  to { transform: none; opacity: 1; }
+}
+
+@keyframes reveal {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes finish {
+  from { visibility: visible; }
+  to { visibility: hidden; }
+}

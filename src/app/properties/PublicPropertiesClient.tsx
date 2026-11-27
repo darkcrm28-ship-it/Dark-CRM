@@ -26,6 +26,7 @@ import {
   CheckCircle2,
   AlertCircle,
 } from "lucide-react";
+import AreaMap from "@/components/public/AreaMap";
 import PublicHeader from "@/components/public/PublicHeader";
 import PublicFooter from "@/components/public/PublicFooter";
 
@@ -45,6 +46,7 @@ interface PropertyItem {
   monthlyInstallment?: number | null;
   remainingMonths?: number | null;
   status: string;
+  purpose?: string;
   description?: string | null;
 }
 
@@ -54,26 +56,44 @@ const BEDROOMS_OPTIONS = ["الكل", "1", "2", "3", "4", "5+"];
 export default function PublicPropertiesClient({
   initialCatalog,
   zones,
-  initialQuery,
+  initialFilters,
 }: {
   initialCatalog: { properties: PropertyItem[]; total: number; page: number; pageSize: number };
   zones: string[];
-  initialQuery: string;
+  initialFilters: string;
 }) {
   const text = useSiteText();
   const heroStyle = usePublicHeroStyle();
-  const { contact } = usePublicSite();
+  const { contact, locale } = usePublicSite();
   // Filter States
-  const [searchQuery, setSearchQuery] = useState(initialQuery);
-  const [selectedUnitType, setSelectedUnitType] = useState("الكل");
-  const [selectedBedrooms, setSelectedBedrooms] = useState("الكل");
-  const [selectedZone, setSelectedZone] = useState("الكل");
+  const initial = new URLSearchParams(initialFilters);
+  const [searchQuery, setSearchQuery] = useState(initial.get("q") || "");
+  const [selectedUnitType, setSelectedUnitType] = useState(initial.get("type") || "الكل");
+  const [selectedBedrooms, setSelectedBedrooms] = useState(initial.get("rooms") || "الكل");
+  const [selectedZone, setSelectedZone] = useState(initial.get("zone") || "الكل");
 
+  const en = locale === "en";
+  const [purpose, setPurpose] = useState(initial.get("purpose") || "");
+  const [budget, setBudget] = useState(initial.get("budget") || "");
+
+  const [saved, setSaved] = useState<string[]>([]);
+  useEffect(() => {
+    try {
+      const ids: unknown = JSON.parse(localStorage.getItem("darak-comparison") || "[]");
+      if (Array.isArray(ids)) setSaved(ids.filter((id): id is string => typeof id === "string").slice(0,3));
+    } catch { /* Storage is optional. */ }
+  }, []);
+  function toggleSaved(id: string) {
+    const next = saved.includes(id) ? saved.filter(value => value !== id) : [...saved, id].slice(0,3);
+    setSaved(next);
+    try { localStorage.setItem("darak-comparison", JSON.stringify(next)); } catch { /* In-memory selection remains available. */ }
+  }
   // Quick Viewing Modal
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedUnit, setSelectedUnit] = useState<PropertyItem | null>(null);
   const [inquiryName, setInquiryName] = useState("");
   const [inquiryPhone, setInquiryPhone] = useState("");
+  const requestKey = useRef("");
   const [submitting, setSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [submitError, setSubmitError] = useState("");
@@ -83,14 +103,14 @@ export default function PublicPropertiesClient({
   const [catalogError, setCatalogError] = useState("");
   const [catalogCache] = useState(() => createClientReadCache<typeof initialCatalog>());
   const catalogRequest = useRef<AbortController | null>(null);
-  const [appliedFilters, setAppliedFilters] = useState(() => initialQuery ? new URLSearchParams({ q: initialQuery }).toString() : "");
+  const [appliedFilters, setAppliedFilters] = useState(initialFilters);
   const page = catalog.page;
   const uniqueZones = ["الكل", ...zones];
   const filteredProperties = catalog.properties;
   useEffect(() => () => catalogRequest.current?.abort(), []);
 
   const loadCatalog = async (targetPage: number, filters = appliedFilters) => {
-    if (loadingCatalog) return;
+    catalogRequest.current?.abort();
     const controller = new AbortController();
     catalogRequest.current = controller;
     const params = new URLSearchParams(filters);
@@ -100,6 +120,8 @@ export default function PublicPropertiesClient({
     try {
       const result = await catalogCache.load('/api/public/properties?' + params, controller.signal);
       if (!controller.signal.aborted) {
+        if (targetPage === 1) params.delete("page");
+        window.history.replaceState(window.history.state, "", params.size ? "/properties?" + params : "/properties");
         setCatalog(result);
         setAppliedFilters(filters);
       }
@@ -113,6 +135,8 @@ export default function PublicPropertiesClient({
   const applySearch = (event: React.FormEvent) => {
     event.preventDefault();
     const params = new URLSearchParams();
+    if (purpose) params.set("purpose", purpose);
+    if (purpose && Number(budget) > 0) params.set("budget", budget);
     if (searchQuery.trim()) params.set("q", searchQuery.trim());
     if (selectedUnitType !== "الكل") params.set("type", selectedUnitType);
     if (selectedBedrooms !== "الكل") params.set("rooms", selectedBedrooms);
@@ -122,12 +146,16 @@ export default function PublicPropertiesClient({
 
   const resetFilters = () => {
     setSearchQuery("");
+    setPurpose("");
+    setBudget("");
     setSelectedUnitType("الكل");
     setSelectedBedrooms("الكل");
     setSelectedZone("الكل");
+    void loadCatalog(1, "");
   };
 
   const openViewingModal = (unit: PropertyItem) => {
+    requestKey.current = crypto.randomUUID();
     setSelectedUnit(unit);
     setInquiryName("");
     setInquiryPhone("");
@@ -150,6 +178,7 @@ export default function PublicPropertiesClient({
           name: inquiryName.trim(),
           phone: inquiryPhone.trim(),
           propertyId: selectedUnit?.id,
+          requestKey: requestKey.current,
           preferredZone: selectedUnit?.zone,
           notes: `طلب معاينة لوحدة: ${selectedUnit?.projectName || ""} (كود: DK-${selectedUnit?.id?.substring(0, 6)?.toUpperCase()})`,
         }),
@@ -191,7 +220,7 @@ export default function PublicPropertiesClient({
   };
 
   return (
-    <div dir="rtl" className="public-portal-root">
+    <div className="public-portal-root">
       <PublicHeader />
 
       {/* Header Banner */}
@@ -241,6 +270,14 @@ export default function PublicPropertiesClient({
 
           {/* Quick Filter Selects Grid */}
           <div className="catalog-filter-grid">
+            <label className="filter-select-wrap">{en ? "Listing purpose" : "غرض الإعلان"}
+              <select className="catalog-select" value={purpose} onChange={e => setPurpose(e.target.value)}>
+                <option value="">{en ? "All" : "الكل"}</option><option value="SALE">{en ? "Buy" : "شراء"}</option><option value="RENT">{en ? "Rent" : "إيجار"}</option>
+              </select>
+            </label>
+            {purpose && <label className="filter-select-wrap">{purpose === "RENT" ? (en ? "Maximum monthly rent (EGP)" : "أقصى إيجار شهري بالجنيه") : (en ? "Maximum total price (EGP)" : "أقصى سعر إجمالي بالجنيه")}
+              <input className="catalog-select" type="number" min="1" value={budget} onChange={e => setBudget(e.target.value)} />
+            </label>}
             <div className="filter-select-wrap">
               <label>{text("filters.text3")}</label>
               <select
@@ -262,7 +299,7 @@ export default function PublicPropertiesClient({
                 className="catalog-select"
               >
                 {uniqueZones.map((z) => (
-                  <option key={z} value={z}>{z}</option>
+                  <option key={z} value={z}>{z === "الكل" ? text("filters.text6") : z}</option>
                 ))}
               </select>
             </div>
@@ -295,6 +332,9 @@ export default function PublicPropertiesClient({
             </div>
           </div>
         </form>
+        {saved.length > 0 && <Link className="darak-compare-link" href={"/properties/compare?ids=" + saved.join(",")}>{en ? "Compare selected properties" : "قارن الوحدات المختارة"} ({saved.length}/3)</Link>}
+        {appliedFilters && <Link className="darak-compare-link" href={"/client-portal?search=" + encodeURIComponent(appliedFilters)}>{en ? "Save search to my account" : "حفظ البحث في حسابي"}</Link>}
+        <AreaMap zones={zones} en={en} />
       </section>
 
       {/* ═══════════ SQUARES CATALOG GRID WITH DISTINCTIVE EDGE GLOWS ═══════════ */}
@@ -378,7 +418,7 @@ export default function PublicPropertiesClient({
                   {/* Price & Installment */}
                   <div className="square-financials-row">
                     <div>
-                      <span className="financial-label">{text("results.text11")}</span>
+                      <span className="financial-label">{p.purpose === "RENT" ? (en ? "Monthly rent" : "الإيجار الشهري") : text("results.text11")}</span>
                       <div className="financial-price">
                         {p.price ? text("results.text12", [p.price.toLocaleString()]) : text("results.text13")}
                       </div>
@@ -389,6 +429,9 @@ export default function PublicPropertiesClient({
                     )}
                   </div>
 
+                  <button className="darak-save" aria-pressed={saved.includes(p.id)} disabled={!saved.includes(p.id) && saved.length >= 3} onClick={() => toggleSaved(p.id)}>
+                    {saved.includes(p.id) ? (en ? "Remove from comparison" : "إزالة من المقارنة") : (en ? "Save to compare" : "حفظ للمقارنة")}
+                  </button>
                   {/* Actions Row */}
                   <div className="square-actions-row">
                     <a

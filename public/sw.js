@@ -1,4 +1,4 @@
-const CACHE_NAME = "darek-crm-v3";
+const CACHE_NAME = "darek-crm-v4";
 const OFFLINE_URL = "/offline";
 
 const STATIC_ASSETS = [

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { DEFAULT_VISIBILITY, pageForSiteHref, type SiteCopy, type SiteVisibility } from "@/lib/public-site-types";
 
 type PublicSiteState = {
+  locale: "ar" | "en";
   copy: SiteCopy;
   shared: SiteCopy;
   contact: SiteCopy;
@@ -13,11 +14,11 @@ type PublicSiteState = {
 };
 
 const PublicSiteContext = createContext<PublicSiteState>({
-  copy: {}, shared: {}, contact: {}, visibility: DEFAULT_VISIBILITY, heroImage: "",
+  locale: "ar", copy: {}, shared: {}, contact: {}, visibility: DEFAULT_VISIBILITY, heroImage: "",
 });
 
 export function PublicSiteContent({ value, children }: { value: PublicSiteState; children: ReactNode }) {
-  return <PublicSiteContext.Provider value={value}>{children}</PublicSiteContext.Provider>;
+  return <PublicSiteContext.Provider value={value}><div lang={value.locale} dir={value.locale === "en" ? "ltr" : "rtl"}>{children}</div></PublicSiteContext.Provider>;
 }
 
 export function useSiteText(shared = false) {

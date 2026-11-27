@@ -1,3 +1,4 @@
+import ChatBot from "@/components/ChatBot";
 import Sidebar from "@/components/Sidebar";
 import Link from "next/link";
 import { getPageSession } from "@/lib/auth";
@@ -258,7 +259,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         <main className="page-body">{children}</main>
       </div>
 
-      {isSales && <CommandPalette />}
+      {isSales && <><ChatBot /><CommandPalette /></>}
       <SmartLogger />
 
       {/* Mobile Bottom Navigation */}

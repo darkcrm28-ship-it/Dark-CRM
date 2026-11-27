@@ -1,3 +1,5 @@
+"use client";
+
 import { useSiteText, usePublicSite, SiteLink as Link } from "@/components/public/PublicSiteContent";
 import React from "react";
 

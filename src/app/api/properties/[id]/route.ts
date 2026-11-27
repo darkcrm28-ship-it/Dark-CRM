@@ -26,10 +26,18 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const current = property.customData && typeof property.customData === "object" && !Array.isArray(property.customData)
       ? property.customData as Record<string, unknown>
       : {};
+    const previous = current.publicListing && typeof current.publicListing === "object"
+      ? current.publicListing as Record<string, unknown> : {};
+    const purpose = body.purpose ?? previous.purpose ?? "SALE";
+    const askingPrice = body.askingPrice === undefined ? previous.askingPrice ?? null : body.askingPrice;
+    if (!["SALE", "RENT"].includes(purpose) || (askingPrice !== null &&
+      (typeof askingPrice !== "number" || !Number.isFinite(askingPrice) || askingPrice <= 0 || askingPrice > 1e12))) {
+      return NextResponse.json({ error: "راجع نوع الإعلان والسعر العام" }, { status: 400 });
+    }
     const updated = await prisma.$transaction(async (tx) => {
       const propertyUpdate = await tx.property.update({
         where: { id },
-        data: { customData: { ...current, publicListing: { status: body.status, fields, reviewedBy: session.id, reviewedAt: new Date().toISOString() } } as Prisma.InputJsonValue },
+        data: { customData: { ...current, publicListing: { status: body.status, fields, purpose, askingPrice, reviewedBy: session.id, reviewedAt: new Date().toISOString() } } as Prisma.InputJsonValue },
         select: { id: true },
       });
       await tx.auditLog.create({ data: {

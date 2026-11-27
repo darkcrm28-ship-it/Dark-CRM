@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPublicSiteContent } from "@/lib/public-site";
+import { portalMemberId } from "@/lib/portal-member";
 import { prisma } from "@/lib/db";
 import { normalizeEgyptianPhone, normalizeDate } from "@/lib/excel-normalizer";
 
@@ -153,6 +154,9 @@ export async function POST(request: NextRequest) {
         ? propertyId.trim().slice(0, 64)
         : null;
 
+    const memberId = await portalMemberId();
+    const rawKey = (rawBody as Record<string, unknown>).requestKey;
+    const requestKey = typeof rawKey === "string" && /^[a-z0-9-]{36}$/i.test(rawKey) ? rawKey : null;
     const titlesMap: Record<string, string> = {
       CONSULTATION: "حجز استشارة عقارية",
       VIEWING: "طلب معاينة وحدة",
@@ -167,6 +171,16 @@ export async function POST(request: NextRequest) {
       async (tx) => {
         // Serialize the rate check and WEB code allocation in the same transaction.
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(${WEB_SEQUENCE_LOCK}::bigint);`;
+        if (requestKey) {
+          const existing = await tx.customer.findFirst({ where: { phone: phoneNorm.phone,
+            customData: { path: ["requestKey"], equals: requestKey } }, select: { id: true } });
+          if (existing) return { customerId: existing.id };
+        }
+        if (inquiryType === "VIEWING" && propertyIdStr) {
+          const available = await tx.property.findFirst({ where: { id: propertyIdStr, status: "AVAILABLE",
+            customData: { path: ["publicListing", "status"], equals: "APPROVED" } }, select: { id: true } });
+          if (!available) return { unavailable: true };
+        }
         // Rate limit: count recent inquiries for the same normalized phone in the
         // window. Counting via the Customer table (createdAt) is portable across
         // runtimes and avoids unreliable in-memory counters on Cloudflare.
@@ -217,6 +231,8 @@ export async function POST(request: NextRequest) {
             customData: {
               inquiryType: String(inquiryType).slice(0, 40),
               propertyId: propertyIdStr,
+              ...(memberId ? { portalMemberId: memberId } : {}),
+              ...(requestKey ? { requestKey } : {}),
               submittedAt: new Date().toISOString(),
               requestedAction: typeTitle,
               notes: notesStr || null,
@@ -269,6 +285,7 @@ export async function POST(request: NextRequest) {
       { maxWait: 5000, timeout: 15000 }
     );
 
+    if (result.unavailable) return NextResponse.json({ error: "هذه الوحدة لم تعد متاحة للمعاينة." }, { status: 409 });
     if (result.__rateLimited) {
       return NextResponse.json(
         { error: "تم إرسال طلبات كثيرة مؤخراً. يرجى المحاولة بعد دقيقة." },

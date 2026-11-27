@@ -3,6 +3,9 @@ export const SITE_PAGES = {
   properties: { title: "الكتالوج العقاري", path: "/properties" },
   portfolio: { title: "البورتفوليو", path: "/portfolio" },
   sell: { title: "اعرض وحدتك", path: "/sell" },
+  finishes: { title: "التشطيبات", path: "/guides/finishes" },
+  decor: { title: "الديكور", path: "/guides/decor" },
+  news: { title: "أخبار دارك", path: "/guides/news" },
   contact: { title: "الاتصال", path: "/contact" },
 } as const;
 
@@ -18,11 +21,11 @@ export type SiteContent = {
 };
 
 export const SITE_CONTENT_KEYS: SiteContentKey[] = [
-  "home", "properties", "portfolio", "sell", "contact", "shared",
+  "home", "properties", "portfolio", "sell", "contact", "finishes", "decor", "news", "shared",
 ];
 
 export const DEFAULT_VISIBILITY: SiteVisibility = {
-  home: true, properties: true, portfolio: true, sell: true, contact: true,
+  finishes: true, decor: true, news: true, home: true, properties: true, portfolio: true, sell: true, contact: true,
 };
 
 export function isSiteContentKey(value: unknown): value is SiteContentKey {

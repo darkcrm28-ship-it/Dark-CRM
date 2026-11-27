@@ -1,0 +1,16 @@
+{
+  "id": "/?app=darak",
+  "name": "DARAK العقارية",
+  "short_name": "DARAK",
+  "lang": "ar",
+  "dir": "rtl",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#faf8f2",
+  "theme_color": "#364e3d",
+  "icons": [
+    { "src": "/images/darak-icon-192.webp", "type": "image/webp", "sizes": "192x192" },
+    { "src": "/images/darak-brand.webp", "type": "image/webp", "sizes": "512x512" }
+  ]
+}

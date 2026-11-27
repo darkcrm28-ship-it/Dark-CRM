@@ -2,7 +2,6 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 import PWAManager from "@/components/PWAManager";
-import ChatBot from "@/components/ChatBot";
 
 export const metadata: Metadata = {
   title: "دارك للاستثمار والتسويق العقاري | CRM",
@@ -23,7 +22,6 @@ export default function RootLayout({
     <html lang="ar" dir="rtl">
       <body>
         <PWAManager />
-        <ChatBot />
         {children}
       </body>
     </html>

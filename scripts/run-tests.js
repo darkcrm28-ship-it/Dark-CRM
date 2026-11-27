@@ -63,7 +63,10 @@ if (!dbUrl) {
   process.exit(1);
 }
 
-const pool = new Pool({ connectionString: dbUrl });
+// Match the application adapter when the guarded test target is local PostgreSQL.
+const localTarget = ["localhost", "127.0.0.1", "[::1]"].includes(new URL(dbUrl).hostname);
+const TestPool = localTarget ? require("pg").Pool : Pool;
+const pool = new TestPool({ connectionString: dbUrl });
 
 // ─── Password hashing (bcrypt) ────────────────────────────────────────────────
 const bcrypt = require("bcryptjs");
@@ -517,7 +520,7 @@ async function main() {
     );
     assert("failJob reports ok for retry", retryResult.ok === true);
     assert("failJob reports non-final for first failure", retryResult.final === false);
-    const retried = await pool.query(`SELECT status, "runAt" FROM "JobQueue" WHERE id=$1`, [retry.id]);
+    const retried = await pool.query(`SELECT status, ("runAt" AT TIME ZONE 'UTC') AS "runAt" FROM "JobQueue" WHERE id=$1`, [retry.id]);
     assert("failJob sets PENDING when not final", retried.rows[0].status === "PENDING");
     assert("failJob schedules future runAt", new Date(retried.rows[0].runAt).getTime() > Date.now());
 

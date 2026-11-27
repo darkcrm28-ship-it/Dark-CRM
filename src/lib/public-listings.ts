@@ -1,5 +1,6 @@
+import { matchPublicArea } from "./public-areas";
 import { prisma } from "@/lib/db";
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { readPublicCache } from "@/lib/public-read-cache";
 
 const PUBLISHABLE_FIELDS = [
@@ -12,6 +13,8 @@ type PublishableField = (typeof PUBLISHABLE_FIELDS)[number];
 export type PublicListingDto = {
   id: string;
   status: "AVAILABLE";
+  purpose: "SALE" | "RENT";
+  price: number | null;
   title?: string | null;
   projectName?: string | null;
   zone?: string | null;
@@ -53,12 +56,14 @@ async function readApprovedListings(where: Prisma.PropertyWhereInput, limit: num
       : {};
     const listing = customData.publicListing;
     if (!listing || typeof listing !== "object" || Array.isArray(listing)) return [];
-    const publication = listing as { status?: unknown; fields?: unknown };
+    const publication = listing as { status?: unknown; fields?: unknown; purpose?: unknown; askingPrice?: unknown };
     if (publication.status !== "APPROVED" || !Array.isArray(publication.fields)) return [];
     const fields = new Set(publication.fields.filter((field): field is PublishableField =>
       typeof field === "string" && (PUBLISHABLE_FIELDS as readonly string[]).includes(field)
     ));
-    const dto: PublicListingDto = { id: property.id, status: "AVAILABLE" };
+    const dto: PublicListingDto = { id: property.id, status: "AVAILABLE",
+      purpose: publication.purpose === "RENT" ? "RENT" : "SALE",
+      price: typeof publication.askingPrice === "number" && publication.askingPrice > 0 ? publication.askingPrice : null };
     const approvedValues: Partial<Record<PublishableField, string | number | null>> = {};
     for (const field of fields) approvedValues[field] = property[field] as never;
     Object.assign(dto, approvedValues);
@@ -79,18 +84,31 @@ export function getApprovedPublicListing(id: string) {
   });
 }
 
-export async function getPublicCatalogPage(params = new URLSearchParams()) {
-  const page = Math.min(10000, Math.max(1, Number.parseInt(params.get("page") || "", 10) || 1));
-  const pageSize = 8;
+function catalogFilters(params: URLSearchParams) {
   const q = params.get("q")?.trim().slice(0, 120);
   const type = params.get("type")?.slice(0, 60);
   const zone = params.get("zone")?.slice(0, 120);
   const rooms = params.get("rooms");
   const filters: Prisma.PropertyWhereInput[] = [approvedListing];
 
+  const purpose = params.get("purpose");
+  if (purpose === "RENT") filters.push({ customData: { path: ["publicListing", "purpose"], equals: "RENT" } });
+  if (purpose === "SALE") {
+    // Listings published before rental support belonged to the sales catalog.
+    filters.push({ OR: [
+      { customData: { path: ["publicListing", "purpose"], equals: "SALE" } },
+      { customData: { path: ["publicListing", "purpose"], equals: Prisma.AnyNull } },
+    ] });
+  }
+  const budget = Number(params.get("budget"));
+  if (Number.isFinite(budget) && budget > 0 && (purpose === "SALE" || purpose === "RENT")) {
+    filters.push({ customData: { path: ["publicListing", "askingPrice"], gt: 0, lte: budget } });
+  }
   if (q) {
+    const area = matchPublicArea(q);
+    const terms = area ? Array.from(new Set([q, area.ar, area.en, ...area.aliases])) : [q];
     filters.push({ OR: (["title", "projectName", "zone"] as const).map((field) => ({
-      AND: [fieldIsPublished(field), { [field]: { contains: q, mode: "insensitive" as const } }],
+      AND: [fieldIsPublished(field), { OR: terms.map(term => ({ [field]: { contains: term, mode: "insensitive" as const } })) }],
     })) });
   }
   if (type) filters.push(fieldIsPublished("unitType"), { unitType: { contains: type, mode: "insensitive" } });
@@ -98,6 +116,22 @@ export async function getPublicCatalogPage(params = new URLSearchParams()) {
   if (rooms && /^[1-5]$/.test(rooms)) filters.push(fieldIsPublished("bedrooms"), { bedrooms: Number(rooms) });
   if (rooms === "5+") filters.push(fieldIsPublished("bedrooms"), { bedrooms: { gte: 5 } });
 
+  return filters;
+}
+
+export async function getPortalListings(favorites: string[], searches: string[], since: Date | null) {
+  const saved = favorites.length ? readApprovedListings({ AND: [approvedListing, { id: { in: favorites } }] }, 50) : [];
+  const alerts = since && searches.length ? readApprovedListings({ AND: [
+    { updatedAt: { gt: since } },
+    { OR: searches.map(query => ({ AND: catalogFilters(new URLSearchParams(query)) })) },
+  ] }, 20) : [];
+  return Promise.all([saved, alerts]);
+}
+
+export async function getPublicCatalogPage(params = new URLSearchParams()) {
+  const page = Math.min(10000, Math.max(1, Number.parseInt(params.get("page") || "", 10) || 1));
+  const pageSize = 8;
+  const filters = catalogFilters(params);
   const where = { AND: filters };
   const load = async () => {
     const [properties, total] = await Promise.all([

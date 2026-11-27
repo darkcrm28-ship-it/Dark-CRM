@@ -3,19 +3,20 @@
 import { useSiteText, usePublicSite, publicWhatsAppLink, SiteLink as Link } from "@/components/public/PublicSiteContent";
 import React, { useState } from "react";
 
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   Calendar,
   MessageCircle,
   Menu,
   X,
 } from "lucide-react";
-import DarakLogo from "./DarakLogo";
+import DarakMark from "./DarakMark";
 import MobileBottomNav from "./MobileBottomNav";
 
 export default function PublicHeader() {
   const text = useSiteText(true);
-  const { contact, canView } = usePublicSite();
+  const { contact, canView, locale } = usePublicSite();
+  const router = useRouter();
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -29,11 +30,11 @@ export default function PublicHeader() {
   ];
 
   return (
-    <header className="public-header-navbar">
+    <><header className="public-header-navbar">
       <div className="portal-container nav-inner-wrap">
         {/* Brand with Transparent Custom Logo */}
         <Link href={["/", "/properties", "/portfolio", "/sell", "/contact"].find(canView) ?? "/login"} className="public-brand-link">
-          <DarakLogo size={38} />
+          <DarakMark animated={pathname === "/"} className="darak-header-mark" />
           <div className="brand-titles">
             <div className="brand-primary-name">
               <span className="gold-shimmer-text">{text("header.text1")}</span> {text("header.text2")}</div>
@@ -59,12 +60,17 @@ export default function PublicHeader() {
 
         {/* Actions CTA: Sized identically to tabs */}
         <div className="public-header-actions">
+          <Link href="/client-portal" className="darak-language">{locale === "en" ? "My account" : "حسابي"}</Link>
+          <button className="darak-language" type="button" lang={locale === "ar" ? "en" : "ar"} onClick={() => {
+            document.cookie = `darak-language=${locale === "ar" ? "en" : "ar"}; Path=/; Max-Age=31536000; SameSite=Lax`;
+            router.refresh();
+          }}>{locale === "ar" ? "English" : "العربية"}</button>
           <Link href="/contact" className="btn-header-consultation">
             <Calendar size={14} />
             <span>{text("header.text4")}</span>
           </Link>
 
-          <a
+          {contact["details.whatsapp"] && <a
             href={publicWhatsAppLink(contact["details.whatsapp"] ?? "", contact["details.whatsappMessage"] ?? "")}
             target="_blank"
             rel="noopener noreferrer"
@@ -73,7 +79,7 @@ export default function PublicHeader() {
           >
             <MessageCircle size={15} />
             <span>{text("header.text6")}</span>
-          </a>
+          </a>}
 
           {/* Mobile Menu Button */}
           <button
@@ -115,7 +121,6 @@ export default function PublicHeader() {
       )}
 
       {/* Modern Fixed Bottom Navigation Bar for Mobile */}
-      <MobileBottomNav />
-    </header>
+    </header><MobileBottomNav /></>
   );
 }
