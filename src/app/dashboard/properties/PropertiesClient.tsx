@@ -91,6 +91,7 @@ export default function PropertiesClient({
 
   // Publication field selector (replaces window.prompt)
   const [purpose, setPurpose] = useState("SALE");
+  const [deliveryMonth, setDeliveryMonth] = useState("");
   const [askingPrice, setAskingPrice] = useState("");
   const [showFieldSelector, setShowFieldSelector] = useState(false);
   const [selectedFields, setSelectedFields] = useState<string[]>([]);
@@ -258,13 +259,14 @@ export default function PropertiesClient({
 
     // If currently PENDING or APPROVED, use the existing status-change flow
     if (current.status === "PENDING" && isGeneralManager) {
-      status = confirm(`اعتماد نشر الوحدة • ${current.purpose === "RENT" ? "إيجار شهري" : "بيع"} • ${current.askingPrice ?? "السعر عند الطلب"}؟`) ? "APPROVED" : "REJECTED";
+      status = confirm(`اعتماد نشر الوحدة • ${current.purpose === "RENT" ? "إيجار شهري" : "بيع"} • ${current.askingPrice ?? "السعر عند الطلب"} • الاستلام: ${current.deliveryMonth || "غير محدد"}؟`) ? "APPROVED" : "REJECTED";
     } else if (current.status === "APPROVED") {
       if (!isGeneralManager) return;
       status = "PENDING";
     } else {
       // Show field selection UI instead of prompt
       setPurpose(current.purpose === "RENT" ? "RENT" : "SALE");
+      setDeliveryMonth(current.deliveryMonth || "");
       setAskingPrice(current.askingPrice == null ? "" : String(current.askingPrice));
       setPendingPublicationProperty(property);
       setSelectedFields(Array.isArray(current.fields) ? current.fields : []);
@@ -294,7 +296,7 @@ export default function PropertiesClient({
       const response = await fetch(`/api/properties/${property.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status, fields: selectedFields, purpose, askingPrice: askingPrice.trim() ? Number(askingPrice) : null }),
+        body: JSON.stringify({ status, fields: selectedFields, purpose, deliveryMonth: deliveryMonth || null, askingPrice: askingPrice.trim() ? Number(askingPrice) : null }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "تعذر تحديث حالة النشر");
@@ -837,6 +839,7 @@ export default function PropertiesClient({
               <h3 className="text-xl font-bold mb-4">اختيار الحقول العامة</h3>
               <div className="space-y-3">
                 <label>غرض الإعلان<select value={purpose} onChange={e => setPurpose(e.target.value)}><option value="SALE">بيع</option><option value="RENT">إيجار شهري</option></select></label>
+                <label>شهر الاستلام المنشور (اختياري)<input type="month" value={deliveryMonth} onChange={e => setDeliveryMonth(e.target.value)} /></label>
                 <label>{purpose === "RENT" ? "الإيجار الشهري المنشور بالجنيه" : "سعر البيع المنشور بالجنيه"}<input type="number" min="1" max="1000000000000" placeholder="السعر عند الطلب" value={askingPrice} onChange={e => setAskingPrice(e.target.value)} /></label>
                 {PUBLISHABLE_FIELDS.map((field) => (
                   <div key={field.key} className="flex items-center gap-2">

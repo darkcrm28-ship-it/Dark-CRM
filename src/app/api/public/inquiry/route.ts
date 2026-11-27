@@ -173,8 +173,8 @@ export async function POST(request: NextRequest) {
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(${WEB_SEQUENCE_LOCK}::bigint);`;
         if (requestKey) {
           const existing = await tx.customer.findFirst({ where: { phone: phoneNorm.phone,
-            customData: { path: ["requestKey"], equals: requestKey } }, select: { id: true } });
-          if (existing) return { customerId: existing.id };
+            customData: { path: ["requestKey"], equals: requestKey } }, select: { id: true, code: true } });
+          if (existing) return { customerId: existing.id, reference: existing.code };
         }
         if (inquiryType === "VIEWING" && propertyIdStr) {
           const available = await tx.property.findFirst({ where: { id: propertyIdStr, status: "AVAILABLE",
@@ -280,7 +280,7 @@ export async function POST(request: NextRequest) {
           )
         );
 
-        return { customerId: customer.id, rateLimited: false as const };
+        return { customerId: customer.id, reference: customer.code, rateLimited: false as const };
       },
       { maxWait: 5000, timeout: 15000 }
     );
@@ -297,6 +297,7 @@ export async function POST(request: NextRequest) {
       success: true,
       message: "تم استلام طلبكم بنجاح! سيتواصل معكم أحد مستشارينا المعتمدين خلال دقائق.",
       customerId: result.customerId,
+      reference: result.reference,
     });
   } catch (error: any) {
     console.error("Public Inquiry Error:", error?.message || error);

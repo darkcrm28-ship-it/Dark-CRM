@@ -76,6 +76,11 @@ export default function PublicPropertiesClient({
   const [purpose, setPurpose] = useState(initial.get("purpose") || "");
   const [budget, setBudget] = useState(initial.get("budget") || "");
 
+  const [minSize, setMinSize] = useState(initial.get("minSize") || "");
+  const [finishing, setFinishing] = useState(initial.get("finishing") || "");
+  const [deliveryMonth, setDeliveryMonth] = useState(initial.get("deliveryMonth") || "");
+  const [sort, setSort] = useState(initial.get("sort") || "");
+
   const [saved, setSaved] = useState<string[]>([]);
   useEffect(() => {
     try {
@@ -95,7 +100,7 @@ export default function PublicPropertiesClient({
   const [inquiryPhone, setInquiryPhone] = useState("");
   const requestKey = useRef("");
   const [submitting, setSubmitting] = useState(false);
-  const [submitSuccess, setSubmitSuccess] = useState(false);
+  const [reference, setReference] = useState("");
   const [submitError, setSubmitError] = useState("");
 
   const [catalog, setCatalog] = useState(initialCatalog);
@@ -135,6 +140,10 @@ export default function PublicPropertiesClient({
   const applySearch = (event: React.FormEvent) => {
     event.preventDefault();
     const params = new URLSearchParams();
+    if (minSize) params.set("minSize", minSize);
+    if (finishing) params.set("finishing", finishing);
+    if (deliveryMonth) params.set("deliveryMonth", deliveryMonth);
+    if (sort && purpose) params.set("sort", sort);
     if (purpose) params.set("purpose", purpose);
     if (purpose && Number(budget) > 0) params.set("budget", budget);
     if (searchQuery.trim()) params.set("q", searchQuery.trim());
@@ -148,6 +157,10 @@ export default function PublicPropertiesClient({
     setSearchQuery("");
     setPurpose("");
     setBudget("");
+    setMinSize("");
+    setFinishing("");
+    setDeliveryMonth("");
+    setSort("");
     setSelectedUnitType("الكل");
     setSelectedBedrooms("الكل");
     setSelectedZone("الكل");
@@ -159,7 +172,7 @@ export default function PublicPropertiesClient({
     setSelectedUnit(unit);
     setInquiryName("");
     setInquiryPhone("");
-    setSubmitSuccess(false);
+    setReference("");
     setSubmitError("");
     setModalOpen(true);
   };
@@ -187,10 +200,7 @@ export default function PublicPropertiesClient({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || text("header.text2"));
 
-      setSubmitSuccess(true);
-      setTimeout(() => {
-        setModalOpen(false);
-      }, 3000);
+      setReference(data.reference);
     } catch (err: any) {
       setSubmitError(err.message || text("header.text3"));
     } finally {
@@ -275,6 +285,25 @@ export default function PublicPropertiesClient({
                 <option value="">{en ? "All" : "الكل"}</option><option value="SALE">{en ? "Buy" : "شراء"}</option><option value="RENT">{en ? "Rent" : "إيجار"}</option>
               </select>
             </label>
+            <label className="filter-select-wrap">{en ? "Minimum area (m²)" : "أقل مساحة (م²)"}
+              <input type="number" className="catalog-select" min="0" step="any" value={minSize} onChange={e => setMinSize(e.target.value)} />
+            </label>
+            <label className="filter-select-wrap">{en ? "Finishing" : "التشطيب"}
+              <select className="catalog-select" value={finishing} onChange={e => setFinishing(e.target.value)}>
+                <option value="">{en ? "All" : "الكل"}</option>
+                {[["خام", "Unfinished"], ["نصف تشطيب", "Semi-finished"], ["تشطيب كامل", "Fully finished"], ["سوبر لوكس", "Super lux"], ["ألترا سوبر لوكس", "Ultra super lux"]].map(([ar, label]) => <option key={ar} value={ar}>{en ? label : ar}</option>)}
+              </select>
+            </label>
+            <label className="filter-select-wrap">{en ? "Handover month" : "شهر الاستلام"}
+              <input type="month" className="catalog-select" value={deliveryMonth} onChange={e => setDeliveryMonth(e.target.value)} />
+            </label>
+            {purpose && <label className="filter-select-wrap">{en ? "Sort by" : "الترتيب"}
+              <select className="catalog-select" value={sort} onChange={e => setSort(e.target.value)}>
+                <option value="">{en ? "Newest" : "الأحدث"}</option>
+                <option value="asc">{en ? "Lowest price" : "الأقل سعرًا"}</option>
+                <option value="desc">{en ? "Highest price" : "الأعلى سعرًا"}</option>
+              </select>
+            </label>}
             {purpose && <label className="filter-select-wrap">{purpose === "RENT" ? (en ? "Maximum monthly rent (EGP)" : "أقصى إيجار شهري بالجنيه") : (en ? "Maximum total price (EGP)" : "أقصى سعر إجمالي بالجنيه")}
               <input className="catalog-select" type="number" min="1" value={budget} onChange={e => setBudget(e.target.value)} />
             </label>}
@@ -507,10 +536,10 @@ export default function PublicPropertiesClient({
               </div>
             </div>
 
-            {submitSuccess && (
+            {reference && (
               <div className="form-alert-success mb-4 p-3">
                 <CheckCircle2 size={18} className="shrink-0" />
-                <div className="text-xs">{text("viewing.text5")}</div>
+                <div role="status" className="text-xs">{text("viewing.text5")} {en ? "Reference" : "رقم الطلب"} <bdi>{reference}</bdi></div>
               </div>
             )}
 
@@ -521,7 +550,7 @@ export default function PublicPropertiesClient({
               </div>
             )}
 
-            <form onSubmit={handleInquirySubmit} className="portal-quick-form">
+            {!reference && <form onSubmit={handleInquirySubmit} className="portal-quick-form">
               <div className="form-field">
                 <label>{text("viewing.text6")}</label>
                 <input
@@ -554,7 +583,7 @@ export default function PublicPropertiesClient({
               >
                 {submitting ? text("viewing.text10") : text("viewing.text11")}
               </button>
-            </form>
+            </form>}
           </div>
         </div>
       )}

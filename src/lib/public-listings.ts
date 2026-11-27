@@ -15,6 +15,7 @@ export type PublicListingDto = {
   status: "AVAILABLE";
   purpose: "SALE" | "RENT";
   price: number | null;
+  deliveryMonth?: string;
   title?: string | null;
   projectName?: string | null;
   zone?: string | null;
@@ -37,10 +38,10 @@ function fieldIsPublished(field: PublishableField): Prisma.PropertyWhereInput {
 }
 
 /** Public output is an allowlisted DTO. CRM fields are never spread into it. */
-async function readApprovedListings(where: Prisma.PropertyWhereInput, limit: number, skip = 0) {
+async function readApprovedListings(where: Prisma.PropertyWhereInput, limit: number, skip = 0, priceOrder?: "asc" | "desc") {
   const properties = await prisma.property.findMany({
     where,
-    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    orderBy: [...(priceOrder ? [{ publicAskingPrice: { sort: priceOrder, nulls: "last" as const } }] : []), { createdAt: "desc" }, { id: "desc" }],
     take: limit,
     skip,
     select: {
@@ -56,7 +57,7 @@ async function readApprovedListings(where: Prisma.PropertyWhereInput, limit: num
       : {};
     const listing = customData.publicListing;
     if (!listing || typeof listing !== "object" || Array.isArray(listing)) return [];
-    const publication = listing as { status?: unknown; fields?: unknown; purpose?: unknown; askingPrice?: unknown };
+    const publication = listing as { status?: unknown; fields?: unknown; purpose?: unknown; askingPrice?: unknown; deliveryMonth?: unknown };
     if (publication.status !== "APPROVED" || !Array.isArray(publication.fields)) return [];
     const fields = new Set(publication.fields.filter((field): field is PublishableField =>
       typeof field === "string" && (PUBLISHABLE_FIELDS as readonly string[]).includes(field)
@@ -64,6 +65,7 @@ async function readApprovedListings(where: Prisma.PropertyWhereInput, limit: num
     const dto: PublicListingDto = { id: property.id, status: "AVAILABLE",
       purpose: publication.purpose === "RENT" ? "RENT" : "SALE",
       price: typeof publication.askingPrice === "number" && publication.askingPrice > 0 ? publication.askingPrice : null };
+    if (typeof publication.deliveryMonth === "string") dto.deliveryMonth = publication.deliveryMonth;
     const approvedValues: Partial<Record<PublishableField, string | number | null>> = {};
     for (const field of fields) approvedValues[field] = property[field] as never;
     Object.assign(dto, approvedValues);
@@ -116,6 +118,14 @@ function catalogFilters(params: URLSearchParams) {
   if (rooms && /^[1-5]$/.test(rooms)) filters.push(fieldIsPublished("bedrooms"), { bedrooms: Number(rooms) });
   if (rooms === "5+") filters.push(fieldIsPublished("bedrooms"), { bedrooms: { gte: 5 } });
 
+  const minSize = Number(params.get("minSize"));
+  if (Number.isFinite(minSize) && minSize > 0) filters.push(fieldIsPublished("size"), { size: { gte: minSize } });
+  const finishing = params.get("finishing")?.trim().slice(0, 60);
+  if (finishing) filters.push(fieldIsPublished("finishing"), { finishing: { equals: finishing, mode: "insensitive" } });
+  const deliveryMonth = params.get("deliveryMonth");
+  if (deliveryMonth && /^\d{4}-(0[1-9]|1[0-2])$/.test(deliveryMonth)) {
+    filters.push({ customData: { path: ["publicListing", "deliveryMonth"], equals: deliveryMonth } });
+  }
   return filters;
 }
 
@@ -132,10 +142,13 @@ export async function getPublicCatalogPage(params = new URLSearchParams()) {
   const page = Math.min(10000, Math.max(1, Number.parseInt(params.get("page") || "", 10) || 1));
   const pageSize = 8;
   const filters = catalogFilters(params);
+  const sort = params.get("sort");
+  const purpose = params.get("purpose");
+  const priceOrder = (purpose === "SALE" || purpose === "RENT") && (sort === "asc" || sort === "desc") ? sort : undefined;
   const where = { AND: filters };
   const load = async () => {
     const [properties, total] = await Promise.all([
-      readApprovedListings(where, pageSize, (page - 1) * pageSize),
+      readApprovedListings(where, pageSize, (page - 1) * pageSize, priceOrder),
       prisma.property.count({ where }),
     ]);
     return { properties, total, page, pageSize };

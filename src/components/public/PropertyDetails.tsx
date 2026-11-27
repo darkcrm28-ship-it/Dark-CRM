@@ -13,6 +13,7 @@ export default function PropertyDetails({ property, images }: { property: Public
   const [shareStatus, setShareStatus] = useState("");
   const title = property.title || property.projectName || (en ? "Property" : "وحدة عقارية");
   const specs = [
+    [en ? "Handover month" : "شهر الاستلام", property.deliveryMonth],
     [en ? "Area" : "المساحة", property.size == null ? null : property.size + (en ? " m²" : " م²")],
     [en ? "Bedrooms" : "غرف النوم", property.bedrooms], [en ? "Bathrooms" : "الحمامات", property.bathrooms],
     [en ? "Finishing" : "التشطيب", property.finishing], [en ? "Type" : "النوع", property.unitType],

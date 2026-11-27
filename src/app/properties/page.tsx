@@ -13,7 +13,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
   const site = await getSitePageRender("properties");
   const query = await searchParams;
   const params = new URLSearchParams();
-  for (const key of ["q", "zone", "type", "rooms", "page", "purpose", "budget"]) {
+  for (const key of ["q", "zone", "type", "rooms", "page", "purpose", "budget", "minSize", "finishing", "deliveryMonth", "sort"]) {
     const value = query[key];
     if (typeof value === "string" && value.trim()) params.set(key, value.trim().slice(0, 120));
   }

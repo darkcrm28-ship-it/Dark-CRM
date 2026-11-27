@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
     if (typeof data.search !== "string" || data.search.length > 800) return new NextResponse(null, { status: 400 });
     const incoming = new URLSearchParams(data.search);
     const clean = new URLSearchParams();
-    for (const field of ["q", "purpose", "budget", "type", "zone", "rooms"]) {
+    for (const field of ["q", "purpose", "budget", "type", "zone", "rooms", "minSize", "finishing", "deliveryMonth", "sort"]) {
       const value = incoming.get(field)?.trim().slice(0,120);
       if (value) clean.set(field,value);
     }

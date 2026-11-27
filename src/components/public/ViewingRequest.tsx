@@ -7,11 +7,11 @@ export default function ViewingRequest({ id }: { id: string }) {
   const en = usePublicSite().locale === "en";
   const token = useRef("");
   const [pending, setPending] = useState(false);
-  const [sent, setSent] = useState(false);
+  const [reference, setReference] = useState("");
   const [error, setError] = useState("");
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (pending || sent) return;
+    if (pending || reference) return;
     const data = new FormData(event.currentTarget);
     token.current ||= crypto.randomUUID();
     setError("");
@@ -24,14 +24,14 @@ export default function ViewingRequest({ id }: { id: string }) {
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error);
-      setSent(true);
+      setReference(result.reference);
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : (en ? "Could not send request" : "تعذّر إرسال الطلب"));
     } finally { setPending(false); }
   }
   return <section id="viewing" className="darak-viewing">
     <h2>{en ? "Request a viewing" : "اطلب معاينة"}</h2>
-    {sent ? <p role="status">{en ? "Your request is with the DARAK team." : "تم تسجيل طلبك لدى فريق دارك."}</p> :
+    {reference ? <p role="status">{en ? "Your request is with the DARAK team." : "تم تسجيل طلبك لدى فريق دارك."} {en ? "Reference" : "رقم الطلب"} <bdi>{reference}</bdi></p> :
       <form onSubmit={submit}>
         <label>{en ? "Full name" : "الاسم بالكامل"}<input name="name" autoComplete="name" required minLength={2} maxLength={100} /></label>
         <label>{en ? "Phone" : "رقم الهاتف"}<input name="phone" type="tel" autoComplete="tel" required /></label>

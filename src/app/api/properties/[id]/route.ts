@@ -29,6 +29,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const previous = current.publicListing && typeof current.publicListing === "object"
       ? current.publicListing as Record<string, unknown> : {};
     const purpose = body.purpose ?? previous.purpose ?? "SALE";
+    const deliveryMonth = body.deliveryMonth === undefined ? previous.deliveryMonth ?? null : body.deliveryMonth;
+    if (deliveryMonth !== null && (typeof deliveryMonth !== "string" || !/^\d{4}-(0[1-9]|1[0-2])$/.test(deliveryMonth))) {
+      return NextResponse.json({ error: "راجع شهر الاستلام" }, { status: 400 });
+    }
     const askingPrice = body.askingPrice === undefined ? previous.askingPrice ?? null : body.askingPrice;
     if (!["SALE", "RENT"].includes(purpose) || (askingPrice !== null &&
       (typeof askingPrice !== "number" || !Number.isFinite(askingPrice) || askingPrice <= 0 || askingPrice > 1e12))) {
@@ -37,7 +41,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const updated = await prisma.$transaction(async (tx) => {
       const propertyUpdate = await tx.property.update({
         where: { id },
-        data: { customData: { ...current, publicListing: { status: body.status, fields, purpose, askingPrice, reviewedBy: session.id, reviewedAt: new Date().toISOString() } } as Prisma.InputJsonValue },
+        data: { publicAskingPrice: typeof askingPrice === "number" ? askingPrice : null, customData: { ...current, publicListing: { status: body.status, fields, purpose, askingPrice, deliveryMonth, reviewedBy: session.id, reviewedAt: new Date().toISOString() } } as Prisma.InputJsonValue },
         select: { id: true },
       });
       await tx.auditLog.create({ data: {

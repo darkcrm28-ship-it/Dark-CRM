@@ -146,6 +146,7 @@ model Customer {
 }
 
 model Property {
+  publicAskingPrice              Float?
   id                           String              @id @default(uuid())
   title                        String?
   projectName                  String?
