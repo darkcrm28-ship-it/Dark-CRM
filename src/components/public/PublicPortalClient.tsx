@@ -18,6 +18,7 @@ import {
   ChevronRight,
   Compass,
 } from "lucide-react";
+import SearchAssistant from "./SearchAssistant";
 import HomeCarousel from "./HomeCarousel";
 import PaymentEstimate from "./PaymentEstimate";
 import PublicHeader from "./PublicHeader";
@@ -117,6 +118,8 @@ export default function PublicPortalClient({
               <ChevronRight size={16} />
             </button>
           </form>}
+
+          {visibility.properties && <SearchAssistant en={locale === "en"} />}
 
           {/* Quick Action Navigation Buttons */}
           <div className="hero-actions-row">

@@ -4,7 +4,22 @@ import PropertyDetails from "@/components/public/PropertyDetails";
 import { PublicSiteContent } from "@/components/public/PublicSiteContent";
 import { getSitePageRender } from "@/lib/public-site";
 
-export const metadata = { manifest: "/property-portal.webmanifest" };
+export async function generateMetadata({ params }: { params:Promise<{id:string}> }) {
+  const {id} = await params;
+  const site = await getSitePageRender("properties");
+  const listing = await getApprovedPublicListing(id);
+  if (!listing) return { robots:{index:false,follow:false} };
+  const title = listing.title || listing.projectName || (site.locale === "en" ? "Property at DARAK" : "عقار لدى دارك");
+  const url = "https://darak-eg.pages.dev/properties/" + encodeURIComponent(id);
+  let images: string[] = [];
+  if (listing.images) {
+    try { const parsed = JSON.parse(listing.images); images = Array.isArray(parsed) ? parsed : [parsed]; }
+    catch { images = [listing.images]; }
+  }
+  const cover = images.find(image=>typeof image === "string" && /^https:\/\//i.test(image));
+  return { title, description:listing.description || undefined, manifest:"/property-portal.webmanifest",
+    alternates:{canonical:url},openGraph:{title,url,description:listing.description || undefined,images:cover?[cover]:[],siteName:"DARAK"} };
+}
 
 export const dynamic = "force-dynamic";
 

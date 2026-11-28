@@ -38,6 +38,10 @@ export default function PropertyDetails({ property, images }: { property: Public
           setShareStatus(response.ok ? (en ? "Saved to your favorites" : "تم الحفظ في المفضلة") : response.status === 401 ? (en ? "Sign in through My account to save favorites." : "ادخل من حسابي لحفظ المفضلة.") : (en ? "Could not save property." : "تعذّر حفظ الوحدة."));
         } catch { setShareStatus(en ? "Check your connection." : "راجع اتصال الإنترنت."); }
       }}>{en ? "Save to favorites" : "حفظ في المفضلة"}</button>
+      <details className="darak-share-links"><summary>{en ? "Share on social media" : "مشاركة على السوشيال"}</summary>
+        {Object.entries({Facebook:"https://www.facebook.com/sharer/sharer.php?u=",LinkedIn:"https://www.linkedin.com/sharing/share-offsite/?url=",WhatsApp:"https://wa.me/?text="}).map(([name,base])=>
+          <a key={name} rel="noopener noreferrer" target="_blank" href={base+encodeURIComponent("https://darak-eg.pages.dev/properties/"+property.id)}>{name}</a>)}
+      </details>
       <span role="status">{shareStatus}</span>
       {images.length > 0 && <figure>
         <img className="darak-property-photo" src={images[photo]} alt={title + " " + (photo + 1)} />

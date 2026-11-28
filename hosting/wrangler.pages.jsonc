@@ -1,0 +1,6 @@
+{
+  "name": "darak-eg",
+  "pages_build_output_dir": "./pages",
+  "compatibility_date": "2025-11-01",
+  "services": [{ "binding": "DARAK", "service": "dark-crm" }]
+}

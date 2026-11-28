@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import DeviceAlerts from "./DeviceAlerts";
 import { useRouter } from "next/navigation";
 import { usePublicSite } from "@/components/public/PublicSiteContent";
 
@@ -35,6 +36,7 @@ export default function Account({member,requests,search,favorites,alerts,alertsE
       <button disabled={busy} onClick={()=>submit(alertsEnabled ? "alerts-off" : "alerts-on")}>{alertsEnabled ? (en ? "Turn off updates" : "إيقاف التنبيهات") : (en ? "Show new matches here" : "عرض الوحدات المطابقة الجديدة هنا")}</button>
       {alertsEnabled && <ul>{alerts.map(p=><li key={p.id}><a href={"/properties/"+p.id}>{p.title}</a></li>)}</ul>}
       {alerts.length > 0 && <button disabled={busy} onClick={()=>submit("alerts-read")}>{en ? "Mark as read" : "تحديد كمقروء"}</button>}
+      <DeviceAlerts en={en} />
       <h2>{en ? "Submitted requests" : "الطلبات المسجّلة"}</h2>
       {requests.length ? <ul>{requests.map((r,i)=><li key={r.code ?? i}>{r.code} · {r.date}</li>)}</ul> : <p>{en ? "No requests yet." : "لا توجد طلبات حتى الآن."}</p>}
     </> : <section className="darak-viewing"><form onSubmit={e=>{

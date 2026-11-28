@@ -834,6 +834,7 @@ model InventoryEvent {
 }
 
 model PortalMember {
+  pushDevices PortalPushDevice[]
   id            String   @id @default(uuid())
   email         String   @unique
   passwordHash  String
@@ -841,4 +842,17 @@ model PortalMember {
   favorites     String[] @default([])
   alertsSince   DateTime?
   createdAt     DateTime @default(now())
+}
+
+model PortalPushDevice {
+  endpoint String @id
+  memberId String
+  p256dh String
+  auth String
+  since DateTime @default(now())
+  nextCheck DateTime @default(now())
+  member PortalMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([nextCheck])
+  @@index([memberId])
 }

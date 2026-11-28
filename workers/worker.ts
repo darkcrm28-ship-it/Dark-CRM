@@ -7,6 +7,7 @@ import openNextHandler from "../.open-next/worker.js";
 // @ts-ignore
 export { DOQueueHandler, DOShardedTagCache, BucketCachePurge } from "../.open-next/worker.js";
 
+import { deliverPortalAlerts } from "../src/lib/portal-push";
 import { runJobBatch } from "../src/lib/background-jobs";
 
 export interface ScheduledController {
@@ -77,7 +78,7 @@ const worker = {
       `[Cron Trigger] Fired at ${new Date(controller.scheduledTime).toISOString()} ` +
         `with pattern "${controller.cron}"`
     );
-    ctx.waitUntil(runScheduledJobs());
+    ctx.waitUntil(Promise.all([runScheduledJobs(), deliverPortalAlerts()]));
   },
 };
 
