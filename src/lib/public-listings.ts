@@ -1,3 +1,5 @@
+import { websiteDb } from "./website-db";
+import { websiteCatalog, readListing } from "./website-catalog";
 import { matchPublicArea } from "./public-areas";
 import { prisma } from "@/lib/db";
 import { Prisma } from "@prisma/client";
@@ -75,11 +77,23 @@ async function readApprovedListings(where: Prisma.PropertyWhereInput, limit: num
   return approved;
 }
 
-export function getApprovedPublicListings(limit = 24) {
+export async function crmPublicProjection(id: string) {
+  const [listing] = await readApprovedListings({ AND: [approvedListing, { id }] }, 1);
+  return listing ?? null;
+}
+
+export async function getApprovedPublicListings(limit = 24) {
+  const db = websiteDb();
+  if (db) return (await websiteCatalog(db,new URLSearchParams(),1,limit)).properties;
   return readPublicCache(`listings-${limit}`, () => readApprovedListings(approvedListing, limit));
 }
 
-export function getApprovedPublicListing(id: string) {
+export async function getApprovedPublicListing(id: string) {
+  const db = websiteDb();
+  if (db) {
+    const row = await db.prepare("SELECT public_json FROM public_listings WHERE source_version>0 AND crm_id=?").bind(id).first<{public_json:string}>();
+    return row ? readListing(row) : null;
+  }
   return readPublicCache(`property-${encodeURIComponent(id)}`, async () => {
     const [listing] = await readApprovedListings({ AND: [approvedListing, { id }] }, 1);
     return listing ?? null;
@@ -141,6 +155,8 @@ export async function getPortalListings(favorites: string[], searches: string[],
 export async function getPublicCatalogPage(params = new URLSearchParams()) {
   const page = Math.min(10000, Math.max(1, Number.parseInt(params.get("page") || "", 10) || 1));
   const pageSize = 8;
+  const db = websiteDb();
+  if (db) return websiteCatalog(db, params, page, pageSize);
   const filters = catalogFilters(params);
   const sort = params.get("sort");
   const purpose = params.get("purpose");
@@ -157,7 +173,9 @@ export async function getPublicCatalogPage(params = new URLSearchParams()) {
   return load();
 }
 
-export function getPublicCatalogZones() {
+export async function getPublicCatalogZones() {
+  const db = websiteDb();
+  if (db) return (await db.prepare("SELECT DISTINCT zone FROM public_listings WHERE source_version>0 AND trim(zone) <> '' ORDER BY zone").all<{zone:string}>()).results.map(row=>row.zone);
   return readPublicCache("catalog-zones", async () => {
     const rows = await prisma.$queryRaw<{ zone: string }[]>`
       SELECT DISTINCT zone FROM "Property"

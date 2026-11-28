@@ -1,3 +1,4 @@
+import { websiteDb } from "./website-db";
 import english from "./public-site-en.json";
 import { cookies } from "next/headers";
 import { cache } from "react";
@@ -24,7 +25,7 @@ const defaultCopy = Object.fromEntries(SITE_CONTENT_KEYS.map(key => [
   key, Object.fromEntries(siteCopyGroups[key].flatMap(group => group.fields.map(field => [field.key, field.value]))),
 ])) as Record<SiteContentKey, SiteCopy>;
 
-const SITE_CACHE_KEY = "site-content-v1";
+const SITE_CACHE_KEY = "site-content-d1-v1";
 const EMPTY_SITE_CONTENT: SiteContent = { enabled: true, revision: 0, overrides: {}, heroImage: "" };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -83,6 +84,24 @@ export function parseSiteContentUpdate(key: SiteContentKey, input: unknown): Sit
 }
 
 export async function readPublicSiteContent(): Promise<Record<SiteContentKey, SiteContent>> {
+  const content = Object.fromEntries(SITE_CONTENT_KEYS.map(key => [key, EMPTY_SITE_CONTENT])) as Record<SiteContentKey, SiteContent>;
+  const db = websiteDb();
+  if (db) {
+    const ready = await db.prepare("SELECT key FROM site_settings WHERE key='content_import_complete'").first();
+    if (!ready) throw new Error("Website content import has not finished");
+    const rows = await db.prepare("SELECT slug,content_json FROM site_pages WHERE locale='ar'").all<{slug:string;content_json:string}>();
+    for (const row of rows.results) {
+      if (!isSiteContentKey(row.slug)) continue;
+      const page = parseSiteContentUpdate(row.slug,JSON.parse(row.content_json));
+      if (!page) throw new Error("Invalid website page data");
+      content[row.slug] = page;
+    }
+    return content;
+  }
+  return readCrmSiteContent();
+}
+
+export async function readCrmSiteContent() {
   const content = Object.fromEntries(SITE_CONTENT_KEYS.map(key => [key, EMPTY_SITE_CONTENT])) as Record<SiteContentKey, SiteContent>;
   const rows = await prisma.publicSitePage.findMany({
     where: { key: { in: SITE_CONTENT_KEYS } },

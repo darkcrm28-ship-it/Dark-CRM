@@ -856,3 +856,9 @@ model PortalPushDevice {
   @@index([nextCheck])
   @@index([memberId])
 }
+
+model WebsitePublicationQueue {
+  propertyId String @id
+  version BigInt @default(autoincrement())
+  @@index([version])
+}

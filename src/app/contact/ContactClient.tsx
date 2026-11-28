@@ -34,12 +34,14 @@ export default function ContactClient() {
     notes: "",
   });
 
+  const requestKey = React.useRef("");
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    requestKey.current ||= crypto.randomUUID();
     setLoading(true);
     setError("");
     setSuccess(false);
@@ -49,6 +51,7 @@ export default function ContactClient() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          requestKey: requestKey.current,
           inquiryType: formData.serviceType,
           name: formData.name.trim(),
           phone: formData.phone.trim(),
@@ -62,6 +65,7 @@ export default function ContactClient() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || text("hero.text1"));
 
+      requestKey.current = "";
       setSuccess(true);
       setFormData({
         name: "",

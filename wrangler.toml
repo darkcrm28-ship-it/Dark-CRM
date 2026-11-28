@@ -31,3 +31,9 @@ persist = true
 enabled = false
 
 # Store sensitive variables as Cloudflare Secrets, not here.
+
+[[d1_databases]]
+binding = "WEBSITE_DB"
+database_name = "dark-website-db"
+database_id = "545669aa-00bb-4fcd-9382-2148ee78a670"
+migrations_dir = "d1/migrations"

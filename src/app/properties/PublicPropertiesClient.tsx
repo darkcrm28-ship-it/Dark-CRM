@@ -85,11 +85,11 @@ export default function PublicPropertiesClient({
   useEffect(() => {
     try {
       const ids: unknown = JSON.parse(localStorage.getItem("darak-comparison") || "[]");
-      if (Array.isArray(ids)) setSaved(ids.filter((id): id is string => typeof id === "string").slice(0,3));
+      if (Array.isArray(ids)) setSaved(ids.filter((id): id is string => typeof id === "string").slice(0, 4));
     } catch { /* Storage is optional. */ }
   }, []);
   function toggleSaved(id: string) {
-    const next = saved.includes(id) ? saved.filter(value => value !== id) : [...saved, id].slice(0,3);
+    const next = saved.includes(id) ? saved.filter(value => value !== id) : [...saved, id].slice(0, 4);
     setSaved(next);
     try { localStorage.setItem("darak-comparison", JSON.stringify(next)); } catch { /* In-memory selection remains available. */ }
   }
@@ -361,7 +361,7 @@ export default function PublicPropertiesClient({
             </div>
           </div>
         </form>
-        {saved.length > 0 && <Link className="darak-compare-link" href={"/properties/compare?ids=" + saved.join(",")}>{en ? "Compare selected properties" : "قارن الوحدات المختارة"} ({saved.length}/3)</Link>}
+        {saved.length > 0 && <Link className="darak-compare-link" href={"/properties/compare?ids=" + saved.join(",")}>{en ? "Compare selected properties" : "قارن الوحدات المختارة"} ({saved.length}/4)</Link>}
         {appliedFilters && <Link className="darak-compare-link" href={"/client-portal?search=" + encodeURIComponent(appliedFilters)}>{en ? "Save search to my account" : "حفظ البحث في حسابي"}</Link>}
         <AreaMap zones={zones} en={en} />
       </section>
@@ -458,7 +458,7 @@ export default function PublicPropertiesClient({
                     )}
                   </div>
 
-                  <button className="darak-save" aria-pressed={saved.includes(p.id)} disabled={!saved.includes(p.id) && saved.length >= 3} onClick={() => toggleSaved(p.id)}>
+                  <button className="darak-save" aria-pressed={saved.includes(p.id)} disabled={!saved.includes(p.id) && saved.length >= 4} onClick={() => toggleSaved(p.id)}>
                     {saved.includes(p.id) ? (en ? "Remove from comparison" : "إزالة من المقارنة") : (en ? "Save to compare" : "حفظ للمقارنة")}
                   </button>
                   {/* Actions Row */}

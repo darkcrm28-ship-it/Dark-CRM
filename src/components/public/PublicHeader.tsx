@@ -17,7 +17,7 @@ export default function PublicHeader() {
   const text = useSiteText(true);
   const { contact, canView, locale } = usePublicSite();
   const router = useRouter();
-  const pathname = usePathname();
+  const pathname = usePathname().replace(/^\/(?:ar|en)(?=\/|$)/,"") || "/";
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Equal-weight concise nav tabs
@@ -63,7 +63,7 @@ export default function PublicHeader() {
           <Link href="/client-portal" className="darak-language">{locale === "en" ? "My account" : "حسابي"}</Link>
           <button className="darak-language" type="button" lang={locale === "ar" ? "en" : "ar"} onClick={() => {
             document.cookie = `darak-language=${locale === "ar" ? "en" : "ar"}; Path=/; Max-Age=31536000; SameSite=Lax`;
-            router.refresh();
+            router.push("/" + (locale === "ar" ? "en" : "ar") + (pathname === "/" ? "" : pathname) + window.location.search + window.location.hash);
           }}>{locale === "ar" ? "English" : "العربية"}</button>
           <Link href="/contact" className="btn-header-consultation">
             <Calendar size={14} />

@@ -12,7 +12,7 @@ export default async function Compare({ searchParams }: { searchParams: Promise<
   const site = await getSitePageRender("properties");
   const en = site.locale === "en";
   const raw = (await searchParams).ids;
-  const ids = Array.from(new Set(typeof raw === "string" ? raw.split(",") : [])).filter(id => /^[a-zA-Z0-9-]{1,64}$/.test(id)).slice(0,3);
+  const ids = Array.from(new Set(typeof raw === "string" ? raw.split(",") : [])).filter(id => /^[a-zA-Z0-9-]{1,64}$/.test(id)).slice(0, 4);
   const listings = (await Promise.all(ids.map(getApprovedPublicListing))).filter(item => item !== null);
   const rows = [
     [en ? "Area" : "المنطقة", ...listings.map(p => p.zone)],

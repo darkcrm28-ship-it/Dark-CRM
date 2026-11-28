@@ -1,3 +1,5 @@
+import { websiteDb } from "@/lib/website-db";
+import { saveWebsitePage } from "@/lib/website-content";
 import { Prisma } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
 import { requireRole, ROLE } from "@/lib/auth";
@@ -58,7 +60,8 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
 
   const content = { overrides: update.overrides, heroImage: update.heroImage };
   try {
-    const saved = await prisma.$transaction(async tx => {
+    const db = websiteDb();
+    const saved = db ? await saveWebsitePage(db,page,update,session.id) : await prisma.$transaction(async tx => {
       if (update.revision === 0) {
         await tx.publicSitePage.create({ data: { key: page, enabled: update.enabled, content } });
       } else {

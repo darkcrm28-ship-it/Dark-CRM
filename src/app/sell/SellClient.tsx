@@ -38,19 +38,22 @@ export default function SellClient() {
     images: [] as string[],
   });
 
+  const requestKey = React.useRef("");
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    requestKey.current ||= crypto.randomUUID();
     setLoading(true);
     setError("");
     setSuccess(false);
 
     try {
       const payload = {
-        inquiryType: "SELL_UNIT",
+        requestKey: requestKey.current,
+          inquiryType: "SELL_UNIT",
         name: formData.name.trim(),
         phone: formData.phone.trim(),
         email: formData.email.trim(),
@@ -75,6 +78,7 @@ export default function SellClient() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || text("hero.text1"));
 
+      requestKey.current = "";
       setSuccess(true);
       setFormData({
         name: "",

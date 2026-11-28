@@ -145,10 +145,11 @@ async function main() {
   // We verify the route file contains the validation (static check).
   const inquirySrc = fs.readFileSync(path.join(__dirname, "..", "src", "app", "api", "public", "inquiry", "route.ts"), "utf-8");
   assert("Inquiry validates phone via normalizeEgyptianPhone", inquirySrc.includes("normalizeEgyptianPhone"));
-  assert("Inquiry rate limit present (DB-backed)", inquirySrc.includes("INQUIRY_RATE_MAX"));
-  assert("Inquiry uses transaction", inquirySrc.includes("prisma.$transaction"));
+  const deliverySrc = fs.readFileSync(path.join(__dirname, "..", "src", "lib", "crm-website-inquiry.ts"), "utf-8");
+  assert("Inquiry rate limit present (DB-backed)", deliverySrc.includes("INQUIRY_RATE_MAX"));
+  assert("Inquiry uses transaction", deliverySrc.includes("prisma.$transaction"));
   const typescript = require("typescript");
-  const tree = typescript.createSourceFile("inquiry.ts", inquirySrc, typescript.ScriptTarget.Latest, true);
+  const tree = typescript.createSourceFile("inquiry.ts", deliverySrc, typescript.ScriptTarget.Latest, true);
   let createPayload;
   function inspect(node) {
     if (typescript.isCallExpression(node) && node.expression.getText(tree) === "tx.customer.create") {
@@ -160,7 +161,7 @@ async function main() {
   assert("Inquiry stores notes inside customData, outside Customer columns",
     createPayload && !createPayload.properties.some(prop => prop.name?.getText(tree) === "notes") &&
     createPayload.properties.find(prop => prop.name?.getText(tree) === "customData")?.getText(tree).includes("notes:"));
-  assert("Inquiry generates WEB code with advisory lock", inquirySrc.includes("WEB_SEQUENCE_LOCK"));
+  assert("Inquiry generates WEB code with advisory lock", deliverySrc.includes("WEB_SEQUENCE_LOCK"));
 
   // ── TEST 10: Setup uses header only (no query string) ───────────────────
   section("TEST 10 — Setup secret from header only");

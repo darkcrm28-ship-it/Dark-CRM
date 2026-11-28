@@ -1,3 +1,4 @@
+import { publicLocalePath } from "./lib/public-locale-path";
 
 import { NextRequest, NextResponse } from "next/server";
 import { decrypt } from "@/lib/session-token";
@@ -22,6 +23,16 @@ const publicExactRoutes = [
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  const localized = publicLocalePath(pathname);
+  if (localized) {
+    const url = request.nextUrl.clone();
+    url.pathname = localized.path;
+    request.cookies.set("darak-language",localized.locale);
+    const response = NextResponse.rewrite(url,{request:{headers:new Headers(request.headers)}});
+    response.cookies.set("darak-language",localized.locale,{path:"/",maxAge:31536000,sameSite:"lax"});
+    return response;
+  }
 
   // Public pages and the explicitly public catalog/inquiry endpoints only.
   // NOTE: /share/* is intentionally NOT exempt. Until an approved publish /
